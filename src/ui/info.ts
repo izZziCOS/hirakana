@@ -5,7 +5,9 @@ import {
   getKana,
   isKanji,
   isWord,
+  findKana,
   kanjiOfWord,
+  kanjiSharingParts,
   lookalikesOf,
   mainReading,
   readingRomaji,
@@ -92,6 +94,7 @@ function highlightExample(word: string, kana: string): Html[] {
 }
 
 const USED_IN_LIMIT = 6;
+const RELATED_LIMIT = 8;
 
 const kunMarkup = (reading: string): Html => {
   const [stem = '', okurigana] = reading.split('.');
@@ -136,6 +139,33 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
     'Type',
     `${SCRIPT_LABEL[item.script]}${item.strokes ? ` · ${item.strokes} strokes` : ''} · ${item.row} · ${GROUP_LABEL[item.group]}`,
   );
+  if (item.parts?.length) {
+    add(
+      'Parts',
+      html`${join(
+        item.parts.map(part => {
+          const kanji = findKana(part.kanji);
+          const shape = part.shape === part.kanji ? bigJp(part.shape) : html`${bigJp(part.shape)} (${jp(part.kanji)})`;
+          return kanji && isKanji(kanji)
+            ? html`${linkTo(kanji, shape)} <span class="muted">${kanji.meanings?.[0]}</span>`
+            : shape;
+        }),
+        ' + ',
+      )}`,
+    );
+    const related = kanjiSharingParts(item, RELATED_LIMIT);
+    if (related.length) {
+      add(
+        'Same parts in',
+        html`${join(
+          related.map(
+            other => html`${linkTo(other, bigJp(other.kana))} <span class="muted">${other.meanings?.[0]}</span>`,
+          ),
+          ' · ',
+        )}`,
+      );
+    }
+  }
   const usedIn = isKanji(item) ? wordsWithKanji(item) : [];
   if (usedIn.length) {
     add(

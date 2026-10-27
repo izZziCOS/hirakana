@@ -1,24 +1,40 @@
 import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
 import { formatSeconds } from './format.ts';
-import { isKanji, KANA, statKey, supportsDirection } from './kana.ts';
+import { DIRECTIONS, isKanji, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
+import { mixUpOf } from './mistakes.ts';
 import {
   isDue,
   isSeen,
   MAX_TIMED_MS,
   outcomeFor,
   personalPace,
-  pickNext,
+  pickEntry,
   slowThreshold,
+  type Stats,
   weightedPick,
 } from './schedule.ts';
 import { combinedDays, recordAnswer } from './state.ts';
-import type { Card, CardKind, Drill, KanaItem, Mode, Outcome, Session, Settings, State } from './types.ts';
+import type {
+  Card,
+  CardKind,
+  Direction,
+  Drill,
+  Entry,
+  KanaItem,
+  Mode,
+  Outcome,
+  PracticeDirection,
+  Session,
+  Settings,
+  State,
+} from './types.ts';
 import type { Random } from './util.ts';
 
 export const ADVANCE_DELAY: Partial<Record<Outcome, number>> = { correct: 900, slow: 2200 };
 export const NEW_BATCH = 5;
 export const DRILL_SIZE = 12;
+export const MAX_FOLLOW_UPS = 4;
 
 export const newSession = (): Session => ({
   answered: 0,
@@ -29,6 +45,7 @@ export const newSession = (): Session => ({
   drill: null,
   card: null,
   undo: null,
+  followUps: [],
 });
 
 export const startDrill = (session: Session, drill: Drill): Session => ({ ...session, drill });
@@ -42,7 +59,12 @@ const PRACTICE_SETTINGS = ['script', 'mode', 'direction', 'newPerDay'] as const;
 export const affectsPractice = (before: Settings, after: Settings): boolean =>
   PRACTICE_SETTINGS.some(key => before[key] !== after[key]) || before.rows.join() !== after.rows.join();
 
-export const effectiveMode = (settings: Settings): Mode => (settings.direction === 'match' ? 'choose' : settings.mode);
+export const effectiveMode = (settings: Settings, direction: PracticeDirection = settings.direction): Mode =>
+  direction === 'match' ? 'choose' : settings.mode;
+
+// Drills and anything else that needs one direction use reading when practice is mixed.
+export const singleDirection = (direction: PracticeDirection): Direction =>
+  direction === 'mixed' ? 'read' : direction;
 
 export const rowsPool = (settings: Settings): KanaItem[] =>
   KANA.filter(
@@ -51,8 +73,38 @@ export const rowsPool = (settings: Settings): KanaItem[] =>
       settings.rows.includes(item.rowId),
   );
 
-export const activePool = (settings: Settings): KanaItem[] =>
-  rowsPool(settings).filter(item => supportsDirection(item, settings.direction));
+export const activePool = (
+  settings: Settings,
+  direction: Direction = singleDirection(settings.direction),
+): KanaItem[] => rowsPool(settings).filter(item => supportsDirection(item, direction));
+
+// Mixed practice covers reading and every other direction already practised (listening only with a voice).
+export function mixedDirections(stats: Stats, voice = true): Direction[] {
+  const used = new Set(Object.keys(stats).map(key => parseStatKey(key).direction));
+  return DIRECTIONS.filter(
+    direction => (direction === 'read' || used.has(direction)) && (voice || direction !== 'listen'),
+  );
+}
+
+export function practiceEntries(state: State, voice = true): Entry[] {
+  const { settings, stats } = state;
+  const directions = settings.direction === 'mixed' ? mixedDirections(stats, voice) : [settings.direction];
+  return rowsPool(settings).flatMap(item =>
+    directions.filter(direction => supportsDirection(item, direction)).map(direction => ({ item, direction })),
+  );
+}
+
+export const practiceKeys = (state: State, voice = true): string[] =>
+  practiceEntries(state, voice).map(entry => statKey(entry.item, entry.direction));
+
+const canRead = (stats: Stats, item: KanaItem): boolean => (stats[statKey(item, 'read')]?.box ?? 0) >= 2;
+
+// In mixed practice a character is learned by reading it first; the other directions open up once it can be read.
+const introducible = (state: State) => (entry: Entry) =>
+  state.settings.direction !== 'mixed' || entry.direction === 'read' || canRead(state.stats, entry.item);
+
+export const neverSeen = (stats: Stats, item: KanaItem): boolean =>
+  DIRECTIONS.every(direction => !isSeen(stats, statKey(item, direction)));
 
 export const learnedToday = (state: State, now: number): number => combinedDays(state)[dayKey(now)]?.learned ?? 0;
 
@@ -65,8 +117,7 @@ export interface TodaySummary {
 
 // What "Continue" will bring up: reviews due now and new cards still allowed today, in the picked rows.
 export function todaySummary(state: State, session: Session, now: number): TodaySummary {
-  const { direction } = state.settings;
-  const keys = activePool(state.settings).map(item => statKey(item, direction));
+  const keys = practiceKeys(state);
   const unseen = keys.filter(key => !isSeen(state.stats, key)).length;
   return {
     due: keys.filter(key => isDue(state.stats, key, now)).length,
@@ -84,54 +135,106 @@ export function emptyMessage(settings: Settings, drill: Drill | null): string {
   if (settings.direction === 'meaning') return 'Meaning mode is for kanji. Choose some kanji rows above.';
   if (settings.direction === 'write')
     return 'Writing works with single kana and kanji. Choose some of those rows above.';
-  return 'Words can only be practised in Read mode, and kanji in Read or Meaning mode. Choose more rows above.';
+  return 'Words can be practised in Read and Listen mode, and kanji in Read or Meaning mode. Choose more rows above.';
 }
 
 export type NextStep =
-  | { status: 'card'; item: KanaItem; kind: CardKind; choices: string[] }
+  | { status: 'card'; item: KanaItem; kind: CardKind; direction: Direction; choices: string[]; intro: boolean }
   | { status: 'done' }
   | { status: 'empty'; message: string };
 
 interface NextOptions {
   now: number;
   random?: Random;
+  // Whether the browser can speak Japanese; without it mixed practice leaves listening out.
+  voice?: boolean;
 }
 
-export function chooseNext(state: State, session: Session, { now, random = Math.random }: NextOptions): NextStep {
+export function chooseNext(
+  state: State,
+  session: Session,
+  { now, random = Math.random, voice = true }: NextOptions,
+): NextStep {
   const { settings, stats } = state;
-  const { direction } = settings;
   const currentItem = session.card?.item ?? null;
-  const pool = activePool(settings);
-  const drillItems = session.drill?.items.filter(item => supportsDirection(item, direction)) ?? [];
+  const entries = practiceEntries(state, voice);
+  const drillDirection = singleDirection(settings.direction);
+  const drillItems = session.drill?.items.filter(item => supportsDirection(item, drillDirection)) ?? [];
+  const followUp = session.drill ? undefined : session.followUps.find(entry => entry.item !== currentItem);
 
-  let pick: { item: KanaItem; kind: CardKind } | null;
+  let pick: { item: KanaItem; kind: CardKind; direction: Direction } | null;
   if (session.drill) {
-    const item = weightedPick(drillItems, stats, currentItem, { direction, random });
-    pick = item ? { item, kind: 'drill' } : null;
+    const item = weightedPick(drillItems, stats, currentItem, { direction: drillDirection, random });
+    pick = item ? { item, kind: 'drill', direction: drillDirection } : null;
+  } else if (followUp) {
+    pick = { ...followUp, kind: 'contrast' };
   } else {
     const allowNew = learnedToday(state, now) < newLimit(state, session);
-    pick = pickNext({ pool, stats, direction, currentItem, now, allowNew, random });
+    const canIntroduce = introducible(state);
+    pick = pickEntry({ entries, stats, currentItem, now, allowNew, canIntroduce, random });
   }
 
   if (!pick) return { status: 'empty', message: emptyMessage(settings, session.drill) };
 
-  const struggling = pool.some(item => stats[statKey(item, direction)]?.box === 1);
+  const struggling = entries.some(entry => stats[statKey(entry.item, entry.direction)]?.box === 1);
   if (pick.kind === 'ahead' && !session.extra && !struggling) return { status: 'done' };
 
+  const { direction } = pick;
   const choices =
-    effectiveMode(settings) === 'choose' && direction !== 'write'
-      ? buildChoices(pick.item, { direction, pool, drillItems, random })
+    effectiveMode(settings, direction) === 'choose' && direction !== 'write'
+      ? buildChoices(pick.item, { direction, pool: activePool(settings, direction), drillItems, random })
       : [];
-  return { status: 'card', ...pick, choices };
+  const intro = settings.introduce && pick.kind === 'new' && neverSeen(stats, pick.item);
+  return { status: 'card', ...pick, choices, intro };
 }
 
 export function showCard(session: Session, step: NextStep, shownAt: number, untimed = false): Session {
   if (step.status !== 'card') return { ...session, card: null };
-  const { item, kind, choices } = step;
+  const { item, kind, direction, choices, intro } = step;
+  const followUps =
+    kind === 'contrast'
+      ? session.followUps.filter(entry => entry.item !== item || entry.direction !== direction)
+      : session.followUps;
   return {
     ...session,
     undo: null,
-    card: { item, kind, choices, answered: false, revealed: false, untimed, shownAt, outcome: null, given: null },
+    followUps,
+    card: {
+      item,
+      kind,
+      direction,
+      intro,
+      choices,
+      answered: false,
+      revealed: false,
+      untimed,
+      shownAt,
+      outcome: null,
+      given: null,
+    },
+  };
+}
+
+// After a mix-up both characters come back within the next few cards: the one picked by mistake, then the right one.
+export function queueContrast(followUps: Entry[], card: Card, given: string | null, now: number): Entry[] {
+  const mixUp = given ? mixUpOf({ kana: card.item.kana, given, at: now, direction: card.direction }) : null;
+  if (!mixUp) return followUps;
+  const [item, other] = mixUp;
+  const added = [other, item]
+    .filter(entry => supportsDirection(entry, card.direction))
+    .map(entry => ({ item: entry, direction: card.direction }));
+  const isAdded = (entry: Entry) => added.some(next => next.item === entry.item && next.direction === entry.direction);
+  return [...followUps.filter(entry => !isAdded(entry)), ...added].slice(-MAX_FOLLOW_UPS);
+}
+
+// Ends the introduction of a new character. It counts as learned and comes back as a review a minute later.
+export function finishIntro(state: State, session: Session, now: number): { state: State; session: Session } | null {
+  const { card } = session;
+  if (!card?.intro || card.answered) return null;
+  const { item, direction } = card;
+  return {
+    state: recordAnswer(state, { item, direction, outcome: 'peeked', given: null, ms: null, now, run: session.streak }),
+    session: { ...session, undo: null, card: { ...card, answered: true, outcome: 'peeked' } },
   };
 }
 
@@ -189,19 +292,20 @@ export function submitAnswer(
 ): AnswerResult | null {
   const { card } = session;
   if (!card || card.answered) return null;
-  const { direction } = state.settings;
-  const { item } = card;
+  const { item, direction } = card;
   const ms = answerTiming(card, clock);
   const isCorrect = isCorrectAnswer(item, direction, given);
   const threshold =
     state.settings.speedCheck === 'off'
       ? Infinity
-      : slowThreshold(item, effectiveMode(state.settings), direction, personalPace(state.stats, direction));
+      : slowThreshold(item, effectiveMode(state.settings, direction), direction, personalPace(state.stats, direction));
   const outcome = outcomeFor({ isCorrect, revealed: card.revealed, ms, threshold });
   const nextSession: Session = {
     ...countAnswer(session, outcome),
     card: { ...card, answered: true, outcome, given },
     undo: { state, session, clock },
+    followUps:
+      outcome === 'wrong' && !session.drill ? queueContrast(session.followUps, card, given, now) : session.followUps,
   };
   const key = statKey(item, direction);
   const nextState = recordAnswer(state, { item, direction, outcome, given, ms, now, run: nextSession.streak });
@@ -231,8 +335,8 @@ export function canForgiveTypo(state: State, session: Session): boolean {
     undo &&
     card?.outcome === 'wrong' &&
     card.given &&
-    effectiveMode(state.settings) === 'type' &&
-    state.settings.direction !== 'write' &&
+    effectiveMode(state.settings, card.direction) === 'type' &&
+    card.direction !== 'write' &&
     !card.revealed,
   );
 }
@@ -240,7 +344,7 @@ export function canForgiveTypo(state: State, session: Session): boolean {
 export function forgiveTypo(state: State, session: Session, now: number): AnswerResult | null {
   const { card, undo } = session;
   if (!card || !undo || !canForgiveTypo(state, session)) return null;
-  const answer = answerOf(card.item, undo.state.settings.direction);
+  const answer = answerOf(card.item, card.direction);
   return submitAnswer(undo.state, undo.session, answer, { now, clock: undo.clock });
 }
 

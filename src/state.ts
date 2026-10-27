@@ -58,6 +58,7 @@ export const defaultState = (): State => ({
     speedCheck: 'adaptive',
     theme: 'system',
     kanaPad: false,
+    introduce: true,
   },
   stats: {},
   mistakes: [],
@@ -135,7 +136,7 @@ function sanitizeSettings(raw: unknown): Settings {
     script: includes(SCRIPT_SETTINGS, settings.script) ? settings.script : fresh.script,
     rows: rows.length ? rows : fresh.rows,
     mode: includes(MODES, settings.mode) ? settings.mode : fresh.mode,
-    direction: includes(DIRECTIONS, settings.direction) ? settings.direction : fresh.direction,
+    direction: includes([...DIRECTIONS, 'mixed'], settings.direction) ? settings.direction : fresh.direction,
     newPerDay:
       typeof settings.newPerDay === 'number' && NEW_PER_DAY_OPTIONS.includes(settings.newPerDay)
         ? settings.newPerDay
@@ -144,6 +145,7 @@ function sanitizeSettings(raw: unknown): Settings {
     speedCheck: includes(SPEED_CHECKS, settings.speedCheck) ? settings.speedCheck : fresh.speedCheck,
     theme: includes(THEMES, settings.theme) ? settings.theme : fresh.theme,
     kanaPad: typeof settings.kanaPad === 'boolean' ? settings.kanaPad : fresh.kanaPad,
+    introduce: typeof settings.introduce === 'boolean' ? settings.introduce : fresh.introduce,
   };
 }
 
@@ -314,7 +316,7 @@ export function toggleGroup(state: State, groupId: GroupId): State {
 
 // Mastered and total cards of a set in the current direction, for the track cards.
 export function groupProgress(state: State, groupId: GroupId): { mastered: number; total: number } {
-  const { direction } = state.settings;
+  const direction = state.settings.direction === 'mixed' ? 'read' : state.settings.direction;
   const items = KANA.filter(item => item.group === groupId && supportsDirection(item, direction));
   const mastered = items.filter(item => levelOf(state.stats[statKey(item, direction)]) === 'mastered').length;
   return { mastered, total: items.length };

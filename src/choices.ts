@@ -135,7 +135,8 @@ export function buildChoices(
       k !== undefined &&
       k !== answer &&
       k.script === answer.script &&
-      supportsDirection(k, 'recall') &&
+      isWord(k) === isWord(answer) &&
+      supportsDirection(k, direction === 'listen' ? 'listen' : 'recall') &&
       !sharesReading(k, answer),
   );
   const distractors = unique(candidates.map(k => k.kana));

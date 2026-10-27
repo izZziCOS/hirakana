@@ -5,6 +5,7 @@ import {
   dayKey,
   expect,
   feedback,
+  openApp,
   prompt,
   savedStatKeys,
   start,
@@ -43,7 +44,7 @@ test('the old storage key is migrated to the new one', async ({ page, seed }) =>
 
 test('activity and accuracy charts have tooltips and table views', async ({ page, seed }) => {
   await seed({ version: 4, days: withHistory() });
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('tab', { name: 'Progress' }).click();
 
   const cell = page.locator(`.heat-cell[data-day="${dayKey(-1)}"]`);
@@ -85,7 +86,7 @@ test('progress can be exported, reset and imported again', async ({ page }) => {
 });
 
 test('an invalid import file is rejected with a message', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('tab', { name: 'Progress' }).click();
   await page.locator('#import-file').setInputFiles({
     name: 'nope.json',
@@ -96,7 +97,7 @@ test('an invalid import file is rejected with a message', async ({ page }) => {
 });
 
 test('the info dialog opens from the progress grid', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('tab', { name: 'Progress' }).click();
   await page.locator('#progress-grids .cell[data-kana="か"]').click();
   await expect(page.locator('#kana-dialog')).toBeVisible();
@@ -106,7 +107,7 @@ test('the info dialog opens from the progress grid', async ({ page }) => {
 
 test('the home screen asks for a backup after a week of practice and exporting clears it', async ({ page, seed }) => {
   await seed({ version: 5, days: { [dayKey(-8)]: { answers: 3, learned: 3, scored: 3, correct: 3 } } });
-  await page.goto('/');
+  await openApp(page);
   const note = page.locator('#backup-note');
   await expect(note).toBeVisible();
   await expect(note).toContainText('Not backed up yet.');
@@ -121,7 +122,7 @@ test('the home screen asks for a backup after a week of practice and exporting c
 
 test('"Not now" hides the backup reminder until the next visit', async ({ page, seed }) => {
   await seed({ version: 5, days: { [dayKey(-8)]: { answers: 3, learned: 3, scored: 3, correct: 3 } } });
-  await page.goto('/');
+  await openApp(page);
   await page.locator('#backup-later').click();
   await expect(page.locator('#backup-note')).toBeHidden();
   await page.reload();
@@ -152,7 +153,7 @@ test('answers given in another tab are kept when this tab answers next', async (
 test('kanji progress is kept when the kanji load after the app', async ({ page, seed }) => {
   const stat = { correct: 2, wrong: 0, streak: 2, box: 3, due: Date.now() + 3_600_000, last: Date.now() };
   await seed({ version: 6, stats: { 日: stat, 'meaning:水': stat, あ: stat }, settings: { rows: ['k5:N5 · 1–30'] } });
-  await page.goto('/');
+  await openApp(page);
   await expect(page.locator('#hero-detail')).toContainText('N5');
   // Any change saves the whole state; the kanji cards must still be in it.
   await page.locator('#theme-toggle').click();
@@ -163,7 +164,7 @@ test('kanji progress is kept when the kanji load after the app', async ({ page, 
 });
 
 test('a kana learner sees the kanji sets once they have loaded in the background', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await expect(page.locator('.track-group[data-group="k5"] .track-group-status')).toHaveText('79 cards');
 });
 

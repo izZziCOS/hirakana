@@ -18,6 +18,7 @@ import {
 import { defaultState, migrateState, STATE_VERSION, updateSettings } from '../src/state.ts';
 import type { Card, Session, Settings, State } from '../src/types.ts';
 import { kanaPadRows } from '../src/ui/practice/kana-pad.ts';
+import { codePoints } from '../src/util.ts';
 
 const NOW = new Date(2026, 0, 10, 12).getTime();
 const vowels = (changes: Partial<Settings> = {}): State =>
@@ -29,6 +30,8 @@ function sessionWith(kana: string, changes: Partial<Card> = {}): Session {
     card: {
       item: getKana(kana),
       kind: 'new',
+      direction: 'read',
+      intro: false,
       choices: [],
       answered: false,
       revealed: false,
@@ -135,12 +138,17 @@ test('version 4 saves gain the new settings with defaults, and bad values are re
     { version: 5, stats: { 'listen:あ': { box: 2, due: NOW }, 'listen:やま': {} } },
     NOW,
   );
-  assert.deepEqual(Object.keys(listenStats.stats), ['listen:あ']);
+  assert.deepEqual(Object.keys(listenStats.stats), ['listen:あ', 'listen:やま']);
 });
 
-test('listening works like recall: same-script kana, no words', () => {
+test('listening works like recall for kana, and for words too', () => {
   assert.ok(supportsDirection(getKana('か'), 'listen'));
-  assert.ok(!supportsDirection(getKana('やま'), 'listen'));
+  assert.ok(supportsDirection(getKana('やま'), 'listen'));
+  assert.ok(isCorrectAnswer(getKana('やま'), 'listen', 'やま'));
+  const words = buildChoices(getKana('やま'), { direction: 'listen', pool: KANA, random: () => 0.3 });
+  assert.equal(words.length, 4);
+  assert.ok(words.includes('やま'));
+  assert.ok(words.every(choice => codePoints(choice).length > 1));
   assert.ok(isCorrectAnswer(getKana('か'), 'listen', 'か'));
   assert.ok(!isCorrectAnswer(getKana('か'), 'listen', 'ka'));
   const target = getKana('じ');

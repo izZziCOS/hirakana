@@ -1,7 +1,7 @@
-import { answer, dayKey, expect, feedback, prompt, start, test } from './fixtures.ts';
+import { answer, dayKey, expect, feedback, openApp, prompt, start, test } from './fixtures.ts';
 
 test('the home screen sums up today and Continue starts practice', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await expect(page.locator('#hero-title')).toHaveText('15 new to learn');
   await expect(page.locator('#hero-detail')).toHaveText('Read · Basic');
   await expect(page.locator('#streak')).toBeHidden();
@@ -29,7 +29,7 @@ test('starts with あ and moves on after a correct typed answer', async ({ page 
 
 // A page wider than the screen makes mobile browsers shift every tap, which shows up as click timeouts elsewhere.
 test('no view is wider than the screen', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const screenWidth = page.viewportSize()?.width ?? 0;
   const pageWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
   await page.locator('[data-track="kanji"]').click();
@@ -50,7 +50,9 @@ test('a wrong answer explains the mix-up and waits for Next', async ({ page }) =
   await expect(feedback(page)).toContainText('which is お');
   await expect(page.locator('#card')).toHaveClass(/is-wrong/);
   await page.getByRole('button', { name: /^Next/ }).click();
-  await expect(prompt(page)).toHaveText('い');
+  // The kana picked by mistake comes straight back to tell the two apart.
+  await expect(prompt(page)).toHaveText('お');
+  await expect(page.locator('#card-badge')).toHaveText('Look-alike');
 });
 
 test('peeking at the info panel shows details and skips scoring', async ({ page }) => {
@@ -64,7 +66,7 @@ test('peeking at the info panel shows details and skips scoring', async ({ page 
 });
 
 test('multiple choice can be answered with the number keys', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('button', { name: 'Multiple choice' }).click();
   await page.locator('#continue-btn').click();
   const choices = page.locator('#choices .choice');
@@ -95,7 +97,7 @@ test('recall accepts typed kana but not while the Japanese keyboard is still com
 
 test('matching shows the other script as choices', async ({ page, seed }) => {
   await seed({ version: 4, settings: { direction: 'match', rows: ['basic:Vowels'] } });
-  await page.goto('/');
+  await openApp(page);
   await expect(page.locator('#mode-select')).toBeHidden();
   await page.locator('#continue-btn').click();
   await expect(page.locator('#card-script')).toHaveText('Hiragana → katakana');
@@ -114,7 +116,7 @@ test('shows “Done for today” when nothing is due and the new limit is used u
     stats,
     days: { [dayKey()]: { answers: 5, learned: 5, scored: 5, correct: 5 } },
   });
-  await page.goto('/');
+  await openApp(page);
   await expect(page.locator('#hero-title')).toHaveText('All caught up for now');
   await expect(page.locator('#continue-btn')).toHaveText('Practise anyway');
   await page.locator('#continue-btn').click();
@@ -127,7 +129,7 @@ test('shows “Done for today” when nothing is due and the new limit is used u
 });
 
 test('the track cards choose what is practised', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.locator('[data-track="kana"]').click();
   await page.locator('[data-row="dakuten:G-row"]').click();
   await page.locator('[data-group="basic"]').click();

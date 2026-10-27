@@ -4,6 +4,12 @@ export const STORAGE_KEY = 'kana-dojo';
 
 type Seed = (state: object, key?: string) => Promise<void>;
 
+// Most tests practise without the introduction of new characters; a seeded state can turn it back on.
+const withoutIntros = (state: object): object => {
+  const settings = 'settings' in state && typeof state.settings === 'object' ? state.settings : {};
+  return { ...state, settings: { introduce: false, ...settings } };
+};
+
 export const test = base.extend<{ seed: Seed }>({
   seed: async ({ page }, use) => {
     await use(async (state, key = STORAGE_KEY) => {
@@ -13,7 +19,7 @@ export const test = base.extend<{ seed: Seed }>({
           localStorage.setItem(storageKey, value);
           sessionStorage.setItem('seeded', 'true');
         },
-        [key, JSON.stringify(state)] as const,
+        [key, JSON.stringify(withoutIntros(state))] as const,
       );
     });
   },
@@ -43,9 +49,19 @@ export async function answer(page: Page, value: string): Promise<void> {
   await page.locator('#answer-input').press('Enter');
 }
 
+// Opens the app. Without saved progress it starts with the introduction of new characters turned off, like seed().
+export async function openApp(page: Page, path = '/'): Promise<void> {
+  await page.addInitScript(key => {
+    if (localStorage.getItem(key) === null && localStorage.getItem(`${key}-v1`) === null) {
+      localStorage.setItem(key, JSON.stringify({ version: 6, settings: { introduce: false } }));
+    }
+  }, STORAGE_KEY);
+  await page.goto(path);
+}
+
 // The Learn tab opens on the home screen; Continue starts (or resumes) practice.
 export async function start(page: Page): Promise<void> {
-  await page.goto('/');
+  await openApp(page);
   await page.locator('#continue-btn').click();
 }
 

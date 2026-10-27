@@ -5,19 +5,25 @@ loaded, and keeps progress in the browser with no backend.
 
 - **Home screen:** a "Today" panel with the reviews due and new cards left and one Continue button, three tracks
   (Kana, Vocabulary, Kanji) whose sets and rows you switch on and off, and the practice modes grouped into Recognise,
-  Produce and Compare. Daily limits, the session goal and the speed check live in a Settings dialog.
+  Produce and Compare. Daily limits, the session goal, the speed check and introductions live in a Settings dialog.
 - **Six directions:** read (あ → ka, 水 → sui or mizu), recall (ka → あ, picked from four options or typed), match (あ ↔ ア),
-  listen (hear it, then pick or type it), meaning (水 → water, for kanji) and write (ka or "water" → draw it, checked
-  stroke by stroke; up to one retried stroke in four still passes). Each has its own review schedule. Listening uses
-  the browser's Japanese voice and is only offered when one exists.
+  listen (hear a kana or a word, then pick or type it), meaning (水 → water, for kanji) and write (ka or "water" → draw
+  it, checked stroke by stroke; up to one retried stroke in four still passes). Each has its own review schedule.
+  Listening uses the browser's Japanese voice and is only offered when one exists. **Mixed** practice brings due
+  cards from every direction you use into one session; new characters are learned by reading first, and the other
+  directions open up once a character can be read.
 - **Character sets:** basic kana, dakuten, combinations (きゃ), small っ and long ー, loanword katakana (ファ), ~90 everyday
   words, and JLPT vocabulary for every level (~90 N5 words, 50–65 each for N4–N1, shown with their kanji). Practise
   whole sets or individual rows.
 - **Kanji:** all ~2,200 JLPT kanji (N5 79, N4 166, N3 367, N2 367, N1 1,232) in rows of 30, most frequent first. Read
   accepts any on or kun reading; the info panel lists the readings, meanings, stroke count, stroke order and the
-  vocabulary words that use the kanji, which can be drilled together. New words whose kanji you already know come first.
+  vocabulary words that use the kanji, which can be drilled together. It also shows the parts a kanji is built from
+  (語 = 言 + 吾, from KanjiVG) and other kanji that share them. New words whose kanji you already know come first.
 - **Two stages for kanji and words written in kanji:** the reading is shown under the kanji until it is mastered, then
   hidden; a miss or a peek brings it back. The card says when either happens.
+- **Learning new characters:** a character seen for the first time is introduced with its reading, sound, stroke order
+  and example before it is tested, a minute later (can be turned off in Settings). After a mix-up, both characters
+  come back within the next few cards to tell them apart.
 - **Spaced repetition** with 11 steps from 1 minute to 8 months. Slow answers don't advance a card; the time limit adapts
   to your own pace and can be switched off. Peeking moves a card back two steps. A daily limit on new characters leads to
   a "Done for today" screen.
@@ -25,8 +31,9 @@ loaded, and keeps progress in the browser with no backend.
   undo for the last answer.
 - **Info panel:** animated stroke order, handwriting practice that checks each stroke, origin kanji, example word,
   look-alikes and your own record.
-- **Progress:** mastery grid, 7-day review forecast, activity calendar (select a day to see its mistakes) and a weekly
-  accuracy chart.
+- **Progress:** mastery grid, 7-day review forecast, activity calendar (select a day to see its mistakes), a weekly
+  accuracy chart, the share of answers remembered per set, and the words you can already read with the kana you know.
+  Milestones mark a whole set mastered and new numbers of readable words.
 - **Mistakes:** history, most-missed characters and mixed-up pairs (シ ⇄ ツ), each of which can be drilled.
 - **Sync:** optional, end-to-end encrypted sync between devices with a sync code or link, through a small server you
   deploy yourself (see [worker/README.md](worker/README.md)).
@@ -73,7 +80,10 @@ vendor/kanjivg/          Stroke data for every character the app uses (see its R
 src/
   data.ts                All kana, words, examples, notes and look-alike groups
   kanji-data.ts          Generated JLPT kanji list (readings, meanings); refresh with node scripts/fetch-kanji.ts
+  kanji-parts.ts         Generated parts of each kanji from KanjiVG; refresh with node scripts/make-kanji-parts.ts
   kanji.ts               Adds the kanji to the item lists; loaded on demand through kanji-loader.ts
+  reading.ts             Which words the learner can read with the characters they know
+  milestones.ts          Recall rates per set and milestones after an answer
   kana.ts                Builds the kana, word and kanji items, romaji and answer lookups from the data
   schedule.ts            Spaced repetition and answer timing
   choices.ts             Multiple-choice options and answer checking

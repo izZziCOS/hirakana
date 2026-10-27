@@ -1,5 +1,15 @@
 import { ALT_KANA, ALT_ROMAJI, CHARACTER_ROWS, KANJI_LEVELS, LOOKALIKES, WORD_ROWS } from './data.ts';
-import type { Direction, GroupId, KanaItem, KanaScript, KanjiEntry, KanjiGroupId, RowInfo, Script } from './types.ts';
+import type {
+  Direction,
+  GroupId,
+  KanaItem,
+  KanaScript,
+  KanjiEntry,
+  KanjiGroupId,
+  KanjiPart,
+  RowInfo,
+  Script,
+} from './types.ts';
 import { codePoints, unique } from './util.ts';
 
 export const SCRIPTS: KanaScript[] = ['hiragana', 'katakana'];
@@ -187,16 +197,26 @@ export const ROW_INFO: RowInfo[] = [
 let kanjiRegistered = false;
 export const kanjiLoaded = (): boolean => kanjiRegistered;
 
+// Kanji by the parts they contain, keyed by the part's own kanji (水 for 氵).
+const kanjiByPart = new Map<string, KanaItem[]>();
+
+const partsFrom = (list: string | undefined): KanjiPart[] =>
+  splitList(list ?? '').map(part => {
+    const [shape = '', kanji] = part.split('=');
+    return { shape, kanji: kanji ?? shape };
+  });
+
 // Adds the JLPT kanji to KANA and ROW_INFO. They are kept out of the main bundle so that people learning kana don't
 // have to download them before the app starts.
-export function registerKanji(data: KanjiEntry[]): void {
+export function registerKanji(data: KanjiEntry[], parts: Record<string, string> = {}): void {
   if (kanjiRegistered) return;
   kanjiRegistered = true;
   for (const row of kanjiRowsOf(data)) {
     for (const entry of row.entries) {
-      const item = kanjiItem(entry, row);
+      const item = { ...kanjiItem(entry, row), parts: partsFrom(parts[entry[0]]) };
       KANA.push(item);
       kanaIndex.set(item.kana, item);
+      item.parts.forEach(part => kanjiByPart.set(part.kanji, [...(kanjiByPart.get(part.kanji) ?? []), item]));
     }
     ROW_INFO.push({
       id: rowIdOf(row),
@@ -213,6 +233,14 @@ export function registerKanji(data: KanjiEntry[]): void {
 }
 
 export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
+
+// Other kanji built with one of this kanji's parts, or with this kanji as a part, most common first.
+export function kanjiSharingParts(item: KanaItem, limit: number): KanaItem[] {
+  const keys = [item.kana, ...(item.parts ?? []).map(part => part.kanji)];
+  return unique(keys.flatMap(key => kanjiByPart.get(key) ?? []))
+    .filter(other => other !== item)
+    .slice(0, limit);
+}
 
 // The JLPT kanji a word is written with, and the words written with a kanji.
 export const kanjiOfWord = (word: KanaItem): KanaItem[] =>
@@ -258,7 +286,8 @@ export function supportsDirection(item: KanaItem, direction: Direction): boolean
   if (direction === 'write') return !isWord(item) && codePoints(item.kana).length === 1;
   if (isKanji(item)) return direction === 'read' || direction === 'meaning';
   if (direction === 'meaning') return false;
-  if (direction === 'recall' || direction === 'listen') return !isWord(item);
+  if (direction === 'recall') return !isWord(item);
+  if (direction === 'listen') return true;
   if (direction === 'match') return !isWord(item) && Boolean(item.counterpart);
   return true;
 }

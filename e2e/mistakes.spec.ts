@@ -1,4 +1,4 @@
-import { answer, expect, feedback, prompt, start, test } from './fixtures.ts';
+import { answer, expect, feedback, openApp, prompt, start, test } from './fixtures.ts';
 
 const now = Date.now();
 
@@ -12,7 +12,7 @@ test('mistakes are listed and mixed-up pairs can be drilled', async ({ page, see
       { kana: 'ソ', given: 'n', at: now - 3000, direction: 'read' },
     ],
   });
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('tab', { name: 'Mistakes' }).click();
 
   await expect(page.locator('#mistake-list .mistake')).toHaveCount(3);
@@ -40,7 +40,7 @@ test('a new mistake shows up in the history', async ({ page }) => {
 test('an error banner appears if the app fails to load', async ({ page }) => {
   await page.clock.install();
   await page.route(/main-[A-Z0-9]+\.js$/, route => route.abort());
-  await page.goto('/');
+  await openApp(page);
   await page.clock.fastForward(9000);
   await expect(page.getByRole('alert')).toContainText('Something went wrong');
 });

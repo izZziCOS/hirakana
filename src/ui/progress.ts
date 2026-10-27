@@ -2,7 +2,10 @@ import { GROUPS } from '../data.ts';
 import { bestDayStreak, dayStreak, forecast } from '../days.ts';
 import { formatSeconds, formatWait } from '../format.ts';
 import { isKanji, isWord, KANA, statKey, supportsDirection } from '../kana.ts';
+import { recallRate } from '../milestones.ts';
+import { readableWords } from '../reading.ts';
 import { isDue, levelOf } from '../schedule.ts';
+import { singleDirection } from '../session.ts';
 import { combinedDays } from '../state.ts';
 import type { AppStores } from '../store.ts';
 import type { Direction, Group, KanaItem, Script, State } from '../types.ts';
@@ -41,9 +44,12 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     activity: $('#activity'),
     trend: $('#trend'),
     grids: $('#progress-grids'),
+    readable: $('#readable'),
+    readableWords: $('#readable-words'),
+    readableTitle: $('#readable-h'),
   };
   let script: Script = data.get().settings.script === 'katakana' ? 'katakana' : 'hiragana';
-  let direction: Direction = data.get().settings.direction;
+  let direction: Direction = singleDirection(data.get().settings.direction);
   // A kanji level has up to 1,232 cells, so each level is drawn only once it is opened.
   const expanded = new Set<string>();
 
@@ -82,8 +88,30 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     });
   }
 
+  const READABLE_SHOWN = 40;
+
+  function renderReadable(state: State): void {
+    const words = readableWords(state.stats);
+    els.readable.hidden = !words.length;
+    els.readableTitle.textContent = `Words you can read: ${words.length}`;
+    setHtml(
+      els.readableWords,
+      words.slice(0, READABLE_SHOWN).map(
+        ({ item, inKanji }) =>
+          html`<button type="button" class="readable-word" data-kana="${item.kana}" title="${item.meaning ?? ''}">
+            <span class="jp">${inKanji && item.kanji ? item.kanji : item.kana}</span>
+            <span class="muted small">${item.romaji}</span>
+          </button>`,
+      ),
+    );
+  }
+
   function groupSection(state: State, group: Group, groupItems: KanaItem[], now: number): Html {
     const mastered = groupItems.filter(k => levelOf(state.stats[statKey(k, direction)]) === 'mastered').length;
+    const recall = recallRate(state.stats, groupItems, direction);
+    const summary = html`<span class="muted"
+      >${mastered}/${groupItems.length} mastered${recall !== null && ` · ${recall}% remembered`}</span
+    >`;
     const first = groupItems[0];
     let body: Html;
     if (first && isWord(first)) {
@@ -93,7 +121,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       return html`<section class="grid-section">
         <h3>
           <button type="button" class="grid-toggle" data-expand="${group.id}" aria-expanded="${String(open)}">
-            ${group.label} <span class="muted">${mastered}/${groupItems.length} mastered</span>
+            ${group.label} ${summary}
           </button>
         </h3>
         ${open && html`<div class="kanji-grid">${groupItems.map(item => cell(state, item, now))}</div>`}
@@ -112,7 +140,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       </div>`;
     }
     return html`<section class="grid-section">
-      <h3>${group.label} <span class="muted">${mastered}/${groupItems.length} mastered</span></h3>
+      <h3>${group.label} ${summary}</h3>
       ${body}
     </section>`;
   }
@@ -147,6 +175,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       statCard('Best run', state.bestStreak),
     ]);
     setHtml(els.forecast, forecastTiles(keys, state, now));
+    renderReadable(state);
     renderCharts(state, now);
     setHtml(
       els.grids,
@@ -166,6 +195,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     render();
   });
   onDelegate(els.grids, '[data-kana]', element => dialog.open(element.dataset.kana ?? ''));
+  onDelegate(els.readableWords, '[data-kana]', element => dialog.open(element.dataset.kana ?? ''));
   onDelegate(els.grids, '[data-expand]', element => {
     const group = element.dataset.expand ?? '';
     if (!expanded.delete(group)) expanded.add(group);
@@ -182,7 +212,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
 
   return {
     open() {
-      direction = data.get().settings.direction;
+      direction = singleDirection(data.get().settings.direction);
       render();
     },
     render,

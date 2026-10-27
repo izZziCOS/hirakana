@@ -161,6 +161,12 @@
   margin: 0 auto;
 }
 
+.card-intro {
+  margin: 4px 0 8px;
+  font-size: 1.15rem;
+  text-align: center;
+}
+
 #answer-input {
   flex: 1;
   min-width: 0;

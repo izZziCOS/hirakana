@@ -1,5 +1,5 @@
 import { findKana, isWord, kanjiOfWord, parseStatKey, statKey } from './kana.ts';
-import type { Direction, KanaItem, Level, Mode, Outcome, Pick, Stat } from './types.ts';
+import type { Direction, Entry, KanaItem, Level, Mode, Outcome, Pick, Stat } from './types.ts';
 import { randomFrom, type Random } from './util.ts';
 
 export const MINUTE = 60 * 1000;
@@ -174,44 +174,60 @@ export function knowsKanjiOf(word: KanaItem, stats: Stats): boolean {
   return kanji.length > 0 && kanji.every(item => (stats[statKey(item, 'read')]?.box ?? 0) >= 2);
 }
 
-export function pickNext({
-  pool,
+export function pickNext({ pool, direction = 'read', ...options }: PickNextOptions): Pick | null {
+  const pick = pickEntry({ ...options, entries: pool.map(item => ({ item, direction })) });
+  return pick && { item: pick.item, kind: pick.kind };
+}
+
+interface PickEntryOptions extends Omit<PickNextOptions, 'pool' | 'direction'> {
+  entries: Entry[];
+  // Which unseen entries may be introduced now; mixed practice holds other directions back until a card can be read.
+  canIntroduce?: (entry: Entry) => boolean;
+}
+
+// Reviews that are due come first, then new cards (up to the daily limit, and not while too many are struggling),
+// then the reviews due soonest.
+export function pickEntry({
+  entries,
   stats,
-  direction = 'read',
   currentItem = null,
   now = Date.now(),
   allowNew = true,
+  canIntroduce = () => true,
   random = Math.random,
-}: PickNextOptions): Pick | null {
-  if (!pool.length) return null;
-  const key = (item: KanaItem) => statKey(item, direction);
-  const others = currentItem && pool.length > 1 ? pool.filter(item => item !== currentItem) : pool;
-  const dueAt = (item: KanaItem) => stats[key(item)]?.due ?? 0;
-  const byDue = (a: KanaItem, b: KanaItem) => dueAt(a) - dueAt(b);
+}: PickEntryOptions): (Pick & Entry) | null {
+  if (!entries.length) return null;
+  const key = (entry: Entry) => statKey(entry.item, entry.direction);
+  const others =
+    currentItem && entries.some(entry => entry.item !== currentItem)
+      ? entries.filter(entry => entry.item !== currentItem)
+      : entries;
+  const dueAt = (entry: Entry) => stats[key(entry)]?.due ?? 0;
+  const byDue = (a: Entry, b: Entry) => dueAt(a) - dueAt(b);
 
   const review = randomFrom(
     others
-      .filter(item => isDue(stats, key(item), now))
+      .filter(entry => isDue(stats, key(entry), now))
       .sort(byDue)
       .slice(0, 3),
     random,
   );
-  if (review) return { item: review, kind: 'review' };
+  if (review) return { ...review, kind: 'review' };
 
-  const struggling = pool.filter(item => stats[key(item)]?.box === 1).length;
-  const unseenItems = others.filter(item => !isSeen(stats, key(item)));
-  const unseen = unseenItems.find(item => knowsKanjiOf(item, stats)) ?? unseenItems[0];
-  if (unseen && allowNew && struggling < LEARNING_LIMIT) return { item: unseen, kind: 'new' };
+  const struggling = entries.filter(entry => stats[key(entry)]?.box === 1).length;
+  const unseenEntries = others.filter(entry => !isSeen(stats, key(entry)) && canIntroduce(entry));
+  const unseen = unseenEntries.find(entry => knowsKanjiOf(entry.item, stats)) ?? unseenEntries[0];
+  if (unseen && allowNew && struggling < LEARNING_LIMIT) return { ...unseen, kind: 'new' };
 
   const ahead = randomFrom(
     others
-      .filter(item => isSeen(stats, key(item)))
+      .filter(entry => isSeen(stats, key(entry)))
       .sort(byDue)
       .slice(0, 4),
     random,
   );
-  if (ahead) return { item: ahead, kind: 'ahead' };
+  if (ahead) return { ...ahead, kind: 'ahead' };
 
   const fallback = unseen ?? others[0];
-  return fallback ? { item: fallback, kind: 'new' } : null;
+  return fallback ? { ...fallback, kind: 'new' } : null;
 }

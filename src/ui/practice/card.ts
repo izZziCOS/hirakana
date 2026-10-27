@@ -17,11 +17,18 @@ import { GROUP_LABEL, SCRIPT_LABEL } from '../labels.ts';
 
 export const typesKana = (direction: Direction): boolean => direction === 'recall' || direction === 'listen';
 
+// The line under a character being introduced: how it reads and, for words and kanji, what it means.
+export function introMarkup(item: KanaItem): Html {
+  if (isKanji(item)) return html`<strong>${item.meanings?.[0]}</strong> · ${readingSummary(item)}`;
+  if (isWord(item)) return html`<strong>${item.romaji}</strong> · ${item.meaning}`;
+  return html`<strong>${item.romaji}</strong>`;
+}
+
 export function promptLabel(item: KanaItem, direction: Direction, mode: Mode, kanjiOnly = false): string {
   if (kanjiOnly) return `${GROUP_LABEL[item.group]} · stage 2: kanji only`;
   const action = mode === 'type' ? 'Type' : 'Pick';
   if (direction === 'recall') return `${action} the ${item.script} · ${GROUP_LABEL[item.group]}`;
-  if (direction === 'listen') return `Listen, then ${action.toLowerCase()} the ${item.script}`;
+  if (direction === 'listen') return `Listen, then ${action.toLowerCase()} the ${isWord(item) ? 'word' : item.script}`;
   if (direction === 'match') return `${SCRIPT_LABEL[item.script]} → ${otherScript(item.script)}`;
   if (direction === 'meaning') return `${action} the meaning · ${GROUP_LABEL[item.group]}`;
   if (direction === 'write') return `Write the ${isKanji(item) ? 'kanji' : item.script} · ${GROUP_LABEL[item.group]}`;
@@ -66,6 +73,10 @@ export const writePromptMarkup = (item: KanaItem): Html =>
 
 const spelled = (item: KanaItem): Html => (item.kanji ? html`${jp(item.kanji)} (${jp(item.kana)})` : jp(item.kana));
 
+// What a listening card played: the kana and its romaji, and for a word its meaning too.
+const heard = (item: KanaItem): Html =>
+  isWord(item) ? html`${spelled(item)}, ${item.romaji} “${item.meaning}”` : html`${jp(item.kana)} (${item.romaji})`;
+
 function picked(given: string): Html {
   const item = findKana(given);
   return html`${jp(given)}${item && ` (${item.romaji})`}`;
@@ -80,8 +91,8 @@ export function resultMessage(item: KanaItem, direction: Direction, isCorrect: b
   }
   if (direction === 'listen') {
     return isCorrect
-      ? html`<strong>Correct!</strong> That was ${jp(item.kana)} (${item.romaji}).`
-      : html`<strong>That was ${jp(item.kana)} (${item.romaji}).</strong>${yourPick}`;
+      ? html`<strong>Correct!</strong> That was ${heard(item)}.`
+      : html`<strong>That was ${heard(item)}.</strong>${yourPick}`;
   }
   if (direction === 'match') {
     const counterpart = item.counterpart ?? '';

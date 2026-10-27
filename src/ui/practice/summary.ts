@@ -1,16 +1,22 @@
 import { dayKey, dayStreak, forecast } from '../../days.ts';
 import { formatWait } from '../../format.ts';
-import { statKey } from '../../kana.ts';
 import { isDue, isSeen } from '../../schedule.ts';
-import { activePool, goalProgress, learnedToday, NEW_BATCH, newLimit } from '../../session.ts';
+import { goalProgress, learnedToday, NEW_BATCH, newLimit, practiceKeys } from '../../session.ts';
+import { readableWords } from '../../reading.ts';
 import { combinedDays } from '../../state.ts';
 import type { Session, State } from '../../types.ts';
+import { jp } from '../dom.ts';
 import { html, type Html } from '../html.ts';
 
-function poolKeys(state: State): string[] {
-  const { direction } = state.settings;
-  return activePool(state.settings).map(item => statKey(item, direction));
+export function readableLine(state: State): Html | null {
+  const words = readableWords(state.stats);
+  if (!words.length) return null;
+  const examples = words.slice(0, 3).map(({ item, inKanji }) => jp(inKanji && item.kanji ? item.kanji : item.kana));
+  return html`You can read <strong>${words.length}</strong> word${words.length === 1 ? '' : 's'} now, such as
+    ${examples.flatMap((example, i) => (i ? [html`, `, example] : [example]))}.`;
 }
+
+const poolKeys = (state: State): string[] => practiceKeys(state);
 
 const nextDue = (state: State, keys: string[]): number | undefined =>
   keys
@@ -39,6 +45,7 @@ export function doneScreen(state: State, now: number): Html {
       <strong>${today?.learned ?? 0}</strong> new ones.
     </p>
     ${later && html`<p class="muted">${later}</p>`}
+    ${readableLine(state) && html`<p class="readable-line">${readableLine(state)}</p>`}
     <div class="done-actions">
       ${unseen > 0 && html`<button class="primary" data-done="more">Learn ${Math.min(NEW_BATCH, unseen)} more</button>`}
       <button class="ghost" data-done="extra">Extra practice</button>

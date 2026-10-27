@@ -35,6 +35,8 @@ function cardFor(kana: string, changes: Partial<Card> = {}): Card {
   return {
     item: getKana(kana),
     kind: 'new',
+    direction: 'read',
+    intro: false,
     choices: [],
     answered: false,
     revealed: false,

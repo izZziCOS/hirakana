@@ -171,6 +171,17 @@
                 </div>
               </div>
               <div class="mode-group">
+                <h3>Mix <span class="muted">· all of the above</span></h3>
+                <div class="mode-chips">
+                  <button
+                    data-value="mixed"
+                    title="Reviews from every direction you practise, new characters by reading"
+                  >
+                    Mixed ⇄
+                  </button>
+                </div>
+              </div>
+              <div class="mode-group">
                 <h3>Compare <span class="muted">· tell scripts apart</span></h3>
                 <div class="mode-chips">
                   <button data-value="match" title="Match hiragana with katakana">
@@ -233,6 +244,7 @@
               </button>
             </div>
             <div class="kana jp" id="kana" lang="ja"></div>
+            <p id="card-intro" class="card-intro" hidden></p>
             <div class="done" id="done" hidden></div>
 
             <form id="answer-form" autocomplete="off">
@@ -268,6 +280,7 @@
               <button id="typo-btn" class="ghost" hidden>I made a typo</button>
               <button id="undo-btn" class="ghost" hidden>Undo</button>
               <button id="next-btn" class="primary" hidden>Next <kbd>Enter</kbd></button>
+              <button id="learn-btn" class="primary" hidden>Got it, test me <kbd>Enter</kbd></button>
             </div>
           </div>
 
@@ -296,6 +309,12 @@
           <h3>Reviews coming up</h3>
         </div>
         <div class="forecast" id="forecast"></div>
+
+        <section class="chart-card readable" id="readable" aria-labelledby="readable-h" hidden>
+          <h3 id="readable-h">Words you can read</h3>
+          <p class="muted small">Every kana in these is one you know. Select a word to see it.</p>
+          <div id="readable-words" class="readable-words"></div>
+        </section>
 
         <div class="chart-grid-2">
           <section class="chart-card">
@@ -436,6 +455,15 @@
               Adaptive
             </button>
             <button data-value="off" title="Only right or wrong counts">Off</button>
+          </div>
+        </div>
+        <div class="row-group">
+          <div class="row-group-head" id="introduce-label">Introduce new characters</div>
+          <div class="segmented small" id="introduce-select" aria-labelledby="introduce-label">
+            <button data-value="on" title="Show a new character with its reading and stroke order before testing it">
+              On
+            </button>
+            <button data-value="off" title="Test new characters straight away">Off</button>
           </div>
         </div>
         <section id="sync-settings" class="sync-settings" aria-labelledby="sync-label" hidden>

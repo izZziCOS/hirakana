@@ -1,5 +1,5 @@
 import { GROUPS } from '../data.ts';
-import type { CardKind, Direction, GroupId, Level, Script, ScriptSetting } from '../types.ts';
+import type { CardKind, GroupId, Level, PracticeDirection, Script, ScriptSetting } from '../types.ts';
 
 export const SCRIPT_LABEL: Record<Script | ScriptSetting, string> = {
   hiragana: 'Hiragana',
@@ -22,13 +22,15 @@ export const KIND_BADGE: Record<CardKind, string> = {
   review: 'Review',
   ahead: 'Extra practice',
   drill: 'Drill',
+  contrast: 'Look-alike',
 };
 
-export const DIRECTION_LABEL: Record<Direction, string> = {
+export const DIRECTION_LABEL: Record<PracticeDirection, string> = {
   read: 'Read',
   recall: 'Recall',
   match: 'Match',
   listen: 'Listen',
   meaning: 'Meaning',
   write: 'Write',
+  mixed: 'Mixed',
 };

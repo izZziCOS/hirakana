@@ -1,7 +1,8 @@
 import { GROUPS, TRACKS } from '../data.ts';
 import { dayStreak } from '../days.ts';
 import { isKanjiGroup, KANA, kanjiLoaded, ROW_INFO } from '../kana.ts';
-import { todaySummary, type TodaySummary } from '../session.ts';
+import { groupRecall } from '../milestones.ts';
+import { singleDirection, todaySummary, type TodaySummary } from '../session.ts';
 import {
   backupDue,
   backupStatus,
@@ -86,8 +87,10 @@ function groupStatus(state: State, groupId: GroupId): string {
   if (isKanjiGroup(groupId) && !kanjiLoaded()) return 'Loading…';
   const { mastered, total } = groupProgress(state, groupId);
   if (!total) return `Not in ${DIRECTION_LABEL[state.settings.direction]}`;
-  if (mastered === total) return 'Mastered';
-  return mastered ? `${percent(mastered, total)}% mastered` : `${total.toLocaleString('en')} cards`;
+  const recall = groupRecall(state.stats, groupId, singleDirection(state.settings.direction));
+  const remembered = recall === null ? '' : ` · ${recall}% remembered`;
+  if (mastered === total) return `Mastered${remembered}`;
+  return mastered ? `${percent(mastered, total)}% mastered${remembered}` : `${total.toLocaleString('en')} cards`;
 }
 
 export function trackCard(track: Track, state: State, open = false, openLevels = new Set<string>()): Html {

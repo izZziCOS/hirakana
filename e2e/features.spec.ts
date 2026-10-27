@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { answer, dayKey, expect, feedback, prompt, start, test } from './fixtures.ts';
+import { answer, dayKey, expect, feedback, openApp, prompt, start, test } from './fixtures.ts';
 
 const session = (page: Page) => page.locator('#session');
 
@@ -15,7 +15,7 @@ test('a typo can be counted as right', async ({ page }) => {
 });
 
 test('the last answer can be undone', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('button', { name: 'Multiple choice' }).click();
   await page.locator('#continue-btn').click();
   await page.locator('#choices .choice:not([data-value="a"])').first().click();
@@ -109,7 +109,7 @@ test('the session goal shows progress and celebrates when reached', async ({ pag
 });
 
 test('the theme can be switched and is applied before the app loads', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const toggle = page.locator('#theme-toggle');
   await expect(toggle).toHaveAccessibleName('Theme: same as your device');
   await toggle.click();
@@ -124,7 +124,7 @@ test('the theme can be switched and is applied before the app loads', async ({ p
 });
 
 test('settings open in a dialog and the speed check can be turned off', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.locator('#speed-select [data-value="off"]').click();
   await expect(page.locator('#speed-select [data-value="off"]')).toHaveAttribute('aria-pressed', 'true');
@@ -149,7 +149,7 @@ test('selecting a calendar day shows that day’s mistakes', async ({ page, seed
     ],
     days: { [dayKey(-1)]: { answers: 8, learned: 2, scored: 8, correct: 6 } },
   });
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('tab', { name: 'Progress' }).click();
   await page.locator(`.heat-cell[data-day="${dayKey(-1)}"]`).click();
   await expect(page.getByRole('tab', { name: 'Mistakes' })).toHaveAttribute('aria-selected', 'true');

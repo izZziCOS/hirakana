@@ -13,6 +13,38 @@
   border-radius: var(--radius);
 }
 
+.readable {
+  margin: 16px 0;
+}
+
+.readable-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.readable-word {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.readable-word .jp {
+  font-size: 1.1rem;
+}
+
+.readable-word:hover {
+  border-color: var(--accent);
+}
+
 .chart-card h3 {
   margin: 0;
   font-size: 1rem;

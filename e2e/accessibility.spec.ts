@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
-import { dayKey, expect, start, test } from './fixtures.ts';
+import { dayKey, expect, openApp, start, test } from './fixtures.ts';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -30,7 +30,7 @@ for (const theme of ['light', 'dark'] as const) {
       seed,
     }) => {
       await seed(history);
-      await page.goto('/');
+      await openApp(page);
       await page.locator('[data-track="kanji"]').click();
       await page.locator('[data-expand="k5"]').click();
       await expect(page.locator('[data-row="k5:N5 · 1–30"]')).toBeVisible();
@@ -48,7 +48,7 @@ for (const theme of ['light', 'dark'] as const) {
     });
 
     test('a wrong answer and multiple choice have no accessibility violations', async ({ page }) => {
-      await page.goto('/');
+      await openApp(page);
       await page.getByRole('button', { name: 'Multiple choice' }).click();
       await page.locator('#continue-btn').click();
       await page.locator('#choices .choice:not([data-value="a"])').first().click();
@@ -58,7 +58,7 @@ for (const theme of ['light', 'dark'] as const) {
 
     test('progress and mistakes have no accessibility violations', async ({ page, seed }) => {
       await seed(history);
-      await page.goto('/');
+      await openApp(page);
       await page.getByRole('tab', { name: 'Progress' }).click();
       await expect(page.locator('.heat-cell').first()).toBeVisible();
       expect(await violations(page)).toEqual([]);
@@ -68,7 +68,7 @@ for (const theme of ['light', 'dark'] as const) {
     });
 
     test('the confirm dialog has no accessibility violations', async ({ page }) => {
-      await page.goto('/');
+      await openApp(page);
       await page.getByRole('tab', { name: 'Progress' }).click();
       await page.getByRole('button', { name: 'Reset all progress' }).click();
       await expect(page.getByRole('dialog', { name: 'Reset all progress?' })).toBeVisible();
@@ -78,7 +78,7 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 test('tabs can be used with the keyboard', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   const practiceTab = page.getByRole('tab', { name: 'Learn' });
   await practiceTab.focus();
   await page.keyboard.press('ArrowRight');
@@ -95,7 +95,7 @@ test('tabs can be used with the keyboard', async ({ page }) => {
 });
 
 test('confirm dialogs can be cancelled', async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
   await page.getByRole('tab', { name: 'Mistakes' }).click();
   await page.getByRole('button', { name: 'Clear mistake history' }).click();
   await page.keyboard.press('Escape');

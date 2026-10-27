@@ -296,7 +296,12 @@ test('answers report when a word or kanji changes stage', () => {
   const water = getKana('水');
   const mastered = { correct: 4, wrong: 0, streak: 4, box: MASTERED_BOX - 1, due: NOW, last: NOW };
   const state = migrateState({ version: 5, stats: { 水: mastered } });
-  const session = showCard(newSession(), { status: 'card', item: water, kind: 'review', choices: [] }, 0, true);
+  const session = showCard(
+    newSession(),
+    { status: 'card', item: water, kind: 'review', direction: 'read', choices: [], intro: false },
+    0,
+    true,
+  );
   const promoted = submitAnswer(state, session, 'sui', { now: NOW, clock: 1000 });
   assert.ok(promoted);
   assert.equal(promoted.stageChange, 'kanjiOnly');

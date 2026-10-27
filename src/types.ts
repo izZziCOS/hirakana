@@ -3,13 +3,15 @@ export type Script = KanaScript | 'kanji';
 export type ScriptSetting = 'hiragana' | 'katakana' | 'both';
 export type Mode = 'type' | 'choose';
 export type Direction = 'read' | 'recall' | 'match' | 'listen' | 'meaning' | 'write';
+// What is practised: one direction, or due cards from every direction in use.
+export type PracticeDirection = Direction | 'mixed';
 export type Theme = 'system' | 'light' | 'dark';
 export type SpeedCheck = 'adaptive' | 'off';
 export type GroupId =
   'basic' | 'dakuten' | 'yoon' | 'sokuon' | 'extended' | 'words' | 'n5' | 'n4' | 'n3' | 'n2' | 'n1' | KanjiGroupId;
 export type KanjiGroupId = 'k5' | 'k4' | 'k3' | 'k2' | 'k1';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
-export type CardKind = 'new' | 'review' | 'ahead' | 'drill';
+export type CardKind = 'new' | 'review' | 'ahead' | 'drill' | 'contrast';
 export type Level = 'new' | 'weak' | 'learning' | 'mastered';
 
 export interface Group {
@@ -76,6 +78,13 @@ export interface KanaItem {
   meanings?: string[];
   readings?: KanjiReadings;
   strokes?: number;
+  parts?: KanjiPart[];
+}
+
+// A part a kanji is built from: its shape there (氵) and the kanji it comes from (水), which are often the same.
+export interface KanjiPart {
+  shape: string;
+  kanji: string;
 }
 
 export interface KanjiReadings {
@@ -121,12 +130,14 @@ export interface Settings {
   script: ScriptSetting;
   rows: string[];
   mode: Mode;
-  direction: Direction;
+  direction: PracticeDirection;
   newPerDay: number;
   goal: number;
   speedCheck: SpeedCheck;
   theme: Theme;
   kanaPad: boolean;
+  // Show a character before testing it the first time.
+  introduce: boolean;
 }
 
 export interface State {
@@ -149,9 +160,18 @@ export interface Drill {
   items: KanaItem[];
 }
 
+// A character practised in one direction.
+export interface Entry {
+  item: KanaItem;
+  direction: Direction;
+}
+
 export interface Card {
   item: KanaItem;
   kind: CardKind;
+  direction: Direction;
+  // A character seen for the first time is introduced before it is tested.
+  intro: boolean;
   choices: string[];
   answered: boolean;
   revealed: boolean;
@@ -176,6 +196,8 @@ export interface Session {
   drill: Drill | null;
   card: Card | null;
   undo: UndoPoint | null;
+  // Characters to bring back soon after a mix-up, the one picked by mistake first.
+  followUps: Entry[];
 }
 
 export interface Pick {
