@@ -11,6 +11,17 @@ test('starts with あ and moves on after a correct typed answer', async ({ page 
   await expect(page.locator('#session')).toContainText('Session 1/1');
 });
 
+// A page wider than the screen makes mobile browsers shift every tap, which shows up as click timeouts elsewhere.
+test('no view is wider than the screen', async ({ page }) => {
+  await page.goto('/');
+  const screenWidth = page.viewportSize()?.width ?? 0;
+  for (const tab of ['Practice', 'Progress', 'Mistakes']) {
+    await page.getByRole('tab', { name: tab }).click();
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width, tab).toBeLessThanOrEqual(screenWidth);
+  }
+});
+
 test('a wrong answer explains the mix-up and waits for Next', async ({ page }) => {
   await page.goto('/');
   await answer(page, 'o');

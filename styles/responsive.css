@@ -8,6 +8,11 @@
     font-size: 14px;
   }
 
+  /* Six directions don't fit on one line on a phone, and a wrapped pill needs softer corners. */
+  .segmented {
+    border-radius: 18px;
+  }
+
   .card {
     padding: 14px 16px 20px;
   }

@@ -7,6 +7,9 @@
 
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 999px;
