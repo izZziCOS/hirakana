@@ -1,0 +1,392 @@
+.badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.badge-new {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.badge-review {
+  background: var(--good-soft);
+  color: var(--good-ink);
+}
+
+.badge-ahead,
+.badge-drill {
+  background: var(--new);
+  color: var(--muted);
+}
+
+.card {
+  margin-top: 20px;
+  padding: 18px 24px 24px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.card.is-correct {
+  border-color: var(--good);
+}
+
+.card.is-wrong {
+  border-color: var(--bad);
+  animation: shake 0.35s;
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.icon-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.kana {
+  font-size: clamp(6rem, 24vw, 9.5rem);
+  line-height: 1.15;
+  margin: 4px 0 18px;
+}
+
+.kana.is-combo {
+  font-size: clamp(4.5rem, 18vw, 7.5rem);
+}
+
+.kana.is-word {
+  font-size: clamp(3rem, 13vw, 5.5rem);
+  margin: 28px 0 34px;
+}
+
+.kana.is-romaji {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  font-weight: 700;
+  font-size: clamp(3.5rem, 15vw, 6rem);
+  letter-spacing: -0.02em;
+  margin: 24px 0 30px;
+}
+
+.kana-choices .choice {
+  font-size: 1.9rem;
+  padding: 10px;
+  line-height: 1.3;
+}
+
+.done {
+  padding: 18px 0 8px;
+}
+
+.done h2 {
+  margin: 6px 0 8px;
+  font-size: 1.5rem;
+}
+
+.done p {
+  margin: 4px 0;
+}
+
+.done-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: 2rem;
+}
+
+.done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.card.is-empty .feedback {
+  margin: 24px 0;
+}
+
+.kana.enter {
+  animation: rise 0.25s ease-out;
+}
+
+#answer-form {
+  display: flex;
+  gap: 8px;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+#answer-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.25rem;
+  padding: 11px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  text-align: center;
+}
+
+#answer-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.primary {
+  border: 0;
+  border-radius: 12px;
+  padding: 11px 20px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primary:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.primary:disabled {
+  opacity: 0.4;
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.ghost {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ghost:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.ghost.danger:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.ghost.small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.primary.small {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.choice {
+  position: relative;
+  padding: 14px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.choice kbd {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+}
+
+.choice:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.choice.correct {
+  background: var(--good-soft);
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.choice.wrong {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.choice:disabled:not(.correct, .wrong) {
+  opacity: 0.5;
+}
+
+.feedback {
+  min-height: 1.5em;
+  margin-top: 16px;
+}
+
+.feedback.good {
+  color: var(--good);
+}
+
+.feedback.bad {
+  color: var(--bad);
+}
+
+.feedback .muted {
+  font-weight: 400;
+}
+
+.feedback-note {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.card-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+  min-height: 44px;
+}
+
+.session {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 22px;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.session strong {
+  color: var(--ink);
+}
+
+.kana-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.kana.is-listen {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.pad-toggle {
+  align-self: center;
+}
+
+.pad-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.kana-pad {
+  max-width: 420px;
+  margin: 12px auto 0;
+}
+
+.kana-pad-keys {
+  display: grid;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.kana-pad-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+}
+
+.kana-key {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 1.2rem;
+}
+
+.kana-key:hover {
+  border-color: var(--accent);
+}
+
+.kana-pad-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.goal-note {
+  margin-top: 6px;
+  color: var(--good);
+  font-weight: 600;
+}
+
+.session .goal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.session progress {
+  width: 64px;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+.session .goal.is-reached {
+  color: var(--good);
+}

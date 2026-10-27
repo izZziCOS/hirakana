@@ -1,0 +1,87 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 9px;
+  padding: 2px 8px;
+  font-size: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  padding: 7px 14px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab[aria-selected='true'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.view > .section-head:first-child {
+  margin-top: 0;
+}
+
+.app-error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  width: min(728px, calc(100% - 32px));
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  border: 1px solid var(--bad);
+  border-radius: 12px;
+  background: var(--bad-soft);
+  color: var(--ink);
+}
+
+.app-error a {
+  margin-left: auto;
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.theme-toggle {
+  font-size: 16px;
+}

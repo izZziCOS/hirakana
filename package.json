@@ -1,0 +1,39 @@
+{
+  "name": "kana-dojo",
+  "private": true,
+  "description": "Hiragana and katakana practice with spaced repetition",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.ts",
+    "start": "npm run build && node scripts/serve.ts",
+    "build": "node scripts/build.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint . && stylelint \"styles/**/*.css\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test test/*.test.ts",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-exclude='src/main.ts' --test-coverage-exclude='src/boot.ts' --test-coverage-exclude='src/sw.ts' --test-coverage-exclude='src/env.d.ts' --test-coverage-exclude='src/ui/charts.ts' --test-coverage-exclude='src/ui/confirm.ts' --test-coverage-exclude='src/ui/controls.ts' --test-coverage-exclude='src/ui/dialog.ts' --test-coverage-exclude='src/ui/dom.ts' --test-coverage-exclude='src/ui/mistakes.ts' --test-coverage-exclude='src/ui/progress.ts' --test-coverage-exclude='src/ui/speech.ts' --test-coverage-exclude='src/ui/strokes.ts' --test-coverage-exclude='src/ui/stroke-data.ts' --test-coverage-exclude='src/ui/writing.ts' --test-coverage-exclude='src/ui/practice/index.ts' --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 test/*.test.ts",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test:coverage"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "stylelint": "17.16.0",
+    "stylelint-config-standard": "40.0.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  },
+  "dependencies": {
+    "@fontsource/klee-one": "5.3.1"
+  }
+}

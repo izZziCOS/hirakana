@@ -1,0 +1,44 @@
+@media (width <= 560px) {
+  .topbar {
+    padding: 10px 16px;
+  }
+
+  .tab {
+    padding: 6px 11px;
+    font-size: 14px;
+  }
+
+  .card {
+    padding: 14px 16px 20px;
+  }
+
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .grid-row {
+    grid-template-columns: 34px repeat(var(--cols), minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .cell {
+    height: 58px;
+  }
+
+  .cell-kana {
+    font-size: 1.3rem;
+  }
+
+  .info-list {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .info-list dd {
+    margin-bottom: 10px;
+  }
+}

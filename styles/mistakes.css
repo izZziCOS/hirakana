@@ -1,0 +1,191 @@
+.pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.pair-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pair-kana {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pair-kana button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+
+.pair-kana button:hover {
+  color: var(--accent);
+}
+
+.pair-arrow {
+  color: var(--muted);
+}
+
+.pair-meta {
+  grid-column: 1;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+}
+
+.pair-card [data-pair] {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+
+.missed-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.missed-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.missed-chip:hover {
+  border-color: var(--accent);
+}
+
+.missed-chip .jp {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.missed-romaji {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.count {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.empty {
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+.mistake-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.day-head {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.day-head:first-child {
+  margin-top: 0;
+}
+
+.mistake {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px 8px 8px;
+  margin-bottom: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.mistake-kana {
+  flex: none;
+  width: 56px;
+  height: 52px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--sunken);
+  font-size: 1.7rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mistake-kana.is-combo {
+  font-size: 1.25rem;
+}
+
+.mistake-kana.is-word {
+  width: auto;
+  min-width: 56px;
+  padding: 0 8px;
+  font-size: 1rem;
+}
+
+.missed-chip .jp,
+.cell-kana {
+  white-space: nowrap;
+}
+
+.mistake-kana:hover {
+  background: var(--accent-soft);
+}
+
+.mistake-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.given {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.mistake time {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.more {
+  padding: 8px 0;
+}
+
+.danger-zone {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.transfer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+#transfer-status:empty {
+  display: none;
+}

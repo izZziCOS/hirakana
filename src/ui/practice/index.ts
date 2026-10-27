@@ -1,0 +1,377 @@
+import { answerOf } from '../../choices.ts';
+import { formatWait } from '../../format.ts';
+import { normalizeAnswer, statKey } from '../../kana.ts';
+import {
+  ADVANCE_DELAY,
+  type AnswerResult,
+  canForgiveTypo,
+  chooseNext,
+  effectiveMode,
+  endDrill,
+  feedbackNote,
+  forgiveTypo,
+  justReachedGoal,
+  learnMore,
+  markUntimed,
+  practiseExtra,
+  revealCard,
+  showCard,
+  startDrill,
+  submitAnswer,
+  undoAnswer,
+} from '../../session.ts';
+import { updateSettings } from '../../state.ts';
+import type { AppStores } from '../../store.ts';
+import type { Card, KanaItem, Session } from '../../types.ts';
+import { codePoints } from '../../util.ts';
+import { $ } from '../dom.ts';
+import { html, setHtml } from '../html.ts';
+import { renderInfo } from '../info.ts';
+import { KIND_BADGE } from '../labels.ts';
+import { canSpeak, hasJapaneseVoice, onVoicesChanged, speak } from '../speech.ts';
+import { mountStrokeOrder } from '../strokes.ts';
+import { choiceButtons, placeholderFor, promptLabel, resultMessage, typesKana } from './card.ts';
+import { kanaPad } from './kana-pad.ts';
+import { doneScreen, sessionBar } from './summary.ts';
+
+export interface Practice {
+  next(): void;
+  focus(): void;
+  drill(label: string, items: KanaItem[]): void;
+}
+
+const COMPOSITION_GRACE_MS = 80;
+const NO_VOICE_MESSAGE =
+  'Listening needs a Japanese voice, and this browser doesn’t have one. Install one in your system’s speech settings, or practise another direction.';
+
+function practiceElements() {
+  return {
+    card: $('#card'),
+    script: $('#card-script'),
+    badge: $('#card-badge'),
+    prompt: $('#kana'),
+    done: $('#done'),
+    form: $('#answer-form', HTMLFormElement),
+    input: $('#answer-input', HTMLInputElement),
+    check: $('#check-btn', HTMLButtonElement),
+    padToggle: $('#pad-toggle', HTMLButtonElement),
+    pad: $('#kana-pad'),
+    choices: $('#choices'),
+    feedback: $('#feedback'),
+    skip: $('#skip-btn', HTMLButtonElement),
+    typo: $('#typo-btn', HTMLButtonElement),
+    undo: $('#undo-btn', HTMLButtonElement),
+    nextButton: $('#next-btn', HTMLButtonElement),
+    speak: $('#speak-btn', HTMLButtonElement),
+    info: $('#info', HTMLDetailsElement),
+    infoHint: $('#info-hint'),
+    infoBody: $('#info-body'),
+    session: $('#session'),
+    drillBanner: $('#drill-banner'),
+    drillText: $('#drill-text'),
+  };
+}
+
+export function createPractice({ data, session }: AppStores, isActive: () => boolean): Practice {
+  const els = practiceElements();
+  let advanceTimer: number | undefined;
+  let composing = false;
+  let compositionEndedAt = -Infinity;
+
+  const settings = () => data.get().settings;
+  const mode = () => effectiveMode(settings());
+  const listening = () => settings().direction === 'listen';
+
+  function resetCard(): void {
+    window.clearTimeout(advanceTimer);
+    els.card.classList.remove('is-correct', 'is-wrong', 'is-empty');
+    els.script.textContent = '';
+    els.badge.hidden = true;
+    const parts = [els.prompt, els.done, els.form, els.pad, els.choices, els.skip, els.typo, els.undo];
+    [...parts, els.nextButton, els.speak, els.info].forEach(el => {
+      el.hidden = true;
+    });
+    els.feedback.className = 'feedback';
+    setHtml(els.feedback, html`&nbsp;`);
+  }
+
+  function renderEmpty(message: string): void {
+    resetCard();
+    els.card.classList.add('is-empty');
+    els.feedback.textContent = message;
+  }
+
+  function renderPrompt(card: Card): void {
+    const { direction } = settings();
+    const isRomaji = direction === 'recall';
+    const prompt = listening() ? '♪' : isRomaji ? card.item.romaji : card.item.kana;
+    const length = codePoints(prompt).length;
+    els.prompt.hidden = false;
+    els.prompt.textContent = prompt;
+    els.prompt.lang = isRomaji ? 'en' : 'ja';
+    els.prompt.classList.toggle('is-romaji', isRomaji);
+    els.prompt.classList.toggle('is-listen', listening());
+    els.prompt.classList.toggle('is-combo', !isRomaji && length === 2);
+    els.prompt.classList.toggle('is-word', !isRomaji && length > 2);
+    els.prompt.classList.remove('enter');
+    els.prompt.getBoundingClientRect();
+    els.prompt.classList.add('enter');
+
+    els.script.textContent = promptLabel(card.item, direction, mode());
+    els.badge.hidden = false;
+    els.badge.textContent = KIND_BADGE[card.kind];
+    els.badge.className = `badge badge-${card.kind}`;
+    els.badge.title =
+      card.kind === 'ahead'
+        ? 'Nothing is due right now, so this is extra practice and won’t move it forward in your schedule.'
+        : '';
+    if (listening()) {
+      els.speak.hidden = false;
+      speak(card.item.kana);
+    }
+  }
+
+  function renderPad(card: Card): void {
+    const kanaTyping = typesKana(settings().direction);
+    const showPad = kanaTyping && settings().kanaPad;
+    els.padToggle.hidden = !kanaTyping;
+    els.padToggle.setAttribute('aria-pressed', String(showPad));
+    els.pad.hidden = !showPad;
+    if (showPad) setHtml(els.pad, kanaPad(card.item.script));
+    els.input.inputMode = showPad ? 'none' : kanaTyping ? 'text' : 'latin';
+  }
+
+  function renderAnswerArea(card: Card): void {
+    const { direction } = settings();
+    const typing = mode() === 'type';
+    els.skip.hidden = false;
+    els.form.hidden = !typing;
+    els.choices.hidden = typing;
+    if (typing) {
+      els.input.value = '';
+      els.input.lang = typesKana(direction) ? 'ja' : 'en';
+      els.input.placeholder = placeholderFor(card.item, direction);
+      els.check.hidden = false;
+      renderPad(card);
+      if (isActive()) els.input.focus();
+    } else {
+      const kanaOptions = direction !== 'read';
+      els.choices.classList.toggle('kana-choices', kanaOptions);
+      setHtml(els.choices, choiceButtons(card.choices, kanaOptions));
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    }
+  }
+
+  function renderInfoPanel(card: Card): void {
+    els.info.hidden = false;
+    els.info.open = false;
+    els.infoHint.hidden = false;
+    els.infoHint.textContent =
+      card.kind === 'new' ? '· new, open this to learn it' : '· peeking moves it back two steps';
+    setHtml(els.infoBody, renderInfo(card.item, data.get()));
+  }
+
+  function renderCard(card: Card): void {
+    resetCard();
+    renderPrompt(card);
+    renderAnswerArea(card);
+    renderInfoPanel(card);
+  }
+
+  function renderResult(card: Card, result: AnswerResult, given: string | null, goalReached: boolean): void {
+    const state = data.get();
+    const { direction } = state.settings;
+    const due = state.stats[statKey(card.item, direction)]?.due ?? Date.now();
+    const note = feedbackNote({ ...result, nextReview: formatWait(due - Date.now()) });
+
+    els.card.classList.remove('is-correct', 'is-wrong');
+    els.card.classList.add(result.isCorrect ? 'is-correct' : 'is-wrong');
+    els.feedback.className = `feedback ${result.isCorrect ? 'good' : 'bad'}`;
+    setHtml(
+      els.feedback,
+      html`${resultMessage(card.item, direction, result.isCorrect, given)}
+        <div class="feedback-note">${note}</div>
+        ${goalReached && html`<div class="goal-note">Session goal reached: ${state.settings.goal} cards. Nice work!</div>`}`,
+    );
+
+    const answer = answerOf(card.item, direction);
+    els.choices.querySelectorAll<HTMLButtonElement>('.choice').forEach(button => {
+      button.disabled = true;
+      if (button.dataset.value === answer) button.classList.add('correct');
+      else if (button.dataset.value === given) button.classList.add('wrong');
+    });
+
+    els.check.hidden = true;
+    els.pad.hidden = true;
+    els.skip.hidden = true;
+    els.typo.hidden = !canForgiveTypo(state, session.get());
+    els.undo.hidden = !session.get().undo;
+    els.nextButton.hidden = false;
+    els.speak.hidden = !canSpeak;
+    els.infoHint.hidden = true;
+    setHtml(els.infoBody, renderInfo(card.item, state));
+    if (els.info.open) void mountStrokeOrder(els.infoBody.querySelector<HTMLElement>('.stroke-order'));
+  }
+
+  function renderChrome(): void {
+    const { drill } = session.get();
+    els.drillBanner.hidden = !drill;
+    els.drillText.textContent = drill ? `Drilling ${drill.label}` : '';
+    setHtml(els.session, sessionBar(data.get(), session.get(), Date.now()));
+  }
+
+  function next(): void {
+    resetCard();
+    if (listening() && !hasJapaneseVoice()) {
+      session.update(s => (s.card ? { ...s, card: null } : s));
+      renderEmpty(NO_VOICE_MESSAGE);
+      renderChrome();
+      return;
+    }
+    const step = chooseNext(data.get(), session.get(), { now: Date.now() });
+    session.update(s => showCard(s, step, performance.now(), document.hidden));
+    const { card } = session.get();
+    if (card) {
+      renderCard(card);
+    } else if (step.status === 'done') {
+      els.done.hidden = false;
+      setHtml(els.done, doneScreen(data.get(), Date.now()));
+    } else if (step.status === 'empty') {
+      renderEmpty(step.message);
+    }
+    renderChrome();
+  }
+
+  function apply(result: AnswerResult | null, before: Session): void {
+    const card = result?.session.card;
+    if (!result || !card) return;
+    window.clearTimeout(advanceTimer);
+    session.update(() => result.session);
+    data.update(() => result.state);
+    renderResult(card, result, card.given, justReachedGoal(settings(), before, result.session));
+    const delay = ADVANCE_DELAY[result.outcome];
+    if (delay !== undefined) advanceTimer = window.setTimeout(next, delay);
+  }
+
+  function submit(given: string | null): void {
+    const before = session.get();
+    apply(submitAnswer(data.get(), before, given, { now: Date.now(), clock: performance.now() }), before);
+  }
+
+  function submitTyped(): void {
+    const { card } = session.get();
+    if (!card) return;
+    if (card.answered) {
+      next();
+      return;
+    }
+    if (composing || performance.now() - compositionEndedAt < COMPOSITION_GRACE_MS) return;
+    const given = normalizeAnswer(els.input.value);
+    if (given) submit(given);
+    else els.input.focus();
+  }
+
+  els.form.addEventListener('submit', event => {
+    event.preventDefault();
+    submitTyped();
+  });
+  els.input.addEventListener('compositionstart', () => {
+    composing = true;
+  });
+  els.input.addEventListener('compositionend', () => {
+    composing = false;
+    compositionEndedAt = performance.now();
+  });
+
+  els.padToggle.addEventListener('click', () => {
+    data.update(state => updateSettings(state, { kanaPad: !state.settings.kanaPad }));
+    const { card } = session.get();
+    if (card && !card.answered) renderPad(card);
+  });
+
+  els.pad.addEventListener('click', event => {
+    const key = (event.target as Element).closest<HTMLElement>('[data-key], [data-pad]');
+    if (!key) return;
+    if (key.dataset.key) els.input.value += key.dataset.key;
+    else if (key.dataset.pad === 'backspace') els.input.value = codePoints(els.input.value).slice(0, -1).join('');
+    else if (key.dataset.pad === 'submit') submitTyped();
+  });
+
+  els.choices.addEventListener('click', event => {
+    const button = (event.target as Element).closest<HTMLButtonElement>('.choice');
+    if (button?.dataset.value !== undefined) submit(button.dataset.value);
+  });
+
+  els.done.addEventListener('click', event => {
+    const button = (event.target as Element).closest<HTMLElement>('[data-done]');
+    if (!button) return;
+    session.update(button.dataset.done === 'more' ? learnMore : practiseExtra);
+    next();
+  });
+
+  els.typo.addEventListener('click', () => {
+    const before = session.get();
+    apply(forgiveTypo(data.get(), before, Date.now()), before);
+  });
+
+  els.undo.addEventListener('click', () => {
+    const restored = undoAnswer(session.get(), performance.now());
+    if (!restored?.session.card) return;
+    data.update(() => restored.state);
+    session.update(() => restored.session);
+    renderCard(restored.session.card);
+  });
+
+  els.prompt.addEventListener('click', () => {
+    if (listening()) speak(session.get().card?.item.kana ?? '');
+  });
+  els.skip.addEventListener('click', () => submit(null));
+  els.nextButton.addEventListener('click', next);
+  els.speak.addEventListener('click', () => speak(session.get().card?.item.kana ?? ''));
+  $('#drill-exit').addEventListener('click', () => {
+    session.update(endDrill);
+    next();
+  });
+
+  els.info.addEventListener('toggle', () => {
+    if (!els.info.open) return;
+    session.update(revealCard);
+    void mountStrokeOrder(els.infoBody.querySelector<HTMLElement>('.stroke-order'));
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) session.update(markUntimed);
+  });
+
+  document.addEventListener('keydown', event => {
+    const { card } = session.get();
+    const target = event.target as Element;
+    if (!card || !isActive() || target.matches('input, textarea') || document.querySelector('dialog[open]')) return;
+    if (!card.answered && mode() === 'choose' && /^[1-4]$/.test(event.key)) {
+      const choice = card.choices[Number(event.key) - 1];
+      if (choice !== undefined) submit(choice);
+    } else if (card.answered && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      next();
+    }
+  });
+
+  onVoicesChanged(() => {
+    if (listening() && !session.get().card) next();
+  });
+
+  data.subscribe(renderChrome);
+  session.subscribe(renderChrome);
+
+  return {
+    next,
+    focus() {
+      const { card } = session.get();
+      if (card && mode() === 'type' && !card.answered) els.input.focus();
+    },
+    drill(label, items) {
+      session.update(s => startDrill(s, { label, items }));
+      next();
+    },
+  };
+}

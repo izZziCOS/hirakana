@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    />
+    <meta name="description" content="Learn hiragana and katakana with spaced repetition." />
+    <meta name="theme-color" content="#c8402c" />
+    <title>Kana Dojo</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="fonts.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="boot.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark jp" aria-hidden="true">かな</span> Kana Dojo</div>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button
+          class="tab"
+          role="tab"
+          id="tab-practice"
+          aria-controls="view-practice"
+          data-view="practice"
+          aria-selected="true"
+        >
+          Practice
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          id="tab-progress"
+          aria-controls="view-progress"
+          data-view="progress"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          Progress
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          id="tab-mistakes"
+          aria-controls="view-mistakes"
+          data-view="mistakes"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          Mistakes
+        </button>
+      </nav>
+      <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Theme: system">
+        <span aria-hidden="true" id="theme-icon">◐</span>
+      </button>
+    </header>
+
+    <div id="app-error" class="app-error" role="alert" hidden>
+      <strong>Something went wrong.</strong>
+      <span id="app-error-detail">The app didn’t finish loading.</span>
+      <a href="">Reload</a>
+    </div>
+
+    <main>
+      <section id="view-practice" class="view" role="tabpanel" aria-labelledby="tab-practice">
+        <div class="controls">
+          <div class="segmented" id="direction-select" aria-label="Practice direction">
+            <button data-value="read" title="See the kana, give the reading">Read <span class="jp">あ</span>→ka</button>
+            <button data-value="recall" title="See the reading, pick the kana">
+              Recall ka→<span class="jp">あ</span>
+            </button>
+            <button data-value="match" title="Match hiragana with katakana">
+              Match <span class="jp">あ</span>↔<span class="jp">ア</span>
+            </button>
+            <button data-value="listen" title="Hear the kana, pick it">Listen ♪→<span class="jp">あ</span></button>
+          </div>
+          <div class="segmented" id="script-select" aria-label="Script">
+            <button data-value="hiragana">Hiragana <span class="jp">あ</span></button>
+            <button data-value="katakana">Katakana <span class="jp">ア</span></button>
+            <button data-value="both">Both</button>
+          </div>
+          <div class="segmented" id="mode-select" aria-label="Answer mode">
+            <button data-value="type">Type</button>
+            <button data-value="choose">Multiple choice</button>
+          </div>
+          <div class="chips" id="group-select" aria-label="Character sets"></div>
+        </div>
+
+        <details class="rows-picker">
+          <summary>
+            <span class="muted">Rows:</span> <span id="rows-summary"></span>
+            <span class="muted" id="new-summary"></span> <span class="rows-edit">Rows &amp; settings</span>
+          </summary>
+          <div id="rows-body"></div>
+          <div class="row-group new-per-day">
+            <div class="row-group-head">New characters per day</div>
+            <div class="segmented small" id="new-per-day">
+              <button data-value="5">5</button>
+              <button data-value="10">10</button>
+              <button data-value="15">15</button>
+              <button data-value="25">25</button>
+              <button data-value="50">50</button>
+            </div>
+          </div>
+          <div class="row-group settings-group">
+            <div class="row-group-head" id="goal-label">Session goal (cards)</div>
+            <div class="segmented small" id="goal-select" aria-labelledby="goal-label">
+              <button data-value="0">Off</button>
+              <button data-value="10">10</button>
+              <button data-value="25">25</button>
+              <button data-value="50">50</button>
+              <button data-value="100">100</button>
+            </div>
+          </div>
+          <div class="row-group settings-group">
+            <div class="row-group-head" id="speed-label">Speed check</div>
+            <div class="segmented small" id="speed-select" aria-labelledby="speed-label">
+              <button data-value="adaptive" title="Slow answers don’t advance; the limit adapts to your own pace">
+                Adaptive
+              </button>
+              <button data-value="off" title="Only right or wrong counts">Off</button>
+            </div>
+          </div>
+        </details>
+
+        <div id="drill-banner" class="banner" hidden>
+          <span id="drill-text"></span>
+          <button id="drill-exit" class="link-btn">Back to normal practice</button>
+        </div>
+
+        <div class="card" id="card">
+          <div class="card-meta">
+            <div><span id="card-script"></span><span id="card-badge" class="badge" hidden></span></div>
+            <button id="speak-btn" class="icon-btn" title="Listen" aria-label="Listen" hidden>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div class="kana jp" id="kana" lang="ja"></div>
+          <div class="done" id="done" hidden></div>
+
+          <form id="answer-form" autocomplete="off">
+            <input
+              id="answer-input"
+              type="text"
+              inputmode="latin"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="Type the romaji…"
+              aria-label="Your answer"
+            />
+            <button type="submit" id="check-btn" class="primary">Check</button>
+            <button
+              type="button"
+              id="pad-toggle"
+              class="icon-btn pad-toggle"
+              aria-pressed="false"
+              aria-controls="kana-pad"
+              hidden
+            >
+              <span aria-hidden="true" class="jp">あ</span><span class="visually-hidden">Kana keyboard</span>
+            </button>
+          </form>
+          <div id="kana-pad" class="kana-pad" hidden></div>
+          <div id="choices" class="choices" hidden></div>
+
+          <div id="feedback" class="feedback" aria-live="polite">&nbsp;</div>
+          <div class="card-actions">
+            <button id="skip-btn" class="ghost">I don’t know</button>
+            <button id="typo-btn" class="ghost" hidden>I made a typo</button>
+            <button id="undo-btn" class="ghost" hidden>Undo</button>
+            <button id="next-btn" class="primary" hidden>Next <kbd>Enter</kbd></button>
+          </div>
+        </div>
+
+        <details id="info" class="info">
+          <summary>More about this character <span class="muted" id="info-hint"></span></summary>
+          <div id="info-body"></div>
+        </details>
+
+        <div class="session" id="session"></div>
+      </section>
+
+      <section id="view-progress" class="view" role="tabpanel" aria-labelledby="tab-progress" hidden>
+        <div class="section-head">
+          <h2>Progress</h2>
+          <div class="segmented small" id="progress-direction">
+            <button data-value="read">Read</button>
+            <button data-value="recall">Recall</button>
+            <button data-value="match">Match</button>
+            <button data-value="listen">Listen</button>
+          </div>
+        </div>
+        <div class="stat-cards" id="overall"></div>
+
+        <div class="section-head">
+          <h3>Reviews coming up</h3>
+        </div>
+        <div class="forecast" id="forecast"></div>
+
+        <div class="chart-grid-2">
+          <section class="chart-card">
+            <h3>Activity</h3>
+            <p class="muted small">Answers per day. Select a day to see its mistakes.</p>
+            <div id="activity" class="chart"></div>
+          </section>
+          <section class="chart-card">
+            <h3>Accuracy by week</h3>
+            <p class="muted small">Share of scored answers you got right, all directions</p>
+            <div id="trend" class="chart"></div>
+          </section>
+        </div>
+
+        <div class="section-head">
+          <div class="segmented small" id="progress-script">
+            <button data-value="hiragana">Hiragana</button>
+            <button data-value="katakana">Katakana</button>
+          </div>
+          <div class="legend">
+            <span><i class="swatch level-new"></i>Not seen</span>
+            <span><i class="swatch level-weak"></i>Needs work</span>
+            <span><i class="swatch level-learning"></i>Learning</span>
+            <span><i class="swatch level-mastered"></i>Mastered</span>
+          </div>
+        </div>
+        <div id="progress-grids"></div>
+        <p class="muted small">
+          Reviews are spaced out further each time you get one right: 1 min → 10 min → 1 hour → 1 day → 3 days → 1 week
+          → 3 weeks → 2 months. A wrong answer sends the character back to the start; a correct but slow answer keeps it
+          where it is; peeking moves it back two steps. Mastered means you still knew it after a gap of 3 days or more.
+          Each direction is tracked separately. Tap a character for details.
+        </p>
+
+        <div class="danger-zone">
+          <div class="transfer">
+            <button id="export-progress" class="ghost">Export progress</button>
+            <button id="import-progress" class="ghost">Import progress</button>
+            <input id="import-file" type="file" accept="application/json,.json" hidden />
+            <button id="reset-progress" class="ghost danger">Reset all progress</button>
+          </div>
+          <p id="transfer-status" class="muted small" aria-live="polite"></p>
+          <p class="muted small">
+            Progress is saved in this browser only. Export it to back it up or move it to another device.
+          </p>
+        </div>
+      </section>
+
+      <section id="view-mistakes" class="view" role="tabpanel" aria-labelledby="tab-mistakes" hidden>
+        <div class="section-head">
+          <h2>Mistakes</h2>
+          <div class="segmented small" id="mistake-filter">
+            <button data-value="all">All</button>
+            <button data-value="hiragana">Hiragana</button>
+            <button data-value="katakana">Katakana</button>
+          </div>
+        </div>
+
+        <div id="day-filter" class="banner" hidden>
+          <span id="day-filter-text"></span>
+          <button id="day-filter-clear" class="link-btn">Show all days</button>
+        </div>
+
+        <div class="section-head">
+          <h3>Most missed</h3>
+          <button id="drill-btn" class="primary small">Practise these</button>
+        </div>
+        <div id="most-missed" class="missed-chips"></div>
+
+        <div class="section-head">
+          <h3>Mixed-up pairs</h3>
+        </div>
+        <div id="pairs" class="pairs"></div>
+
+        <div class="section-head">
+          <h3>History <span class="muted small" id="mistake-count"></span></h3>
+        </div>
+        <ol id="mistake-list" class="mistake-list"></ol>
+
+        <div class="danger-zone">
+          <button id="clear-mistakes" class="ghost danger">Clear mistake history</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="kana-dialog">
+      <div class="dialog-head">
+        <span class="dialog-kana jp" id="dialog-kana" lang="ja"></span>
+        <div>
+          <button id="dialog-speak" class="icon-btn" title="Listen" aria-label="Listen">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"
+              />
+            </svg>
+          </button>
+          <button id="dialog-close" class="icon-btn" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div id="dialog-body"></div>
+    </dialog>
+
+    <dialog
+      id="confirm-dialog"
+      class="confirm-dialog"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-message"
+    >
+      <form method="dialog">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-message"></p>
+        <div class="confirm-actions">
+          <button value="cancel" class="ghost" id="confirm-cancel">Cancel</button>
+          <button value="confirm" class="primary" id="confirm-ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
