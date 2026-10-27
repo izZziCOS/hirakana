@@ -1,4 +1,4 @@
-import { answer, expect, feedback, prompt, test } from './fixtures.ts';
+import { answer, expect, feedback, prompt, start, test } from './fixtures.ts';
 
 const now = Date.now();
 
@@ -30,7 +30,7 @@ test('mistakes are listed and mixed-up pairs can be drilled', async ({ page, see
 });
 
 test('a new mistake shows up in the history', async ({ page }) => {
-  await page.goto('/');
+  await start(page);
   await answer(page, 'ka');
   await expect(feedback(page)).toContainText('which is か');
   await page.getByRole('tab', { name: 'Mistakes' }).click();

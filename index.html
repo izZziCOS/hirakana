@@ -7,8 +7,8 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
     />
-    <meta name="description" content="Learn hiragana and katakana with spaced repetition." />
-    <meta name="theme-color" content="#c8402c" />
+    <meta name="description" content="Learn hiragana, katakana, JLPT words and kanji with spaced repetition." />
+    <meta name="theme-color" content="#b93a24" />
     <title>Kana Dojo</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
@@ -19,7 +19,7 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="brand"><span class="brand-mark jp" aria-hidden="true">かな</span> Kana Dojo</div>
+      <div class="brand"><span class="brand-mark jp" aria-hidden="true">道</span> Kana Dojo</div>
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button
           class="tab"
@@ -29,7 +29,7 @@
           data-view="practice"
           aria-selected="true"
         >
-          Practice
+          Learn
         </button>
         <button
           class="tab"
@@ -54,9 +54,27 @@
           Mistakes
         </button>
       </nav>
-      <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Theme: system">
-        <span aria-hidden="true" id="theme-icon">◐</span>
-      </button>
+      <div class="topbar-actions">
+        <span id="streak" class="streak" hidden></span>
+        <button id="settings-btn" class="icon-btn" type="button" aria-label="Settings" aria-haspopup="dialog">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />
+          </svg>
+        </button>
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Theme: system">
+          <span aria-hidden="true" id="theme-icon">◐</span>
+        </button>
+      </div>
     </header>
 
     <div id="app-error" class="app-error" role="alert" hidden>
@@ -67,134 +85,186 @@
 
     <main>
       <section id="view-practice" class="view" role="tabpanel" aria-labelledby="tab-practice">
-        <div class="controls">
-          <div class="segmented" id="direction-select" aria-label="Practice direction">
-            <button data-value="read" title="See the kana or kanji, give the reading">
-              Read <span class="jp">あ</span>→ka
-            </button>
-            <button data-value="recall" title="See the reading, pick the kana">
-              Recall ka→<span class="jp">あ</span>
-            </button>
-            <button data-value="match" title="Match hiragana with katakana">
-              Match <span class="jp">あ</span>↔<span class="jp">ア</span>
-            </button>
-            <button data-value="listen" title="Hear the kana, pick it">Listen ♪→<span class="jp">あ</span></button>
-            <button data-value="meaning" title="See a kanji, give its meaning">
-              Meaning <span class="jp">水</span>→water
-            </button>
-            <button data-value="write" title="See the reading or meaning, write the kana or kanji">Write ka→✎</button>
-          </div>
-          <div class="segmented" id="script-select" aria-label="Script">
-            <button data-value="hiragana">Hiragana <span class="jp">あ</span></button>
-            <button data-value="katakana">Katakana <span class="jp">ア</span></button>
-            <button data-value="both">Both</button>
-          </div>
-          <div class="segmented" id="mode-select" aria-label="Answer mode">
-            <button data-value="type">Type</button>
-            <button data-value="choose">Multiple choice</button>
-          </div>
-          <div class="chips" id="group-select" aria-label="Character sets"></div>
+        <div id="learn-home" class="learn-home">
+          <section class="hero" style="background-image: url('images/torii-hakone.webp')" aria-labelledby="hero-title">
+            <div class="hero-panel">
+              <p class="hero-kicker">Today</p>
+              <h1 id="hero-title">Ready when you are</h1>
+              <p id="hero-detail" class="hero-detail"></p>
+              <div class="hero-actions">
+                <button type="button" id="continue-btn" class="primary hero-continue">
+                  <span id="continue-label">Continue</span>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </button>
+                <a href="#tracks" class="hero-link">Choose what to study</a>
+              </div>
+            </div>
+          </section>
+
+          <section id="tracks" class="home-section" aria-labelledby="tracks-h">
+            <div class="section-head">
+              <h2 id="tracks-h">Your tracks</h2>
+              <div class="script-pick">
+                <span id="script-label" class="muted small">Kana and words in</span>
+                <div class="segmented small" id="script-select" aria-labelledby="script-label">
+                  <button data-value="hiragana">Hiragana <span class="jp">あ</span></button>
+                  <button data-value="katakana">Katakana <span class="jp">ア</span></button>
+                  <button data-value="both">Both</button>
+                </div>
+              </div>
+            </div>
+            <p class="muted small track-help">Turn a set on or off, or open a track to pick single rows.</p>
+            <div class="track-grid" id="track-grid"></div>
+          </section>
+
+          <section class="home-section" aria-labelledby="modes-h">
+            <div class="section-head">
+              <h2 id="modes-h">How do you want to practise?</h2>
+            </div>
+            <div class="mode-groups" id="direction-select" role="group" aria-label="Practice direction">
+              <div class="mode-group">
+                <h3>Recognise <span class="muted">· see or hear it, name it</span></h3>
+                <div class="mode-chips">
+                  <button data-value="read" title="See the kana or kanji, give the reading">
+                    Read <span class="jp">あ</span>→ka
+                  </button>
+                  <button data-value="listen" title="Hear the kana, pick it">
+                    Listen ♪→<span class="jp">あ</span>
+                  </button>
+                  <button data-value="meaning" title="See a kanji, give its meaning">
+                    Meaning <span class="jp">水</span>→water
+                  </button>
+                </div>
+              </div>
+              <div class="mode-group">
+                <h3>Produce <span class="muted">· recall it yourself</span></h3>
+                <div class="mode-chips">
+                  <button data-value="recall" title="See the reading, pick the kana">
+                    Recall ka→<span class="jp">あ</span>
+                  </button>
+                  <button data-value="write" title="See the reading or meaning, write the kana or kanji">
+                    Write ✎
+                  </button>
+                </div>
+              </div>
+              <div class="mode-group">
+                <h3>Compare <span class="muted">· tell scripts apart</span></h3>
+                <div class="mode-chips">
+                  <button data-value="match" title="Match hiragana with katakana">
+                    Match <span class="jp">あ</span>↔<span class="jp">ア</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="answer-by" id="answer-by">
+              <span id="mode-label" class="muted">Answer by</span>
+              <div class="segmented" id="mode-select" aria-labelledby="mode-label">
+                <button data-value="type">Typing</button>
+                <button data-value="choose">Multiple choice</button>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <details class="rows-picker">
-          <summary>
-            <span class="muted">Rows:</span> <span id="rows-summary"></span>
-            <span class="muted" id="new-summary"></span> <span class="rows-edit">Rows &amp; settings</span>
-          </summary>
-          <div id="rows-body"></div>
-          <div class="row-group new-per-day">
-            <div class="row-group-head">New characters per day</div>
-            <div class="segmented small" id="new-per-day">
-              <button data-value="5">5</button>
-              <button data-value="10">10</button>
-              <button data-value="15">15</button>
-              <button data-value="25">25</button>
-              <button data-value="50">50</button>
+        <div id="learn-session" class="learn-session" hidden>
+          <div class="session-band" style="background-image: url('images/torii-sea.webp')">
+            <div class="session-band-panel">
+              <div class="session-band-top">
+                <button type="button" id="home-btn" class="band-back">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                  Home
+                </button>
+                <span id="session-context" class="session-context"></span>
+              </div>
+              <div class="session" id="session"></div>
             </div>
           </div>
-          <div class="row-group settings-group">
-            <div class="row-group-head" id="goal-label">Session goal (cards)</div>
-            <div class="segmented small" id="goal-select" aria-labelledby="goal-label">
-              <button data-value="0">Off</button>
-              <button data-value="10">10</button>
-              <button data-value="25">25</button>
-              <button data-value="50">50</button>
-              <button data-value="100">100</button>
-            </div>
+
+          <div id="drill-banner" class="banner" hidden>
+            <span id="drill-text"></span>
+            <button id="drill-exit" class="link-btn">Back to normal practice</button>
           </div>
-          <div class="row-group settings-group">
-            <div class="row-group-head" id="speed-label">Speed check</div>
-            <div class="segmented small" id="speed-select" aria-labelledby="speed-label">
-              <button data-value="adaptive" title="Slow answers don’t advance; the limit adapts to your own pace">
-                Adaptive
+
+          <div class="card" id="card">
+            <div class="card-meta">
+              <div><span id="card-script"></span><span id="card-badge" class="badge" hidden></span></div>
+              <button id="speak-btn" class="icon-btn" title="Listen" aria-label="Listen" hidden>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"
+                  />
+                </svg>
               </button>
-              <button data-value="off" title="Only right or wrong counts">Off</button>
+            </div>
+            <div class="kana jp" id="kana" lang="ja"></div>
+            <div class="done" id="done" hidden></div>
+
+            <form id="answer-form" autocomplete="off">
+              <input
+                id="answer-input"
+                type="text"
+                inputmode="latin"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="Type the romaji…"
+                aria-label="Your answer"
+              />
+              <button type="submit" id="check-btn" class="primary">Check</button>
+              <button
+                type="button"
+                id="pad-toggle"
+                class="icon-btn pad-toggle"
+                aria-pressed="false"
+                aria-controls="kana-pad"
+                hidden
+              >
+                <span aria-hidden="true" class="jp">あ</span><span class="visually-hidden">Kana keyboard</span>
+              </button>
+            </form>
+            <div id="kana-pad" class="kana-pad" hidden></div>
+            <div id="choices" class="choices" hidden></div>
+            <div id="write-pad" class="writing write-answer" hidden></div>
+
+            <div id="feedback" class="feedback" aria-live="polite">&nbsp;</div>
+            <div class="card-actions">
+              <button id="skip-btn" class="ghost">I don’t know</button>
+              <button id="typo-btn" class="ghost" hidden>I made a typo</button>
+              <button id="undo-btn" class="ghost" hidden>Undo</button>
+              <button id="next-btn" class="primary" hidden>Next <kbd>Enter</kbd></button>
             </div>
           </div>
-        </details>
 
-        <div id="drill-banner" class="banner" hidden>
-          <span id="drill-text"></span>
-          <button id="drill-exit" class="link-btn">Back to normal practice</button>
+          <details id="info" class="info">
+            <summary>Hint &amp; details <span class="muted" id="info-hint"></span></summary>
+            <div id="info-body"></div>
+          </details>
         </div>
-
-        <div class="card" id="card">
-          <div class="card-meta">
-            <div><span id="card-script"></span><span id="card-badge" class="badge" hidden></span></div>
-            <button id="speak-btn" class="icon-btn" title="Listen" aria-label="Listen" hidden>
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"
-                />
-              </svg>
-            </button>
-          </div>
-          <div class="kana jp" id="kana" lang="ja"></div>
-          <div class="done" id="done" hidden></div>
-
-          <form id="answer-form" autocomplete="off">
-            <input
-              id="answer-input"
-              type="text"
-              inputmode="latin"
-              autocapitalize="off"
-              autocorrect="off"
-              spellcheck="false"
-              placeholder="Type the romaji…"
-              aria-label="Your answer"
-            />
-            <button type="submit" id="check-btn" class="primary">Check</button>
-            <button
-              type="button"
-              id="pad-toggle"
-              class="icon-btn pad-toggle"
-              aria-pressed="false"
-              aria-controls="kana-pad"
-              hidden
-            >
-              <span aria-hidden="true" class="jp">あ</span><span class="visually-hidden">Kana keyboard</span>
-            </button>
-          </form>
-          <div id="kana-pad" class="kana-pad" hidden></div>
-          <div id="choices" class="choices" hidden></div>
-          <div id="write-pad" class="writing write-answer" hidden></div>
-
-          <div id="feedback" class="feedback" aria-live="polite">&nbsp;</div>
-          <div class="card-actions">
-            <button id="skip-btn" class="ghost">I don’t know</button>
-            <button id="typo-btn" class="ghost" hidden>I made a typo</button>
-            <button id="undo-btn" class="ghost" hidden>Undo</button>
-            <button id="next-btn" class="primary" hidden>Next <kbd>Enter</kbd></button>
-          </div>
-        </div>
-
-        <details id="info" class="info">
-          <summary>More about this character <span class="muted" id="info-hint"></span></summary>
-          <div id="info-body"></div>
-        </details>
-
-        <div class="session" id="session"></div>
       </section>
 
       <section id="view-progress" class="view" role="tabpanel" aria-labelledby="tab-progress" hidden>
@@ -319,6 +389,44 @@
         </div>
       </div>
       <div id="dialog-body"></div>
+    </dialog>
+
+    <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+      <div class="dialog-head">
+        <h2 id="settings-title">Settings</h2>
+        <button id="settings-close" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="row-group">
+          <div class="row-group-head" id="new-label">New cards per day</div>
+          <div class="segmented small" id="new-per-day" aria-labelledby="new-label">
+            <button data-value="5">5</button>
+            <button data-value="10">10</button>
+            <button data-value="15">15</button>
+            <button data-value="25">25</button>
+            <button data-value="50">50</button>
+          </div>
+        </div>
+        <div class="row-group">
+          <div class="row-group-head" id="goal-label">Session goal (cards)</div>
+          <div class="segmented small" id="goal-select" aria-labelledby="goal-label">
+            <button data-value="0">Off</button>
+            <button data-value="10">10</button>
+            <button data-value="25">25</button>
+            <button data-value="50">50</button>
+            <button data-value="100">100</button>
+          </div>
+        </div>
+        <div class="row-group">
+          <div class="row-group-head" id="speed-label">Speed check</div>
+          <div class="segmented small" id="speed-select" aria-labelledby="speed-label">
+            <button data-value="adaptive" title="Slow answers don’t advance; the limit adapts to your own pace">
+              Adaptive
+            </button>
+            <button data-value="off" title="Only right or wrong counts">Off</button>
+          </div>
+        </div>
+      </div>
     </dialog>
 
     <dialog

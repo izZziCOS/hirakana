@@ -53,9 +53,17 @@
 }
 
 main {
-  max-width: 760px;
+  max-width: 1160px;
   margin: 0 auto;
   padding: 24px 16px 64px;
+}
+
+/* The home screen uses the full width; a practice session and the other tabs read better narrow. */
+.learn-session,
+#view-progress,
+#view-mistakes {
+  max-width: 760px;
+  margin-inline: auto;
 }
 
 .view > .section-head:first-child {

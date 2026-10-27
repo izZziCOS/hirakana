@@ -8,6 +8,17 @@
     font-size: 14px;
   }
 
+  /* Brand and buttons share the first line; the tabs get a full line of their own. */
+  .topbar-actions {
+    margin-left: auto;
+  }
+
+  .tabs {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
   /* Six directions don't fit on one line on a phone, and a wrapped pill needs softer corners. */
   .segmented {
     border-radius: 18px;
@@ -15,6 +26,19 @@
 
   .card {
     padding: 14px 16px 20px;
+  }
+
+  .hero {
+    min-height: 340px;
+    padding: 12px;
+  }
+
+  .hero-panel {
+    padding: 20px;
+  }
+
+  .learn-home {
+    gap: 28px;
   }
 
   .stat-cards {

@@ -1,9 +1,9 @@
-import { expect, prompt, test } from './fixtures.ts';
+import { expect, prompt, start, test } from './fixtures.ts';
 
 test.use({ serviceWorkers: 'allow' });
 
 test('the app keeps working offline once it has loaded', async ({ page, context }) => {
-  await page.goto('/');
+  await start(page);
   await expect(prompt(page)).toHaveText('あ');
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
@@ -16,6 +16,8 @@ test('the app keeps working offline once it has loaded', async ({ page, context 
 
   await context.setOffline(true);
   await page.reload();
+  await expect(page.locator('#hero-title')).toHaveText('15 new to learn');
+  await page.locator('#continue-btn').click();
   await expect(prompt(page)).toHaveText('あ');
   await page.locator('#info summary').click();
   await expect(page.locator('.stroke-count')).toHaveText('3 strokes');

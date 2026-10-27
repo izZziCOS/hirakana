@@ -18,6 +18,15 @@ export interface Group {
   hint: string;
 }
 
+// The home screen groups the character sets into three tracks.
+export interface Track {
+  id: 'kana' | 'vocabulary' | 'kanji';
+  label: string;
+  glyph: string;
+  summary: string;
+  groups: GroupId[];
+}
+
 export interface CharacterRow {
   label: string;
   group: GroupId;

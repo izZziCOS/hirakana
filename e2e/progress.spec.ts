@@ -7,6 +7,7 @@ import {
   feedback,
   prompt,
   savedStatKeys,
+  start,
   STORAGE_KEY,
   test,
 } from './fixtures.ts';
@@ -20,7 +21,7 @@ const withHistory = () => {
 };
 
 test('progress is saved and survives a reload', async ({ page }) => {
-  await page.goto('/');
+  await start(page);
   await answer(page, 'a');
   await expect(feedback(page)).toContainText('Correct!');
   await expect.poll(() => savedStatKeys(page)).toEqual(['あ']);
@@ -32,7 +33,7 @@ test('progress is saved and survives a reload', async ({ page }) => {
 
 test('the old storage key is migrated to the new one', async ({ page, seed }) => {
   await seed({ version: 3, settings: { script: 'katakana', rows: ['basic:Vowels'] }, bestStreak: 7 }, 'kana-dojo-v1');
-  await page.goto('/');
+  await start(page);
   await expect(prompt(page)).toHaveText('ア');
   await answer(page, 'a');
   await expect
@@ -60,7 +61,7 @@ test('activity and accuracy charts have tooltips and table views', async ({ page
 });
 
 test('progress can be exported, reset and imported again', async ({ page }) => {
-  await page.goto('/');
+  await start(page);
   await answer(page, 'a');
   await expect(feedback(page)).toContainText('Correct!');
   await page.getByRole('tab', { name: 'Progress' }).click();

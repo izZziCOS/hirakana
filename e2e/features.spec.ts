@@ -1,10 +1,10 @@
 import type { Page } from '@playwright/test';
-import { answer, dayKey, expect, feedback, prompt, test } from './fixtures.ts';
+import { answer, dayKey, expect, feedback, prompt, start, test } from './fixtures.ts';
 
 const session = (page: Page) => page.locator('#session');
 
 test('a typo can be counted as right', async ({ page }) => {
-  await page.goto('/');
+  await start(page);
   await answer(page, 'aa');
   await expect(feedback(page)).toContainText('あ is “a”.');
   await page.getByRole('button', { name: 'I made a typo' }).click();
@@ -17,6 +17,7 @@ test('a typo can be counted as right', async ({ page }) => {
 test('the last answer can be undone', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Multiple choice' }).click();
+  await page.locator('#continue-btn').click();
   await page.locator('#choices .choice:not([data-value="a"])').first().click();
   await expect(session(page)).toContainText('Session 0/1');
   await page.getByRole('button', { name: 'Undo' }).click();
@@ -29,7 +30,7 @@ test('the last answer can be undone', async ({ page }) => {
 
 test('the on-screen kana keyboard can answer recall cards', async ({ page, seed }) => {
   await seed({ version: 5, settings: { direction: 'recall', mode: 'type', rows: ['basic:Vowels'] } });
-  await page.goto('/');
+  await start(page);
   await page.locator('#pad-toggle').click();
   await expect(page.locator('#kana-pad')).toBeVisible();
   await expect(page.locator('#answer-input')).toHaveAttribute('inputmode', 'none');
@@ -40,6 +41,7 @@ test('the on-screen kana keyboard can answer recall cards', async ({ page, seed 
   await page.locator('#kana-pad [data-pad="submit"]').click();
   await expect(feedback(page)).toContainText('Correct! a = あ');
   await page.reload();
+  await page.locator('#continue-btn').click();
   await expect(page.locator('#kana-pad')).toBeVisible();
 });
 
@@ -55,7 +57,7 @@ test('listening explains when there is no Japanese voice', async ({ page, seed }
     });
   });
   await seed({ version: 5, settings: { direction: 'listen' } });
-  await page.goto('/');
+  await start(page);
   await expect(feedback(page)).toContainText('Listening needs a Japanese voice');
 });
 
@@ -84,7 +86,7 @@ test('listening plays the kana and asks for it', async ({ page, seed }) => {
     });
   });
   await seed({ version: 5, settings: { direction: 'listen', mode: 'choose', rows: ['basic:Vowels'] } });
-  await page.goto('/');
+  await start(page);
   await expect(prompt(page)).toHaveText('♪');
   await expect(page.locator('#card-script')).toHaveText('Listen, then pick the hiragana');
   await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toEqual(['あ']);
@@ -94,7 +96,7 @@ test('listening plays the kana and asks for it', async ({ page, seed }) => {
 
 test('the session goal shows progress and celebrates when reached', async ({ page, seed }) => {
   await seed({ version: 5, settings: { goal: 10, rows: ['basic:Vowels', 'basic:K-row'] } });
-  await page.goto('/');
+  await start(page);
   await expect(session(page)).toContainText('Goal 0/10');
   for (const romaji of ['a', 'i', 'u', 'e', 'o', 'ka', 'ki', 'ku', 'ke']) {
     await answer(page, romaji);
@@ -121,11 +123,18 @@ test('the theme can be switched and is applied before the app loads', async ({ p
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
 });
 
-test('turning the speed check off is remembered', async ({ page }) => {
+test('settings open in a dialog and the speed check can be turned off', async ({ page }) => {
   await page.goto('/');
-  await page.locator('.rows-picker summary').click();
+  await page.getByRole('button', { name: 'Settings' }).click();
   await page.locator('#speed-select [data-value="off"]').click();
   await expect(page.locator('#speed-select [data-value="off"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#settings-dialog')).toBeHidden();
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.locator('#speed-select [data-value="off"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#settings-close').click();
+  await page.locator('#continue-btn').click();
   await expect(prompt(page)).toHaveText('あ');
 });
 
@@ -196,7 +205,7 @@ async function draw(page: Page, points: { x: number; y: number }[]): Promise<voi
 
 test('handwriting practice checks each stroke', async ({ page, seed }) => {
   await seed({ version: 5, settings: { script: 'katakana', rows: ['basic:N-row'] } });
-  await page.goto('/');
+  await start(page);
   await expect(prompt(page)).toHaveText('ナ');
   await page.locator('#info summary').click();
   await page.getByRole('button', { name: 'Practise writing' }).click();

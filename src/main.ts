@@ -6,6 +6,7 @@ import type { Theme } from './types.ts';
 import { confirmAction } from './ui/confirm.ts';
 import { createControls } from './ui/controls.ts';
 import { createDialog, type StartDrill } from './ui/dialog.ts';
+import { createHome } from './ui/home.ts';
 import { $ } from './ui/dom.ts';
 import { createMistakes } from './ui/mistakes.ts';
 import { createPractice } from './ui/practice/index.ts';
@@ -48,16 +49,39 @@ function start(): void {
   const stores = createAppStores(browserStorage());
   const { data, session, saver } = stores;
   let activeView: View = 'practice';
+  // The Learn tab is either the home screen or a practice session.
+  let learning: 'home' | 'session' = 'home';
   const isActive = (view: View) => () => activeView === view;
   const tabs = [...document.querySelectorAll<HTMLButtonElement>('.tab')];
 
   const startDrill: StartDrill = (label, items) => {
     showView('practice');
+    showLearn('session');
     practice.drill(label, items);
   };
   const dialog = createDialog(data, startDrill);
   const controls = createControls(data);
-  const practice = createPractice(stores, isActive('practice'), dialog);
+  const practice = createPractice(stores, () => activeView === 'practice' && learning === 'session', dialog);
+  const home = createHome(stores, () => activeView === 'practice' && learning === 'home');
+
+  function showLearn(mode: 'home' | 'session'): void {
+    learning = mode;
+    $('#learn-home').hidden = mode !== 'home';
+    $('#learn-session').hidden = mode !== 'session';
+    window.scrollTo(0, 0);
+    if (mode === 'home') home.render();
+    else practice.focus();
+  }
+
+  $('#continue-btn').addEventListener('click', () => showLearn('session'));
+  $('#home-btn').addEventListener('click', () => showLearn('home'));
+
+  const settingsDialog = $('#settings-dialog', HTMLDialogElement);
+  $('#settings-btn').addEventListener('click', () => settingsDialog.showModal());
+  $('#settings-close').addEventListener('click', () => settingsDialog.close());
+  settingsDialog.addEventListener('click', event => {
+    if (event.target === settingsDialog) settingsDialog.close();
+  });
   const mistakes = createMistakes(stores, dialog, startDrill);
   const progress = createProgress(stores, {
     dialog,
@@ -81,7 +105,8 @@ function start(): void {
     });
     if (view === 'progress') progress.open();
     if (view === 'mistakes') mistakes.render();
-    if (view === 'practice' && !focusTab) practice.focus();
+    if (view === 'practice' && learning === 'home') home.render();
+    if (view === 'practice' && learning === 'session' && !focusTab) practice.focus();
   }
 
   tabs.forEach(tab => {
@@ -196,6 +221,7 @@ function start(): void {
   applyTheme(data.get().settings.theme);
   controls.render();
   practice.next();
+  home.render();
   registerServiceWorker();
 }
 

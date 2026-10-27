@@ -3,6 +3,9 @@
 A hiragana, katakana and JLPT kanji trainer that runs entirely in the browser. It uses spaced repetition, works offline once it has
 loaded, and keeps progress in the browser with no backend.
 
+- **Home screen:** a "Today" panel with the reviews due and new cards left and one Continue button, three tracks
+  (Kana, Vocabulary, Kanji) whose sets and rows you switch on and off, and the practice modes grouped into Recognise,
+  Produce and Compare. Daily limits, the session goal and the speed check live in a Settings dialog.
 - **Six directions:** read (あ → ka, 水 → sui or mizu), recall (ka → あ, picked from four options or typed), match (あ ↔ ア),
   listen (hear it, then pick or type it), meaning (水 → water, for kanji) and write (ka or "water" → draw it, checked
   stroke by stroke; up to one retried stroke in four still passes). Each has its own review schedule. Listening uses
@@ -62,7 +65,7 @@ The first time you run the browser tests, install Chromium for Playwright with `
 ```
 index.html               Page template; the build fills in the hashed asset names
 styles/                  One CSS file per screen; index.css imports them in order, tokens.css holds the colours
-public/                  Copied as-is: web app manifest and icons
+public/                  Copied as-is: web app manifest, icons and the two background photos
 vendor/kanjivg/          Stroke data for every character the app uses (see its README)
 src/
   data.ts                All kana, words, examples, notes and look-alike groups
@@ -130,5 +133,9 @@ allowed, plus inline `style` attributes.
   Dictionary Research and Development Group, CC BY-SA 4.0, via
   [kanji-data](https://github.com/davidluzgouveia/kanji-data) by David Gouveia (MIT). JLPT levels from
   [Jonathan Waller's JLPT resources](http://www.tanos.co.uk/jlpt/).
+- Photos, under the [Unsplash License](https://unsplash.com/license): the Hakone torii on the home screen by
+  [Tianshu Liu](https://unsplash.com/photos/torii-gate-japan-SBK40fdKbAg) and the Miyajima torii behind a practice
+  session by [Manoa Angelo](https://unsplash.com/photos/a-red-torii-gate-stands-in-the-sea-7NNgxNXac0k), stored in
+  `public/images/`.
 - Kana font: [Klee One](https://fonts.google.com/specimen/Klee+One) by Fontworks, SIL Open Font License 1.1, from
   `@fontsource/klee-one`.

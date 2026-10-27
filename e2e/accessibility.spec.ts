@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
-import { dayKey, expect, test } from './fixtures.ts';
+import { dayKey, expect, start, test } from './fixtures.ts';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -25,9 +25,23 @@ for (const theme of ['light', 'dark'] as const) {
   test.describe(`${theme} theme`, () => {
     test.use({ colorScheme: theme });
 
-    test('practice, with the info panel and settings open, has no accessibility violations', async ({ page }) => {
+    test('the home screen, with a track open and the settings dialog, has no accessibility violations', async ({
+      page,
+      seed,
+    }) => {
+      await seed(history);
       await page.goto('/');
-      await page.locator('.rows-picker summary').click();
+      await page.locator('[data-track="kanji"]').click();
+      await page.locator('[data-expand="k5"]').click();
+      await expect(page.locator('[data-row="k5:N5 · 1–30"]')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('button', { name: 'Settings' }).click();
+      await expect(page.locator('#settings-dialog')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test('practice, with the info panel open, has no accessibility violations', async ({ page }) => {
+      await start(page);
       await page.locator('#info summary').click();
       await expect(page.locator('.stroke-count')).toHaveText('3 strokes');
       expect(await violations(page)).toEqual([]);
@@ -36,6 +50,7 @@ for (const theme of ['light', 'dark'] as const) {
     test('a wrong answer and multiple choice have no accessibility violations', async ({ page }) => {
       await page.goto('/');
       await page.getByRole('button', { name: 'Multiple choice' }).click();
+      await page.locator('#continue-btn').click();
       await page.locator('#choices .choice:not([data-value="a"])').first().click();
       await expect(page.locator('#undo-btn')).toBeVisible();
       expect(await violations(page)).toEqual([]);
@@ -64,7 +79,7 @@ for (const theme of ['light', 'dark'] as const) {
 
 test('tabs can be used with the keyboard', async ({ page }) => {
   await page.goto('/');
-  const practiceTab = page.getByRole('tab', { name: 'Practice' });
+  const practiceTab = page.getByRole('tab', { name: 'Learn' });
   await practiceTab.focus();
   await page.keyboard.press('ArrowRight');
   const progressTab = page.getByRole('tab', { name: 'Progress' });

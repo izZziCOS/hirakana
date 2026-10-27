@@ -21,7 +21,7 @@ import {
   submitAnswer,
   undoAnswer,
 } from '../../session.ts';
-import { updateSettings } from '../../state.ts';
+import { rowsSummary, updateSettings } from '../../state.ts';
 import type { AppStores } from '../../store.ts';
 import type { Card, KanaItem, Session } from '../../types.ts';
 import { codePoints } from '../../util.ts';
@@ -29,7 +29,7 @@ import { bindInfoLinks, type KanaDialog } from '../dialog.ts';
 import { $ } from '../dom.ts';
 import { html, setHtml } from '../html.ts';
 import { renderInfo } from '../info.ts';
-import { KIND_BADGE } from '../labels.ts';
+import { DIRECTION_LABEL, KIND_BADGE } from '../labels.ts';
 import { canSpeak, hasJapaneseVoice, onVoicesChanged, speak } from '../speech.ts';
 import { mountStrokeOrder } from '../strokes.ts';
 import { mountWritingPad } from '../writing.ts';
@@ -81,6 +81,7 @@ function practiceElements() {
     session: $('#session'),
     drillBanner: $('#drill-banner'),
     drillText: $('#drill-text'),
+    context: $('#session-context'),
   };
 }
 
@@ -146,7 +147,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
         : '';
     if (listening()) {
       els.speak.hidden = false;
-      speak(card.item.kana);
+      if (isActive()) speak(card.item.kana);
     }
   }
 
@@ -244,6 +245,9 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     const { drill } = session.get();
     els.drillBanner.hidden = !drill;
     els.drillText.textContent = drill ? `Drilling ${drill.label}` : '';
+    els.context.textContent = drill
+      ? `Drill · ${drill.label}`
+      : `${DIRECTION_LABEL[settings().direction]} · ${rowsSummary(data.get())}`;
     setHtml(els.session, sessionBar(data.get(), session.get(), Date.now()));
   }
 
@@ -401,7 +405,9 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     next,
     focus() {
       const { card } = session.get();
-      if (card && mode() === 'type' && !card.answered) els.input.focus();
+      if (!card || card.answered) return;
+      if (listening()) speak(card.item.kana);
+      if (mode() === 'type') els.input.focus();
     },
     drill,
   };

@@ -43,5 +43,11 @@ export async function answer(page: Page, value: string): Promise<void> {
   await page.locator('#answer-input').press('Enter');
 }
 
+// The Learn tab opens on the home screen; Continue starts (or resumes) practice.
+export async function start(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.locator('#continue-btn').click();
+}
+
 export const prompt = (page: Page) => page.locator('#kana');
 export const feedback = (page: Page) => page.locator('#feedback');

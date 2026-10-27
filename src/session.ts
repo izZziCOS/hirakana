@@ -2,7 +2,16 @@ import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
 import { formatSeconds } from './format.ts';
 import { isKanji, KANA, statKey, supportsDirection } from './kana.ts';
-import { MAX_TIMED_MS, outcomeFor, personalPace, pickNext, slowThreshold, weightedPick } from './schedule.ts';
+import {
+  isDue,
+  isSeen,
+  MAX_TIMED_MS,
+  outcomeFor,
+  personalPace,
+  pickNext,
+  slowThreshold,
+  weightedPick,
+} from './schedule.ts';
 import { recordAnswer } from './state.ts';
 import type { Card, CardKind, Drill, KanaItem, Mode, Outcome, Session, Settings, State } from './types.ts';
 import type { Random } from './util.ts';
@@ -48,6 +57,22 @@ export const activePool = (settings: Settings): KanaItem[] =>
 export const learnedToday = (state: State, now: number): number => state.days[dayKey(now)]?.learned ?? 0;
 
 export const newLimit = (state: State, session: Session): number => state.settings.newPerDay + session.bonusNew;
+
+export interface TodaySummary {
+  due: number;
+  newLeft: number;
+}
+
+// What "Continue" will bring up: reviews due now and new cards still allowed today, in the picked rows.
+export function todaySummary(state: State, session: Session, now: number): TodaySummary {
+  const { direction } = state.settings;
+  const keys = activePool(state.settings).map(item => statKey(item, direction));
+  const unseen = keys.filter(key => !isSeen(state.stats, key)).length;
+  return {
+    due: keys.filter(key => isDue(state.stats, key, now)).length,
+    newLeft: Math.min(unseen, Math.max(0, newLimit(state, session) - learnedToday(state, now))),
+  };
+}
 
 export function emptyMessage(settings: Settings, drill: Drill | null): string {
   if (drill) return 'None of the drilled characters can be practised in this direction.';

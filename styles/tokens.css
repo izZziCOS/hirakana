@@ -1,16 +1,17 @@
 :root {
   color-scheme: light dark;
-  --bg: light-dark(#f6f2ea, #161513);
-  --surface: light-dark(#fffdf8, #201e1b);
-  --sunken: light-dark(#efe9de, #2a2723);
-  --ink: light-dark(#1f1c18, #f1ece3);
-  --muted: light-dark(#736c61, #a59d90);
+  --bg: light-dark(#f5f3f0, #161513);
+  --surface: light-dark(#fff, #201e1b);
+  --sunken: light-dark(#efe9e3, #2a2723);
+  --ink: light-dark(#1c1917, #f1ece3);
+  --muted: light-dark(#665e55, #a59d90);
   --muted-strong: light-dark(#5f584e, #b8b0a3);
-  --line: light-dark(#e2dacb, #36322c);
-  --accent: light-dark(#c8402c, #ef7a62);
-  --accent-soft: light-dark(#f7e0d9, #432720);
-  --accent-ink: light-dark(#9c2f1d, #ef7a62);
-  --brand: #c8402c;
+  --line: light-dark(#e7e2dc, #36322c);
+  --accent: light-dark(#b93a24, #ef7a62);
+  --accent-soft: light-dark(#fbe9e4, #432720);
+  --accent-ink: light-dark(#962d1b, #ef7a62);
+  --brand: #b93a24;
+  --brand-strong: #8f2a18;
   --danger-fill: #b3261e;
   --good: light-dark(#2d7a4d, #6cc790);
   --good-soft: light-dark(#d9eedf, #1f3a2a);

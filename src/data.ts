@@ -1,4 +1,4 @@
-import type { CharacterRow, Example, Group, WordRow } from './types.ts';
+import type { CharacterRow, Example, Group, Track, WordRow } from './types.ts';
 
 export const GROUPS: Group[] = [
   {
@@ -84,6 +84,30 @@ export const GROUPS: Group[] = [
 ];
 
 export const KANJI_LEVELS = [5, 4, 3, 2, 1] as const;
+
+export const TRACKS: Track[] = [
+  {
+    id: 'kana',
+    label: 'Kana',
+    glyph: 'あ',
+    summary: 'Hiragana & katakana',
+    groups: ['basic', 'dakuten', 'yoon', 'sokuon', 'extended'],
+  },
+  {
+    id: 'vocabulary',
+    label: 'Vocabulary',
+    glyph: 'ねこ',
+    summary: 'Everyday words and JLPT N5–N1',
+    groups: ['words', 'n5', 'n4', 'n3', 'n2', 'n1'],
+  },
+  {
+    id: 'kanji',
+    label: 'Kanji',
+    glyph: '水',
+    summary: 'JLPT N5–N1',
+    groups: ['k5', 'k4', 'k3', 'k2', 'k1'],
+  },
+];
 
 export const CHARACTER_ROWS: CharacterRow[] = [
   {

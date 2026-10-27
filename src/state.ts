@@ -1,7 +1,16 @@
 import { GROUPS } from './data.ts';
 import { DAY_HISTORY, dayKey, logDay } from './days.ts';
-import { DIRECTIONS, findKana, hasReadingStage, parseStatKey, ROW_INFO, statKey, supportsDirection } from './kana.ts';
-import { applyAnswer, applyKanjiStage, MAX_BOX } from './schedule.ts';
+import {
+  DIRECTIONS,
+  findKana,
+  hasReadingStage,
+  KANA,
+  parseStatKey,
+  ROW_INFO,
+  statKey,
+  supportsDirection,
+} from './kana.ts';
+import { applyAnswer, applyKanjiStage, levelOf, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
   Direction,
@@ -273,6 +282,14 @@ export function toggleGroup(state: State, groupId: GroupId): State {
   const allSelected = ids.every(id => selected.has(id));
   ids.forEach(id => (allSelected ? selected.delete(id) : selected.add(id)));
   return withRows(state, selected);
+}
+
+// Mastered and total cards of a set in the current direction, for the track cards.
+export function groupProgress(state: State, groupId: GroupId): { mastered: number; total: number } {
+  const { direction } = state.settings;
+  const items = KANA.filter(item => item.group === groupId && supportsDirection(item, direction));
+  const mastered = items.filter(item => levelOf(state.stats[statKey(item, direction)]) === 'mastered').length;
+  return { mastered, total: items.length };
 }
 
 export const groupSelection = (state: State, groupId: GroupId): 'all' | 'some' | 'none' => {
