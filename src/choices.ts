@@ -1,4 +1,4 @@
-import { findKana, KANA, lookalikesOf, normalizeAnswer, supportsDirection } from './kana.ts';
+import { findKana, isWord, KANA, lookalikesOf, normalizeAnswer, supportsDirection } from './kana.ts';
 import type { Direction, KanaItem } from './types.ts';
 import { shuffle, unique, type Random } from './util.ts';
 
@@ -41,7 +41,7 @@ function readChoices(item: KanaItem, pool: KanaItem[], drillItems: KanaItem[], r
   let candidates: string[];
   if (item.group === 'sokuon') {
     candidates = [...wordVariants(item.romaji), ...shuffle(sameGroup, random)];
-  } else if (item.group === 'words') {
+  } else if (isWord(item)) {
     candidates = [...wordVariants(item.romaji).slice(0, 1), ...shuffle(sameGroup, random)];
   } else {
     candidates = [

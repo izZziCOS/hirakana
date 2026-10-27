@@ -6,8 +6,8 @@ loaded, and keeps progress in the browser with no backend.
 - **Four directions:** read (あ → ka), recall (ka → あ, picked from four options or typed), match (あ ↔ ア) and listen (hear it,
   then pick or type it). Each has its own review schedule. Listening uses the browser's Japanese voice and is only
   offered when one exists.
-- **Character sets:** basic kana, dakuten, combinations (きゃ), small っ and long ー, loanword katakana (ファ) and ~90
-  everyday words. Practise whole sets or individual rows.
+- **Character sets:** basic kana, dakuten, combinations (きゃ), small っ and long ー, loanword katakana (ファ), ~90 everyday
+  words, and JLPT vocabulary for every level (~90 N5 words, 50–65 each for N4–N1). Practise whole sets or individual rows.
 - **Spaced repetition** with 9 steps from 1 minute to 2 months. Slow answers don't advance a card; the time limit adapts
   to your own pace and can be switched off. Peeking moves a card back two steps. A daily limit on new characters leads to
   a "Done for today" screen.

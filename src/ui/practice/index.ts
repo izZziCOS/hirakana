@@ -30,7 +30,7 @@ import { renderInfo } from '../info.ts';
 import { KIND_BADGE } from '../labels.ts';
 import { canSpeak, hasJapaneseVoice, onVoicesChanged, speak } from '../speech.ts';
 import { mountStrokeOrder } from '../strokes.ts';
-import { choiceButtons, placeholderFor, promptLabel, resultMessage, typesKana } from './card.ts';
+import { choiceButtons, placeholderFor, promptLabel, promptMarkup, resultMessage, typesKana } from './card.ts';
 import { kanaPad } from './kana-pad.ts';
 import { doneScreen, sessionBar } from './summary.ts';
 
@@ -106,8 +106,11 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     const isRomaji = direction === 'recall';
     const prompt = listening() ? '♪' : isRomaji ? card.item.romaji : card.item.kana;
     const length = codePoints(prompt).length;
+    const withKanji = !listening() && !isRomaji && Boolean(card.item.kanji);
     els.prompt.hidden = false;
-    els.prompt.textContent = prompt;
+    if (withKanji) setHtml(els.prompt, promptMarkup(card.item));
+    else els.prompt.textContent = prompt;
+    els.prompt.classList.toggle('has-kanji', withKanji);
     els.prompt.lang = isRomaji ? 'en' : 'ja';
     els.prompt.classList.toggle('is-romaji', isRomaji);
     els.prompt.classList.toggle('is-listen', listening());

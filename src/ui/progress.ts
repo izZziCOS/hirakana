@@ -55,7 +55,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       class="cell level-${level}${isWord(item) ? ' word-cell' : ''}"
       data-kana="${item.kana}"
       style="${column === undefined ? '' : `grid-column:${column + 2}`}"
-      title="${`${item.romaji} — ${LEVEL_LABEL[level]}${review}${speed}`}"
+      title="${`${item.kanji ? `${item.kanji} · ` : ''}${item.romaji} — ${LEVEL_LABEL[level]}${review}${speed}`}"
     >
       <span class="cell-kana jp">${item.kana}</span><span class="cell-romaji">${item.romaji}</span
       ><span class="cell-acc">${accuracy}</span><span class="visually-hidden">${LEVEL_LABEL[level]}</span>

@@ -91,6 +91,7 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
         alternatives.length > 0 && html` <span class="muted">also accepted: ${alternatives.join(', ')}</span>`
       }`,
   );
+  if (item.kanji) add('In kanji', bigJp(item.kanji));
   if (item.meaning) add('Meaning', item.meaning);
   add('Type', `${SCRIPT_LABEL[item.script]} · ${item.row} · ${GROUP_LABEL[item.group]}`);
   if (item.counterpart) add(item.script === 'hiragana' ? 'In katakana' : 'In hiragana', bigJp(item.counterpart));

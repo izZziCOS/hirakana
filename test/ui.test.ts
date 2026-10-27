@@ -7,7 +7,7 @@ import { defaultState, updateSettings } from '../src/state.ts';
 import type { State } from '../src/types.ts';
 import { toMarkup } from '../src/ui/html.ts';
 import { describeComposition, renderInfo } from '../src/ui/info.ts';
-import { choiceButtons, placeholderFor, promptLabel, resultMessage } from '../src/ui/practice/card.ts';
+import { choiceButtons, placeholderFor, promptLabel, promptMarkup, resultMessage } from '../src/ui/practice/card.ts';
 import { kanaPad } from '../src/ui/practice/kana-pad.ts';
 import { doneScreen, sessionBar } from '../src/ui/practice/summary.ts';
 
@@ -26,6 +26,15 @@ test('result messages explain the answer in every direction', () => {
   assert.equal(text(toMarkup(resultMessage(ka, 'recall', false, 'た'))), 'ka is か. You answered た (ta).');
   assert.equal(text(toMarkup(resultMessage(ka, 'listen', true, 'か'))), 'Correct! That was か (ka).');
   assert.equal(text(toMarkup(resultMessage(ka, 'match', false, 'タ'))), 'か is カ in katakana. You answered タ (ta).');
+});
+
+test('JLPT words show their kanji next to the kana', () => {
+  const head = getKana('あたま');
+  assert.equal(text(toMarkup(promptMarkup(head))), '頭あたま');
+  assert.equal(text(toMarkup(promptMarkup(getKana('やま')))), 'やま');
+  assert.equal(text(toMarkup(resultMessage(head, 'read', true, 'atama'))), 'Correct! 頭 (あたま) = atama');
+  assert.equal(text(toMarkup(resultMessage(head, 'read', false, null))), '頭 (あたま) is “atama”.');
+  assert.ok(text(toMarkup(renderInfo(head, defaultState(), NOW))).includes('In kanji 頭'));
 });
 
 test('result messages escape what the learner typed', () => {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CHARACTER_ROWS, EXAMPLES, GROUPS, LOOKALIKES, NOTES, WORD_ROWS } from '../src/data.ts';
-import { findKana, getKana, KANA, ROW_INFO } from '../src/kana.ts';
+import { findKana, getKana, isWord, KANA, ROW_INFO } from '../src/kana.ts';
 
 test('every kana is unique', () => {
   const kana = KANA.map(item => item.kana);
@@ -57,9 +57,16 @@ test('small っ & ー words contain a small tsu or a long vowel', () => {
 });
 
 test('every word has a meaning and is at least two kana long', () => {
-  KANA.filter(item => ['sokuon', 'words'].includes(item.group)).forEach(item => {
+  KANA.filter(isWord).forEach(item => {
     assert.ok(item.meaning, item.kana);
     assert.ok(Array.from(item.kana).length >= 2, item.kana);
+  });
+});
+
+test('kanji spellings belong to JLPT words and contain kanji', () => {
+  KANA.filter(item => item.kanji).forEach(item => {
+    assert.match(item.group, /^n[1-5]$/, item.kana);
+    assert.match(item.kanji ?? '', /\p{Script=Han}/u, item.kana);
   });
 });
 

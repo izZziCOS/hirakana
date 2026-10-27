@@ -4,7 +4,7 @@ import { codePoints, unique } from './util.ts';
 
 export const SCRIPTS: Script[] = ['hiragana', 'katakana'];
 export const DIRECTIONS: Direction[] = ['read', 'recall', 'match', 'listen'];
-const WORD_GROUPS: GroupId[] = ['sokuon', 'words'];
+const WORD_GROUPS: GroupId[] = ['sokuon', 'words', 'n5', 'n4', 'n3', 'n2', 'n1'];
 const LONG_VOWELS: Record<string, string[]> = { ā: ['aa'], ī: ['ii'], ū: ['uu'], ē: ['ee'], ō: ['oo'] };
 const HIRAGANA_LONG_VOWELS: Record<string, string[]> = { ē: ['ei'], ō: ['ou'] };
 
@@ -53,6 +53,7 @@ const wordItems: KanaItem[] = WORD_ROWS.flatMap(row =>
     script: row.script,
     romaji: word.romaji,
     meaning: word.meaning,
+    kanji: word.kanji,
     row: row.label,
     rowId: rowIdOf(row),
     group: row.group,

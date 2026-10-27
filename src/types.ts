@@ -4,7 +4,7 @@ export type Mode = 'type' | 'choose';
 export type Direction = 'read' | 'recall' | 'match' | 'listen';
 export type Theme = 'system' | 'light' | 'dark';
 export type SpeedCheck = 'adaptive' | 'off';
-export type GroupId = 'basic' | 'dakuten' | 'yoon' | 'sokuon' | 'extended' | 'words';
+export type GroupId = 'basic' | 'dakuten' | 'yoon' | 'sokuon' | 'extended' | 'words' | 'n5' | 'n4' | 'n3' | 'n2' | 'n1';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
 export type CardKind = 'new' | 'review' | 'ahead' | 'drill';
 export type Level = 'new' | 'weak' | 'learning' | 'mastered';
@@ -28,6 +28,7 @@ export interface CharacterRow {
 
 export interface Word {
   kana: string;
+  kanji?: string;
   romaji: string;
   meaning: string;
   alternatives?: string[];
@@ -59,6 +60,7 @@ export interface KanaItem {
   origin?: string;
   rowNote?: string;
   meaning?: string;
+  kanji?: string;
 }
 
 export interface RowInfo {
