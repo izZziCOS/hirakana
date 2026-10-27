@@ -1,4 +1,4 @@
-import { findKana, isWord, parseStatKey, statKey } from './kana.ts';
+import { findKana, isWord, kanjiOfWord, parseStatKey, statKey } from './kana.ts';
 import type { Direction, KanaItem, Level, Mode, Outcome, Pick, Stat } from './types.ts';
 import { randomFrom, type Random } from './util.ts';
 
@@ -32,9 +32,10 @@ export function levelOf(stat: Stat | undefined): Level {
 export const PACE_SAMPLE_SIZE = 8;
 
 export function baseThreshold(item: KanaItem, mode: Mode, direction: Direction = 'read'): number {
+  if (direction === 'write') return Infinity;
   const typed = direction === 'recall' || direction === 'listen' ? 8000 : 6000;
   const base = (mode === 'choose' ? 4000 : typed) + (direction === 'listen' ? 1000 : 0);
-  return isWord(item) ? base * 1.5 : base;
+  return isWord(item) || direction === 'meaning' ? base * 1.5 : base;
 }
 
 export function personalPace(stats: Stats, direction: Direction): number | null {
@@ -58,7 +59,7 @@ export function slowThreshold(
 ): number {
   const base = baseThreshold(item, mode, direction);
   if (pace === null) return base;
-  const personal = pace * 2 * (isWord(item) ? 1.5 : 1);
+  const personal = pace * 2 * (isWord(item) || direction === 'meaning' ? 1.5 : 1);
   return Math.min(base * 2, Math.max(base * 0.6, personal));
 }
 
@@ -101,6 +102,21 @@ export function applyAnswer(previous: Stat | undefined, outcome: Outcome, now: n
   return stat;
 }
 
+export const KANJI_ONLY_BOX = 2;
+
+// Kanji and words with a kanji spelling are learned in two stages: first with the reading under the kanji, then, once
+// mastered, from the kanji alone, starting back in learning. A miss or a peek brings the reading back.
+export function applyKanjiStage(stat: Stat, outcome: Outcome): Stat {
+  if (stat.kanjiOnly) {
+    if (outcome === 'correct' || outcome === 'slow') return stat;
+    const shown = { ...stat };
+    delete shown.kanjiOnly;
+    return shown;
+  }
+  if (outcome !== 'correct' || stat.box < MASTERED_BOX) return stat;
+  return { ...stat, kanjiOnly: true, box: KANJI_ONLY_BOX, due: stat.last + intervalFor(KANJI_ONLY_BOX) };
+}
+
 function weightOf(stats: Stats, key: string): number {
   const stat = stats[key];
   if (!stat) return 3;
@@ -140,6 +156,12 @@ interface PickNextOptions {
   random?: Random;
 }
 
+// New words come first once every kanji they are written with is past its first step in Read.
+export function knowsKanjiOf(word: KanaItem, stats: Stats): boolean {
+  const kanji = kanjiOfWord(word);
+  return kanji.length > 0 && kanji.every(item => (stats[statKey(item, 'read')]?.box ?? 0) >= 2);
+}
+
 export function pickNext({
   pool,
   stats,
@@ -165,7 +187,8 @@ export function pickNext({
   if (review) return { item: review, kind: 'review' };
 
   const struggling = pool.filter(item => stats[key(item)]?.box === 1).length;
-  const unseen = others.find(item => !isSeen(stats, key(item)));
+  const unseenItems = others.filter(item => !isSeen(stats, key(item)));
+  const unseen = unseenItems.find(item => knowsKanjiOf(item, stats)) ?? unseenItems[0];
   if (unseen && allowNew && struggling < LEARNING_LIMIT) return { item: unseen, kind: 'new' };
 
   const ahead = randomFrom(

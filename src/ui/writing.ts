@@ -58,7 +58,17 @@ function drawLine(
   context.setLineDash([]);
 }
 
-export function mountWritingPad(container: HTMLElement, kana: string): void {
+interface WritingOptions {
+  // In Write mode the character is the answer: no guide, no title naming it, and retries keep counting.
+  quiz?: boolean;
+  onDone?: (mistakes: number, strokes: number) => void;
+}
+
+export function mountWritingPad(
+  container: HTMLElement,
+  kana: string,
+  { quiz = false, onDone }: WritingOptions = {},
+): void {
   const chars = codePoints(kana);
   let charIndex = 0;
   let expected: Point[][] = [];
@@ -66,7 +76,7 @@ export function mountWritingPad(container: HTMLElement, kana: string): void {
   let drawing: Point[] | null = null;
   let hint: Point[] | null = null;
   let mistakes = 0;
-  let showGuide = true;
+  let showGuide = !quiz;
   let hintTimer: number | undefined;
 
   setHtml(
@@ -78,7 +88,9 @@ export function mountWritingPad(container: HTMLElement, kana: string): void {
       <canvas class="writing-canvas" width="440" height="440" role="img" aria-label="Writing area"></canvas>
       <p class="writing-status small" aria-live="polite"></p>
       <div class="writing-actions">
-        <button type="button" class="ghost small" data-writing="guide" aria-pressed="true">Guide</button>
+        <button type="button" class="ghost small" data-writing="guide" aria-pressed="true" ${quiz && html`hidden`}>
+          Guide
+        </button>
         <button type="button" class="ghost small" data-writing="clear">Start over</button>
         <button type="button" class="primary small" data-writing="next" hidden>Next character</button>
       </div>`,
@@ -139,7 +151,7 @@ export function mountWritingPad(container: HTMLElement, kana: string): void {
   function updateLabels(message = ''): void {
     if (!title || !progress || !status || !nextButton) return;
     const done = accepted.length === expected.length && expected.length > 0;
-    title.textContent = `Write ${chars[charIndex] ?? ''}`;
+    title.textContent = quiz ? 'Write it from memory' : `Write ${chars[charIndex] ?? ''}`;
     progress.textContent = done ? 'Done' : `Stroke ${accepted.length + 1} of ${expected.length}`;
     if (done) {
       status.textContent =
@@ -189,6 +201,7 @@ export function mountWritingPad(container: HTMLElement, kana: string): void {
     if (verdict === 'ok') {
       accepted.push(stroke);
       updateLabels(accepted.length < expected.length ? 'Good. Next stroke.' : '');
+      if (accepted.length === expected.length && charIndex === chars.length - 1) onDone?.(mistakes, expected.length);
     } else {
       mistakes++;
       hint = target;
@@ -210,7 +223,7 @@ export function mountWritingPad(container: HTMLElement, kana: string): void {
       render();
     } else if (action === 'clear') {
       accepted = [];
-      mistakes = 0;
+      if (!quiz) mistakes = 0;
       updateLabels('Draw the first stroke.');
       render();
     } else if (action === 'next') {

@@ -1,23 +1,46 @@
-import { findKana, isWord, kanaForAnswer, otherScript } from '../../kana.ts';
+import {
+  findKana,
+  hasReadingStage,
+  isKanji,
+  isWord,
+  kanaForAnswer,
+  mainReading,
+  otherScript,
+  readingRomaji,
+} from '../../kana.ts';
+import { parseWritingAnswer } from '../../handwriting.ts';
 import type { Direction, KanaItem, Mode } from '../../types.ts';
+import { unique } from '../../util.ts';
 import { jp } from '../dom.ts';
 import { html, type Html } from '../html.ts';
 import { GROUP_LABEL, SCRIPT_LABEL } from '../labels.ts';
 
 export const typesKana = (direction: Direction): boolean => direction === 'recall' || direction === 'listen';
 
-export function promptLabel(item: KanaItem, direction: Direction, mode: Mode): string {
+export function promptLabel(item: KanaItem, direction: Direction, mode: Mode, kanjiOnly = false): string {
+  if (kanjiOnly) return `${GROUP_LABEL[item.group]} · stage 2: kanji only`;
   const action = mode === 'type' ? 'Type' : 'Pick';
   if (direction === 'recall') return `${action} the ${item.script} · ${GROUP_LABEL[item.group]}`;
   if (direction === 'listen') return `Listen, then ${action.toLowerCase()} the ${item.script}`;
   if (direction === 'match') return `${SCRIPT_LABEL[item.script]} → ${otherScript(item.script)}`;
+  if (direction === 'meaning') return `${action} the meaning · ${GROUP_LABEL[item.group]}`;
+  if (direction === 'write') return `Write the ${isKanji(item) ? 'kanji' : item.script} · ${GROUP_LABEL[item.group]}`;
   return `${SCRIPT_LABEL[item.script]} · ${GROUP_LABEL[item.group]}`;
 }
 
 export function placeholderFor(item: KanaItem, direction: Direction): string {
   if (typesKana(direction)) return `Type it in ${item.script}…`;
+  if (direction === 'meaning') return 'Type the meaning in English…';
+  if (isKanji(item)) return 'Type any reading in romaji…';
   return isWord(item) ? 'Romaji (long vowels as oo, ii…)' : 'Type the romaji…';
 }
+
+const READINGS_SHOWN = 4;
+
+export const readingSummary = (item: KanaItem): string =>
+  unique([...(item.readings?.on ?? []), ...(item.readings?.kun ?? [])].map(readingRomaji))
+    .slice(0, READINGS_SHOWN)
+    .join(' · ');
 
 export const choiceButtons = (choices: string[], kanaOptions: boolean): Html[] =>
   choices.map(
@@ -27,10 +50,19 @@ export const choiceButtons = (choices: string[], kanaOptions: boolean): Html[] =
       </button>`,
   );
 
-export const promptMarkup = (item: KanaItem): Html =>
-  item.kanji
-    ? html`<span class="prompt-kanji">${item.kanji}</span><span class="prompt-reading">${item.kana}</span>`
+export const promptMarkup = (item: KanaItem, kanjiOnly = false): Html =>
+  hasReadingStage(item)
+    ? html`<span class="prompt-kanji">${item.kanji ?? item.kana}</span>${
+          !kanjiOnly && html`<span class="prompt-reading">${isKanji(item) ? mainReading(item) : item.kana}</span>`
+        }`
     : html`${item.kana}`;
+
+// Write mode names the character without showing it: romaji for kana, meaning and main reading for kanji.
+export const writePromptMarkup = (item: KanaItem): Html =>
+  isKanji(item)
+    ? html`<span class="prompt-meaning">${item.meanings?.[0]}</span
+        ><span class="prompt-reading jp">${mainReading(item)}</span>`
+    : html`${item.romaji}`;
 
 const spelled = (item: KanaItem): Html => (item.kanji ? html`${jp(item.kanji)} (${jp(item.kana)})` : jp(item.kana));
 
@@ -56,6 +88,25 @@ export function resultMessage(item: KanaItem, direction: Direction, isCorrect: b
     return isCorrect
       ? html`<strong>Correct!</strong> ${jp(item.kana)} = ${jp(counterpart)}`
       : html`<strong>${jp(item.kana)} is ${jp(counterpart)} in ${otherScript(item.script)}.</strong>${yourPick}`;
+  }
+  if (direction === 'write') {
+    const written = given === null ? null : parseWritingAnswer(given);
+    const retried = written?.mistakes ? ` ${written.mistakes} of ${written.strokes} strokes needed another try.` : '';
+    return isCorrect
+      ? html`<strong>Correct!</strong> ${jp(item.kana)} (${item.romaji}).${retried}`
+      : html`<strong>That was ${jp(item.kana)} (${item.romaji}).</strong>${retried}`;
+  }
+  if (direction === 'meaning') {
+    return isCorrect
+      ? html`<strong>Correct!</strong> ${jp(item.kana)} means “${item.meaning}”.`
+      : html`<strong>${jp(item.kana)} means “${item.meaning}”.</strong
+          >${given === null ? '' : ` You answered “${given}”.`}`;
+  }
+  if (isKanji(item)) {
+    return isCorrect
+      ? html`<strong>Correct!</strong> ${jp(item.kana)} reads ${readingSummary(item)}.`
+      : html`<strong>${jp(item.kana)} reads ${readingSummary(item)}.</strong
+          >${given === null ? '' : ` You answered “${given}”.`}`;
   }
   if (isCorrect) return html`<strong>Correct!</strong> ${spelled(item)} = ${item.romaji}`;
   if (given === null) return html`<strong>${spelled(item)} is “${item.romaji}”.</strong>`;

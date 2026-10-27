@@ -1,6 +1,7 @@
 import { answerOf } from '../../choices.ts';
 import { formatWait } from '../../format.ts';
-import { normalizeAnswer, statKey } from '../../kana.ts';
+import { writingAnswer } from '../../handwriting.ts';
+import { hasReadingStage, isKanji, normalizeAnswer, statKey } from '../../kana.ts';
 import {
   ADVANCE_DELAY,
   type AnswerResult,
@@ -24,13 +25,23 @@ import { updateSettings } from '../../state.ts';
 import type { AppStores } from '../../store.ts';
 import type { Card, KanaItem, Session } from '../../types.ts';
 import { codePoints } from '../../util.ts';
+import { bindInfoLinks, type KanaDialog } from '../dialog.ts';
 import { $ } from '../dom.ts';
 import { html, setHtml } from '../html.ts';
 import { renderInfo } from '../info.ts';
 import { KIND_BADGE } from '../labels.ts';
 import { canSpeak, hasJapaneseVoice, onVoicesChanged, speak } from '../speech.ts';
 import { mountStrokeOrder } from '../strokes.ts';
-import { choiceButtons, placeholderFor, promptLabel, promptMarkup, resultMessage, typesKana } from './card.ts';
+import { mountWritingPad } from '../writing.ts';
+import {
+  choiceButtons,
+  placeholderFor,
+  promptLabel,
+  promptMarkup,
+  resultMessage,
+  typesKana,
+  writePromptMarkup,
+} from './card.ts';
 import { kanaPad } from './kana-pad.ts';
 import { doneScreen, sessionBar } from './summary.ts';
 
@@ -57,6 +68,7 @@ function practiceElements() {
     padToggle: $('#pad-toggle', HTMLButtonElement),
     pad: $('#kana-pad'),
     choices: $('#choices'),
+    writePad: $('#write-pad'),
     feedback: $('#feedback'),
     skip: $('#skip-btn', HTMLButtonElement),
     typo: $('#typo-btn', HTMLButtonElement),
@@ -72,7 +84,7 @@ function practiceElements() {
   };
 }
 
-export function createPractice({ data, session }: AppStores, isActive: () => boolean): Practice {
+export function createPractice({ data, session }: AppStores, isActive: () => boolean, dialog: KanaDialog): Practice {
   const els = practiceElements();
   let advanceTimer: number | undefined;
   let composing = false;
@@ -87,7 +99,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     els.card.classList.remove('is-correct', 'is-wrong', 'is-empty');
     els.script.textContent = '';
     els.badge.hidden = true;
-    const parts = [els.prompt, els.done, els.form, els.pad, els.choices, els.skip, els.typo, els.undo];
+    const parts = [els.prompt, els.done, els.form, els.pad, els.choices, els.writePad, els.skip, els.typo, els.undo];
     [...parts, els.nextButton, els.speak, els.info].forEach(el => {
       el.hidden = true;
     });
@@ -103,14 +115,18 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
 
   function renderPrompt(card: Card): void {
     const { direction } = settings();
-    const isRomaji = direction === 'recall';
+    const writing = direction === 'write';
+    const writingKanji = writing && isKanji(card.item);
+    const isRomaji = direction === 'recall' || writing;
     const prompt = listening() ? '♪' : isRomaji ? card.item.romaji : card.item.kana;
     const length = codePoints(prompt).length;
-    const withKanji = !listening() && !isRomaji && Boolean(card.item.kanji);
+    const withKanji = !listening() && !isRomaji && hasReadingStage(card.item);
+    const kanjiOnly = withKanji && Boolean(data.get().stats[statKey(card.item, direction)]?.kanjiOnly);
     els.prompt.hidden = false;
-    if (withKanji) setHtml(els.prompt, promptMarkup(card.item));
+    if (writingKanji) setHtml(els.prompt, writePromptMarkup(card.item));
+    else if (withKanji) setHtml(els.prompt, promptMarkup(card.item, kanjiOnly));
     else els.prompt.textContent = prompt;
-    els.prompt.classList.toggle('has-kanji', withKanji);
+    els.prompt.classList.toggle('has-kanji', withKanji || writingKanji);
     els.prompt.lang = isRomaji ? 'en' : 'ja';
     els.prompt.classList.toggle('is-romaji', isRomaji);
     els.prompt.classList.toggle('is-listen', listening());
@@ -120,7 +136,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     els.prompt.getBoundingClientRect();
     els.prompt.classList.add('enter');
 
-    els.script.textContent = promptLabel(card.item, direction, mode());
+    els.script.textContent = promptLabel(card.item, direction, mode(), kanjiOnly);
     els.badge.hidden = false;
     els.badge.textContent = KIND_BADGE[card.kind];
     els.badge.className = `badge badge-${card.kind}`;
@@ -140,7 +156,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     els.padToggle.hidden = !kanaTyping;
     els.padToggle.setAttribute('aria-pressed', String(showPad));
     els.pad.hidden = !showPad;
-    if (showPad) setHtml(els.pad, kanaPad(card.item.script));
+    if (showPad) setHtml(els.pad, kanaPad(card.item.script === 'katakana' ? 'katakana' : 'hiragana'));
     els.input.inputMode = showPad ? 'none' : kanaTyping ? 'text' : 'latin';
   }
 
@@ -148,6 +164,14 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     const { direction } = settings();
     const typing = mode() === 'type';
     els.skip.hidden = false;
+    if (direction === 'write') {
+      els.writePad.hidden = false;
+      mountWritingPad(els.writePad, card.item.kana, {
+        quiz: true,
+        onDone: (mistakes, strokes) => submit(writingAnswer(mistakes, strokes)),
+      });
+      return;
+    }
     els.form.hidden = !typing;
     els.choices.hidden = typing;
     if (typing) {
@@ -158,7 +182,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
       renderPad(card);
       if (isActive()) els.input.focus();
     } else {
-      const kanaOptions = direction !== 'read';
+      const kanaOptions = direction !== 'read' && direction !== 'meaning';
       els.choices.classList.toggle('kana-choices', kanaOptions);
       setHtml(els.choices, choiceButtons(card.choices, kanaOptions));
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -269,7 +293,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
       return;
     }
     if (composing || performance.now() - compositionEndedAt < COMPOSITION_GRACE_MS) return;
-    const given = normalizeAnswer(els.input.value);
+    const given = settings().direction === 'meaning' ? els.input.value.trim() : normalizeAnswer(els.input.value);
     if (given) submit(given);
     else els.input.focus();
   }
@@ -366,15 +390,19 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
   data.subscribe(renderChrome);
   session.subscribe(renderChrome);
 
+  function drill(label: string, items: KanaItem[]): void {
+    session.update(s => startDrill(s, { label, items }));
+    next();
+  }
+
+  bindInfoLinks(els.infoBody, kana => dialog.open(kana), drill);
+
   return {
     next,
     focus() {
       const { card } = session.get();
       if (card && mode() === 'type' && !card.answered) els.input.focus();
     },
-    drill(label, items) {
-      session.update(s => startDrill(s, { label, items }));
-      next();
-    },
+    drill,
   };
 }

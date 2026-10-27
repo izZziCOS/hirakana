@@ -1,14 +1,16 @@
-import { ALT_KANA, ALT_ROMAJI, CHARACTER_ROWS, LOOKALIKES, WORD_ROWS } from './data.ts';
-import type { Direction, GroupId, KanaItem, RowInfo, Script } from './types.ts';
+import { ALT_KANA, ALT_ROMAJI, CHARACTER_ROWS, KANJI_LEVELS, LOOKALIKES, WORD_ROWS } from './data.ts';
+import { KANJI_DATA } from './kanji-data.ts';
+import type { Direction, GroupId, KanaItem, KanaScript, KanjiEntry, KanjiGroupId, RowInfo, Script } from './types.ts';
 import { codePoints, unique } from './util.ts';
 
-export const SCRIPTS: Script[] = ['hiragana', 'katakana'];
-export const DIRECTIONS: Direction[] = ['read', 'recall', 'match', 'listen'];
+export const SCRIPTS: KanaScript[] = ['hiragana', 'katakana'];
+export const DIRECTIONS: Direction[] = ['read', 'recall', 'match', 'listen', 'meaning', 'write'];
 const WORD_GROUPS: GroupId[] = ['sokuon', 'words', 'n5', 'n4', 'n3', 'n2', 'n1'];
 const LONG_VOWELS: Record<string, string[]> = { ā: ['aa'], ī: ['ii'], ū: ['uu'], ē: ['ee'], ō: ['oo'] };
 const HIRAGANA_LONG_VOWELS: Record<string, string[]> = { ē: ['ei'], ō: ['ou'] };
+export const KANJI_ROW_SIZE = 30;
 
-export const otherScript = (script: Script): Script => (script === 'hiragana' ? 'katakana' : 'hiragana');
+export const otherScript = (script: Script): KanaScript => (script === 'hiragana' ? 'katakana' : 'hiragana');
 export const rowIdOf = (row: { group: GroupId; label: string }): string => `${row.group}:${row.label}`;
 
 export function longVowelSpellings(romaji: string, script: Script): string[] {
@@ -61,7 +63,93 @@ const wordItems: KanaItem[] = WORD_ROWS.flatMap(row =>
   })),
 );
 
-export const KANA: KanaItem[] = [...characterItems, ...wordItems];
+const SYLLABLES = new Map(characterItems.map(item => [item.kana, item.romaji]));
+const SMALL_Y: Record<string, string> = { ゃ: 'a', ゅ: 'u', ょ: 'o', ャ: 'a', ュ: 'u', ョ: 'o' };
+
+export function toRomaji(kana: string): string {
+  const chars = codePoints(kana);
+  let romaji = '';
+  let double = false;
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i] ?? '';
+    if (char === 'っ' || char === 'ッ') {
+      double = true;
+      continue;
+    }
+    const next = chars[i + 1] ?? '';
+    const base = SYLLABLES.get(char) ?? char;
+    let syllable = SYLLABLES.get(char + next);
+    // Rare pairs such as ぢゅ: drop the i and add y (ni + ゅ → nyu), except after sh, ch and j (ji + ゅ → ju).
+    if (!syllable && SMALL_Y[next] && base.endsWith('i')) {
+      const stem = base.slice(0, -1);
+      syllable = (/(sh|ch|j)$/.test(stem) ? stem : `${stem}y`) + SMALL_Y[next];
+    }
+    if (syllable) i++;
+    syllable ??= base;
+    if (double) romaji += syllable.startsWith('ch') ? 't' : syllable.charAt(0);
+    double = false;
+    romaji += syllable;
+  }
+  return romaji.replace(/o[ou]/g, 'ō').replace(/uu/g, 'ū');
+}
+
+// Okurigana follow a dot (あ.がる); long vowels never join across it, so お.う stays "ou".
+export const readingRomaji = (reading: string): string => reading.split('.').map(toRomaji).join('');
+
+export const kunreiSpelling = (romaji: string): string =>
+  romaji
+    .replace(/shi/g, 'si')
+    .replace(/sh/g, 'sy')
+    .replace(/chi/g, 'ti')
+    .replace(/ch/g, 'ty')
+    .replace(/tsu/g, 'tu')
+    .replace(/fu/g, 'hu')
+    .replace(/ji/g, 'zi')
+    .replace(/j/g, 'zy');
+
+// Any reading counts, typed in full (agaru) or as the part the kanji itself spells (a).
+function readingAnswers(readings: string[]): string[] {
+  const spellings = readings.flatMap(reading => [readingRomaji(reading), toRomaji(reading.split('.')[0] ?? '')]);
+  return unique(
+    spellings
+      .flatMap(romaji => longVowelSpellings(romaji, 'hiragana'))
+      .flatMap(romaji => [romaji, kunreiSpelling(romaji)]),
+  );
+}
+
+const splitList = (list: string): string[] => (list ? list.split(' ') : []);
+
+const kanjiRows = KANJI_LEVELS.flatMap(level => {
+  const entries = KANJI_DATA.filter(entry => entry[1] === level);
+  return Array.from({ length: Math.ceil(entries.length / KANJI_ROW_SIZE) }, (_, i) => {
+    const rowEntries = entries.slice(i * KANJI_ROW_SIZE, (i + 1) * KANJI_ROW_SIZE);
+    const label = `N${level} · ${i * KANJI_ROW_SIZE + 1}–${i * KANJI_ROW_SIZE + rowEntries.length}`;
+    return { label, group: `k${level}` as KanjiGroupId, entries: rowEntries };
+  });
+});
+
+function kanjiItem([kanji, , strokes, on, kun, meanings]: KanjiEntry, row: (typeof kanjiRows)[number]): KanaItem {
+  const readings = { on: splitList(on), kun: splitList(kun) };
+  const all = [...readings.on, ...readings.kun];
+  const meaningList = meanings.split('; ');
+  return {
+    kana: kanji,
+    script: 'kanji',
+    romaji: readingRomaji(all[0] ?? ''),
+    row: row.label,
+    rowId: rowIdOf(row),
+    group: row.group,
+    accepted: readingAnswers(all),
+    meaning: meaningList.join(', '),
+    meanings: meaningList,
+    readings,
+    strokes,
+  };
+}
+
+const kanjiItems: KanaItem[] = kanjiRows.flatMap(row => row.entries.map(entry => kanjiItem(entry, row)));
+
+export const KANA: KanaItem[] = [...characterItems, ...wordItems, ...kanjiItems];
 const kanaIndex = new Map(KANA.map(item => [item.kana, item]));
 
 export const findKana = (kana: string | undefined): KanaItem | undefined =>
@@ -89,10 +177,48 @@ export const ROW_INFO: RowInfo[] = [
     group: row.group,
     preview: { [row.script]: row.mark ?? row.label },
   })),
+  ...kanjiRows.map(row => ({
+    id: rowIdOf(row),
+    label: row.label,
+    group: row.group,
+    preview: {
+      kanji: row.entries
+        .slice(0, 4)
+        .map(([kanji]) => kanji)
+        .join(''),
+    },
+  })),
 ];
 
+export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
+
+// The JLPT kanji a word is written with, and the words written with a kanji.
+export const kanjiOfWord = (word: KanaItem): KanaItem[] =>
+  unique(codePoints(word.kanji ?? '')).flatMap(char => {
+    const item = findKana(char);
+    return item && isKanji(item) ? [item] : [];
+  });
+
+export const wordsWithKanji = (kanji: KanaItem): KanaItem[] => KANA.filter(word => word.kanji?.includes(kanji.kana));
+
+const KANJI_GROUPS = new Set<GroupId>(KANJI_LEVELS.map(level => `k${level}` as const));
+export const isKanjiGroup = (group: GroupId): boolean => KANJI_GROUPS.has(group);
+
+// Kanji and words written in kanji show a reading under the kanji until they are mastered (see applyKanjiStage).
+export const hasReadingStage = (item: KanaItem): boolean => Boolean(item.kanji) || isKanji(item);
+
+export const toKatakana = (hiragana: string): string =>
+  hiragana.replace(/[ぁ-ゖ]/g, char => String.fromCharCode((char.codePointAt(0) ?? 0) + 0x60));
+
+// The reading shown under a kanji: its first on reading in katakana, otherwise its first kun reading in hiragana.
+export function mainReading(item: KanaItem): string {
+  const [on] = item.readings?.on ?? [];
+  return on ? toKatakana(on) : (item.readings?.kun[0] ?? '').replace('.', '');
+}
+
+// Kanji share readings too widely for a typed reading to point at one of them.
 const answerIndex = new Map<string, KanaItem>();
-KANA.forEach(item =>
+KANA.filter(item => !isKanji(item)).forEach(item =>
   item.accepted.forEach(answer => {
     const key = `${item.script}:${answer}`;
     if (!answerIndex.has(key)) answerIndex.set(key, item);
@@ -107,6 +233,9 @@ export const normalizeAnswer = (raw: string): string => raw.normalize('NFKC').tr
 export const isWord = (item: KanaItem): boolean => WORD_GROUPS.includes(item.group);
 
 export function supportsDirection(item: KanaItem, direction: Direction): boolean {
+  if (direction === 'write') return !isWord(item) && codePoints(item.kana).length === 1;
+  if (isKanji(item)) return direction === 'read' || direction === 'meaning';
+  if (direction === 'meaning') return false;
   if (direction === 'recall' || direction === 'listen') return !isWord(item);
   if (direction === 'match') return !isWord(item) && Boolean(item.counterpart);
   return true;

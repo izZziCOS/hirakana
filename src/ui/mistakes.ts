@@ -1,5 +1,6 @@
 import { findKana, getKana, kanaForAnswer } from '../kana.ts';
 import { dateOf } from '../days.ts';
+import { parseWritingAnswer } from '../handwriting.ts';
 import { confusionPairs, mistakesOnDay, mostMissed, type MixUpPair } from '../mistakes.ts';
 import { DRILL_SIZE } from '../session.ts';
 import type { AppStores } from '../store.ts';
@@ -40,6 +41,16 @@ function mistakeLine(mistake: Mistake, item: KanaItem): Html {
   }
   if (mistake.direction === 'match') {
     return html`${jp(item.kana)} → <strong>${jp(item.counterpart ?? '')}</strong> · you picked ${picked(mistake.given)}`;
+  }
+  if (mistake.direction === 'write') {
+    const written = parseWritingAnswer(mistake.given);
+    return html`Write <strong>${jp(item.kana)}</strong> (${item.romaji})${
+        written && html` · ${written.mistakes} of ${written.strokes} strokes retried`
+      }`;
+  }
+  if (mistake.direction === 'meaning') {
+    return html`${jp(item.kana)} means <strong>${item.meanings?.[0] ?? ''}</strong> · you said
+      <span class="given">${mistake.given}</span>`;
   }
   const confusedWith = kanaForAnswer(mistake.given, item.script);
   return html`Answer <strong>${item.romaji}</strong> · you said

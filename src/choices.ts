@@ -1,4 +1,5 @@
-import { findKana, isWord, KANA, lookalikesOf, normalizeAnswer, supportsDirection } from './kana.ts';
+import { findKana, isKanji, isWord, KANA, lookalikesOf, normalizeAnswer, supportsDirection } from './kana.ts';
+import { parseWritingAnswer, writingPassed } from './handwriting.ts';
 import type { Direction, KanaItem } from './types.ts';
 import { shuffle, unique, type Random } from './util.ts';
 
@@ -15,14 +16,32 @@ export function wordVariants(romaji: string): string[] {
 }
 
 export function answerOf(item: KanaItem, direction: Direction): string {
-  if (direction === 'recall' || direction === 'listen') return item.kana;
+  if (direction === 'recall' || direction === 'listen' || direction === 'write') return item.kana;
   if (direction === 'match') return item.counterpart ?? '';
+  if (direction === 'meaning') return item.meanings?.[0] ?? '';
   return item.romaji;
 }
+
+// "To eat", "eat" and "Eat (food)" all count as the same meaning.
+export const meaningKey = (meaning: string): string =>
+  meaning
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\(.*?\)/g, ' ')
+    .trim()
+    .replace(/^(to|a|an|the)\s+/, '')
+    .replace(/[^\p{L}\p{N}]/gu, '');
+
+const meaningKeys = (item: KanaItem): Set<string> => new Set((item.meanings ?? []).map(meaningKey));
 
 export function isCorrectAnswer(item: KanaItem, direction: Direction, given: string | null): boolean {
   if (given === null) return false;
   if (direction === 'read') return item.accepted.includes(given);
+  if (direction === 'meaning') return meaningKey(given) !== '' && meaningKeys(item).has(meaningKey(given));
+  if (direction === 'write') {
+    const written = parseWritingAnswer(given);
+    return written !== null && writingPassed(written.mistakes, written.strokes);
+  }
   return normalizeAnswer(given) === answerOf(item, direction);
 }
 
@@ -43,6 +62,15 @@ function readChoices(item: KanaItem, pool: KanaItem[], drillItems: KanaItem[], r
     candidates = [...wordVariants(item.romaji), ...shuffle(sameGroup, random)];
   } else if (isWord(item)) {
     candidates = [...wordVariants(item.romaji).slice(0, 1), ...shuffle(sameGroup, random)];
+  } else if (isKanji(item)) {
+    candidates = [
+      ...shuffle(drillItems.filter(isKanji), random),
+      ...shuffle(pool.filter(isKanji), random),
+      ...shuffle(
+        KANA.filter(k => k.group === item.group),
+        random,
+      ),
+    ].map(k => k.romaji);
   } else {
     candidates = [
       ...shuffle(
@@ -63,11 +91,31 @@ function readChoices(item: KanaItem, pool: KanaItem[], drillItems: KanaItem[], r
   return shuffle([item.romaji, ...distractors.slice(0, 3)], random);
 }
 
+function meaningChoices(item: KanaItem, pool: KanaItem[], drillItems: KanaItem[], random: Random): string[] {
+  const own = meaningKeys(item);
+  const candidates = [
+    ...shuffle([...drillItems], random),
+    ...shuffle(
+      pool.filter(k => k.group === item.group),
+      random,
+    ),
+    ...shuffle(
+      KANA.filter(k => k.group === item.group),
+      random,
+    ),
+  ].flatMap(k => {
+    const meaning = answerOf(k, 'meaning');
+    return meaning && !own.has(meaningKey(meaning)) ? [meaning] : [];
+  });
+  return shuffle([answerOf(item, 'meaning'), ...unique(candidates).slice(0, 3)], random);
+}
+
 export function buildChoices(
   item: KanaItem,
   { direction = 'read', pool = [], drillItems = [], random = Math.random }: ChoiceOptions = {},
 ): string[] {
   if (direction === 'read') return readChoices(item, pool, drillItems, random);
+  if (direction === 'meaning') return meaningChoices(item, pool, drillItems, random);
 
   const sameScript = direction !== 'match';
   const answer = sameScript ? item : findKana(item.counterpart);

@@ -1,2 +1,3 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normalise text files to LF, also in the working tree on Windows, so Prettier's check passes everywhere
+* text=auto eol=lf
+*.png binary

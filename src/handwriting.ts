@@ -65,3 +65,14 @@ export const STROKE_HINTS: Record<Exclude<StrokeVerdict, 'ok'>, string> = {
   end: 'This stroke ends somewhere else. Check its direction.',
   shape: 'The shape doesn’t match. Watch the guide and try again.',
 };
+
+// A written answer is stored as "retried/total" strokes, so the mistake history can say how it went.
+export const writingAnswer = (mistakes: number, strokes: number): string => `${mistakes}/${strokes}`;
+
+export function parseWritingAnswer(given: string): { mistakes: number; strokes: number } | null {
+  const match = /^(\d+)\/(\d+)$/.exec(given);
+  return match ? { mistakes: Number(match[1]), strokes: Number(match[2]) } : null;
+}
+
+// Up to one retried stroke in four still counts as written correctly.
+export const writingPassed = (mistakes: number, strokes: number): boolean => mistakes <= Math.floor(strokes / 4);

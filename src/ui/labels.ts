@@ -1,9 +1,10 @@
 import { GROUPS } from '../data.ts';
-import type { CardKind, Direction, GroupId, Level, ScriptSetting } from '../types.ts';
+import type { CardKind, Direction, GroupId, Level, Script, ScriptSetting } from '../types.ts';
 
-export const SCRIPT_LABEL: Record<ScriptSetting, string> = {
+export const SCRIPT_LABEL: Record<Script | ScriptSetting, string> = {
   hiragana: 'Hiragana',
   katakana: 'Katakana',
+  kanji: 'Kanji',
   both: 'Both scripts',
 };
 
@@ -28,4 +29,6 @@ export const DIRECTION_LABEL: Record<Direction, string> = {
   recall: 'Recall',
   match: 'Match',
   listen: 'Listen',
+  meaning: 'Meaning',
+  write: 'Write',
 };

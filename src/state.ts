@@ -1,7 +1,7 @@
 import { GROUPS } from './data.ts';
 import { DAY_HISTORY, dayKey, logDay } from './days.ts';
-import { DIRECTIONS, findKana, parseStatKey, ROW_INFO, statKey, supportsDirection } from './kana.ts';
-import { applyAnswer, MAX_BOX } from './schedule.ts';
+import { DIRECTIONS, findKana, hasReadingStage, parseStatKey, ROW_INFO, statKey, supportsDirection } from './kana.ts';
+import { applyAnswer, applyKanjiStage, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
   Direction,
@@ -99,6 +99,7 @@ function sanitizeStat(stat: RawData): Stat {
   };
   const avgMs = nonNegative(stat.avgMs);
   if (avgMs) clean.avgMs = Math.round(avgMs);
+  if (stat.kanjiOnly === true) clean.kanjiOnly = true;
   return clean;
 }
 
@@ -228,9 +229,13 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
   const key = statKey(item, direction);
   const previous = state.stats[key];
   const right = outcome === 'correct' || outcome === 'slow';
+  const stat = applyAnswer(previous, outcome, now, ms);
   return {
     ...state,
-    stats: { ...state.stats, [key]: applyAnswer(previous, outcome, now, ms) },
+    stats: {
+      ...state.stats,
+      [key]: hasReadingStage(item) && direction !== 'write' ? applyKanjiStage(stat, outcome) : stat,
+    },
     days: logDay(state.days, now, {
       answers: 1,
       learned: previous?.box ? 0 : 1,

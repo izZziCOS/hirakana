@@ -56,7 +56,34 @@ export const GROUPS: Group[] = [
     label: 'JLPT N1 words',
     hint: 'けはい',
   },
+  {
+    id: 'k5',
+    label: 'JLPT N5 kanji',
+    hint: '日',
+  },
+  {
+    id: 'k4',
+    label: 'JLPT N4 kanji',
+    hint: '会',
+  },
+  {
+    id: 'k3',
+    label: 'JLPT N3 kanji',
+    hint: '政',
+  },
+  {
+    id: 'k2',
+    label: 'JLPT N2 kanji',
+    hint: '党',
+  },
+  {
+    id: 'k1',
+    label: 'JLPT N1 kanji',
+    hint: '氏',
+  },
 ];
+
+export const KANJI_LEVELS = [5, 4, 3, 2, 1] as const;
 
 export const CHARACTER_ROWS: CharacterRow[] = [
   {

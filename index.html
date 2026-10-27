@@ -69,7 +69,9 @@
       <section id="view-practice" class="view" role="tabpanel" aria-labelledby="tab-practice">
         <div class="controls">
           <div class="segmented" id="direction-select" aria-label="Practice direction">
-            <button data-value="read" title="See the kana, give the reading">Read <span class="jp">あ</span>→ka</button>
+            <button data-value="read" title="See the kana or kanji, give the reading">
+              Read <span class="jp">あ</span>→ka
+            </button>
             <button data-value="recall" title="See the reading, pick the kana">
               Recall ka→<span class="jp">あ</span>
             </button>
@@ -77,6 +79,10 @@
               Match <span class="jp">あ</span>↔<span class="jp">ア</span>
             </button>
             <button data-value="listen" title="Hear the kana, pick it">Listen ♪→<span class="jp">あ</span></button>
+            <button data-value="meaning" title="See a kanji, give its meaning">
+              Meaning <span class="jp">水</span>→water
+            </button>
+            <button data-value="write" title="See the reading or meaning, write the kana or kanji">Write ka→✎</button>
           </div>
           <div class="segmented" id="script-select" aria-label="Script">
             <button data-value="hiragana">Hiragana <span class="jp">あ</span></button>
@@ -172,6 +178,7 @@
           </form>
           <div id="kana-pad" class="kana-pad" hidden></div>
           <div id="choices" class="choices" hidden></div>
+          <div id="write-pad" class="writing write-answer" hidden></div>
 
           <div id="feedback" class="feedback" aria-live="polite">&nbsp;</div>
           <div class="card-actions">
@@ -198,6 +205,8 @@
             <button data-value="recall">Recall</button>
             <button data-value="match">Match</button>
             <button data-value="listen">Listen</button>
+            <button data-value="meaning">Meaning</button>
+            <button data-value="write">Write</button>
           </div>
         </div>
         <div class="stat-cards" id="overall"></div>
@@ -224,12 +233,14 @@
           <div class="segmented small" id="progress-script">
             <button data-value="hiragana">Hiragana</button>
             <button data-value="katakana">Katakana</button>
+            <button data-value="kanji">Kanji</button>
           </div>
           <div class="legend">
             <span><i class="swatch level-new"></i>Not seen</span>
             <span><i class="swatch level-weak"></i>Needs work</span>
             <span><i class="swatch level-learning"></i>Learning</span>
             <span><i class="swatch level-mastered"></i>Mastered</span>
+            <span><i class="swatch level-learning kanji-only"></i>Kanji only, reading hidden</span>
           </div>
         </div>
         <div id="progress-grids"></div>
@@ -261,6 +272,7 @@
             <button data-value="all">All</button>
             <button data-value="hiragana">Hiragana</button>
             <button data-value="katakana">Katakana</button>
+            <button data-value="kanji">Kanji</button>
           </div>
         </div>
 

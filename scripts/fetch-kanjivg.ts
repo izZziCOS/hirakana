@@ -17,19 +17,24 @@ const exists = (path: string) =>
     () => false,
   );
 
-async function download(char: string, file: string): Promise<string> {
+async function download(char: string, file: string): Promise<string | null> {
   for (let attempt = 1; ; attempt++) {
     const response = await fetch(`${BASE}/${file}`);
     if (response.ok) return response.text();
+    if (response.status === 404) return null;
     if (attempt === 5) throw new Error(`${char} (${file}): HTTP ${response.status}`);
     await sleep(attempt * 2000);
   }
 }
 
+const missing: string[] = [];
 for (const char of chars) {
   const file = kanjivgFile(char);
   if (await exists(join(OUT, file))) continue;
-  await writeFile(join(OUT, file), await download(char, file));
+  const svg = await download(char, file);
+  if (svg === null) missing.push(char);
+  else await writeFile(join(OUT, file), svg);
 }
 
-console.log(`Saved ${chars.length} KanjiVG files from ${KANJIVG_VERSION} to vendor/kanjivg/`);
+console.log(`Saved ${chars.length - missing.length} KanjiVG files from ${KANJIVG_VERSION} to vendor/kanjivg/`);
+if (missing.length) console.log(`Not in KanjiVG: ${missing.join(' ')}`);

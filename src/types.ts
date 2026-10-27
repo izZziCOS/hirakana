@@ -1,10 +1,13 @@
-export type Script = 'hiragana' | 'katakana';
-export type ScriptSetting = Script | 'both';
+export type KanaScript = 'hiragana' | 'katakana';
+export type Script = KanaScript | 'kanji';
+export type ScriptSetting = 'hiragana' | 'katakana' | 'both';
 export type Mode = 'type' | 'choose';
-export type Direction = 'read' | 'recall' | 'match' | 'listen';
+export type Direction = 'read' | 'recall' | 'match' | 'listen' | 'meaning' | 'write';
 export type Theme = 'system' | 'light' | 'dark';
 export type SpeedCheck = 'adaptive' | 'off';
-export type GroupId = 'basic' | 'dakuten' | 'yoon' | 'sokuon' | 'extended' | 'words' | 'n5' | 'n4' | 'n3' | 'n2' | 'n1';
+export type GroupId =
+  'basic' | 'dakuten' | 'yoon' | 'sokuon' | 'extended' | 'words' | 'n5' | 'n4' | 'n3' | 'n2' | 'n1' | KanjiGroupId;
+export type KanjiGroupId = 'k5' | 'k4' | 'k3' | 'k2' | 'k1';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
 export type CardKind = 'new' | 'review' | 'ahead' | 'drill';
 export type Level = 'new' | 'weak' | 'learning' | 'mastered';
@@ -61,7 +64,17 @@ export interface KanaItem {
   rowNote?: string;
   meaning?: string;
   kanji?: string;
+  meanings?: string[];
+  readings?: KanjiReadings;
+  strokes?: number;
 }
+
+export interface KanjiReadings {
+  on: string[];
+  kun: string[];
+}
+
+export type KanjiEntry = [kanji: string, level: number, strokes: number, on: string, kun: string, meanings: string];
 
 export interface RowInfo {
   id: string;
@@ -78,6 +91,7 @@ export interface Stat {
   due: number;
   last: number;
   avgMs?: number;
+  kanjiOnly?: boolean;
 }
 
 export interface Mistake {

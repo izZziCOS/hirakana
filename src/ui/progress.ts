@@ -1,7 +1,7 @@
 import { GROUPS } from '../data.ts';
 import { bestDayStreak, dayStreak, forecast } from '../days.ts';
 import { formatSeconds, formatWait } from '../format.ts';
-import { isWord, KANA, statKey, supportsDirection } from '../kana.ts';
+import { isKanji, isWord, KANA, statKey, supportsDirection } from '../kana.ts';
 import { isDue, levelOf } from '../schedule.ts';
 import type { AppStores } from '../store.ts';
 import type { Direction, Group, KanaItem, Script, State } from '../types.ts';
@@ -43,6 +43,8 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
   };
   let script: Script = data.get().settings.script === 'katakana' ? 'katakana' : 'hiragana';
   let direction: Direction = data.get().settings.direction;
+  // A kanji level has up to 1,232 cells, so each level is drawn only once it is opened.
+  const expanded = new Set<string>();
 
   function cell(state: State, item: KanaItem, now: number, column?: number): Html {
     const stat = state.stats[statKey(item, direction)];
@@ -51,14 +53,18 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     const accuracy = stat && total ? `${Math.round((stat.correct / total) * 100)}%` : '';
     const review = stat?.box ? ` · due ${formatWait(stat.due - now)}` : '';
     const speed = stat?.avgMs ? ` · avg ${formatSeconds(stat.avgMs)}` : '';
+    const stage = stat?.kanjiOnly ? ' · stage 2: kanji only' : '';
     return html`<button
-      class="cell level-${level}${isWord(item) ? ' word-cell' : ''}"
+      class="cell level-${level}${isWord(item) ? ' word-cell' : ''}${isKanji(item) ? ' kanji-cell' : ''}${
+        stat?.kanjiOnly ? ' kanji-only' : ''
+      }"
       data-kana="${item.kana}"
       style="${column === undefined ? '' : `grid-column:${column + 2}`}"
-      title="${`${item.kanji ? `${item.kanji} · ` : ''}${item.romaji} — ${LEVEL_LABEL[level]}${review}${speed}`}"
+      title="${`${item.kanji ? `${item.kanji} · ` : ''}${item.romaji} — ${LEVEL_LABEL[level]}${stage}${review}${speed}`}"
     >
-      <span class="cell-kana jp">${item.kana}</span><span class="cell-romaji">${item.romaji}</span
-      ><span class="cell-acc">${accuracy}</span><span class="visually-hidden">${LEVEL_LABEL[level]}</span>
+      <span class="cell-kana jp">${stat?.kanjiOnly ? (item.kanji ?? item.kana) : item.kana}</span
+      ><span class="cell-romaji">${item.romaji}</span><span class="cell-acc">${accuracy}</span
+      ><span class="visually-hidden">${LEVEL_LABEL[level]}${stage}</span>
     </button>`;
   }
 
@@ -81,6 +87,16 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     let body: Html;
     if (first && isWord(first)) {
       body = html`<div class="word-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
+    } else if (first && isKanji(first)) {
+      const open = expanded.has(group.id);
+      return html`<section class="grid-section">
+        <h3>
+          <button type="button" class="grid-toggle" data-expand="${group.id}" aria-expanded="${String(open)}">
+            ${group.label} <span class="muted">${mastered}/${groupItems.length} mastered</span>
+          </button>
+        </h3>
+        ${open && html`<div class="kanji-grid">${groupItems.map(item => cell(state, item, now))}</div>`}
+      </section>`;
     } else {
       const columns = group.id === 'yoon' ? 'auo' : 'aiueo';
       const rowLabels = [...new Set(groupItems.map(k => k.row))];
@@ -146,6 +162,11 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     render();
   });
   onDelegate(els.grids, '[data-kana]', element => dialog.open(element.dataset.kana ?? ''));
+  onDelegate(els.grids, '[data-expand]', element => {
+    const group = element.dataset.expand ?? '';
+    if (!expanded.delete(group)) expanded.add(group);
+    render();
+  });
 
   let lastWidth = 0;
   new ResizeObserver(([entry]) => {

@@ -5,7 +5,7 @@ import { browserStorage, createAppStores } from './store.ts';
 import type { Theme } from './types.ts';
 import { confirmAction } from './ui/confirm.ts';
 import { createControls } from './ui/controls.ts';
-import { createDialog } from './ui/dialog.ts';
+import { createDialog, type StartDrill } from './ui/dialog.ts';
 import { $ } from './ui/dom.ts';
 import { createMistakes } from './ui/mistakes.ts';
 import { createPractice } from './ui/practice/index.ts';
@@ -51,13 +51,14 @@ function start(): void {
   const isActive = (view: View) => () => activeView === view;
   const tabs = [...document.querySelectorAll<HTMLButtonElement>('.tab')];
 
-  const dialog = createDialog(data);
-  const controls = createControls(data);
-  const practice = createPractice(stores, isActive('practice'));
-  const mistakes = createMistakes(stores, dialog, (label, items) => {
+  const startDrill: StartDrill = (label, items) => {
     showView('practice');
     practice.drill(label, items);
-  });
+  };
+  const dialog = createDialog(data, startDrill);
+  const controls = createControls(data);
+  const practice = createPractice(stores, isActive('practice'), dialog);
+  const mistakes = createMistakes(stores, dialog, startDrill);
   const progress = createProgress(stores, {
     dialog,
     isActive: isActive('progress'),

@@ -402,3 +402,11 @@
 .session .goal.is-reached {
   color: var(--good);
 }
+
+.write-answer {
+  margin-bottom: 12px;
+}
+
+.write-answer .writing-canvas {
+  width: min(300px, 100%);
+}

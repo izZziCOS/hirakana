@@ -196,3 +196,21 @@
   justify-content: center;
   gap: 8px;
 }
+
+.okurigana {
+  color: var(--muted);
+}
+
+.info-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.info-link:hover {
+  color: var(--accent);
+}

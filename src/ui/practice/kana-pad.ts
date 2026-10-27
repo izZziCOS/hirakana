@@ -1,20 +1,20 @@
 import { CHARACTER_ROWS } from '../../data.ts';
-import type { Script } from '../../types.ts';
+import type { KanaScript } from '../../types.ts';
 import { html, type Html } from '../html.ts';
 
-const SMALL_KANA: Record<Script, string[]> = {
+const SMALL_KANA: Record<KanaScript, string[]> = {
   hiragana: ['ゃ', 'ゅ', 'ょ', 'っ', 'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'ー'],
   katakana: ['ャ', 'ュ', 'ョ', 'ッ', 'ァ', 'ィ', 'ゥ', 'ェ', 'ォ', 'ー', 'ヴ'],
 };
 
 const PAD_GROUPS = new Set(['basic', 'dakuten']);
 
-export function kanaPadRows(script: Script): string[][] {
+export function kanaPadRows(script: KanaScript): string[][] {
   const rows = CHARACTER_ROWS.filter(row => PAD_GROUPS.has(row.group)).map(row => row[script] ?? []);
   return [...rows.filter(row => row.length), SMALL_KANA[script]];
 }
 
-export const kanaPad = (script: Script): Html =>
+export const kanaPad = (script: KanaScript): Html =>
   html`<div class="kana-pad-keys" role="group" aria-label="${script} keyboard">
       ${kanaPadRows(script).map(
         row =>

@@ -200,3 +200,21 @@
 .word-cell .cell-kana {
   font-size: 1.15rem;
 }
+
+.kanji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 6px;
+}
+
+.kanji-cell .cell-romaji {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell.kanji-only,
+.swatch.kanji-only {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}

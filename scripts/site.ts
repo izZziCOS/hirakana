@@ -82,10 +82,14 @@ async function buildFonts(): Promise<string> {
   return name;
 }
 
+// Kana stroke files (U+30xx) are precached; the ~2,200 kanji files are cached the first time each is opened.
+const precached = (file: string): boolean =>
+  !file.endsWith('.map') && (!file.startsWith('kanjivg/') || file.startsWith('kanjivg/030'));
+
 async function buildServiceWorker(): Promise<void> {
   const files = (await listFiles(OUT))
     .map(file => relative(OUT, file).split('\\').join('/'))
-    .filter(file => !file.endsWith('.map'))
+    .filter(precached)
     .sort();
   const version = shortHash(files.join('\n') + (await readFile(join(OUT, 'index.html'), 'utf8')));
   await build({

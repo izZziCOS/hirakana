@@ -1,5 +1,5 @@
 import { GROUPS } from '../data.ts';
-import { ROW_INFO } from '../kana.ts';
+import { isKanjiGroup, ROW_INFO } from '../kana.ts';
 import { groupSelection, rowsSummary, toggleGroup, toggleRow, updateSettings } from '../state.ts';
 import type { Store } from '../store.ts';
 import type { Direction, GroupId, Mode, RowInfo, ScriptSetting, Settings, SpeedCheck, State } from '../types.ts';
@@ -15,9 +15,13 @@ export interface Controls {
 
 function rowChip(row: RowInfo, settings: Settings): Html {
   const { script, rows } = settings;
-  const available = script === 'both' || Boolean(row.preview[script]);
+  const available = script === 'both' || Boolean(row.preview[script] ?? row.preview.kanji);
   const preview =
-    (script === 'both' ? undefined : row.preview[script]) ?? row.preview.hiragana ?? row.preview.katakana ?? '';
+    (script === 'both' ? undefined : row.preview[script]) ??
+    row.preview.hiragana ??
+    row.preview.katakana ??
+    row.preview.kanji ??
+    '';
   const title = available ? row.label : `${row.label} (not in ${script})`;
   return html`<button
     class="row-chip jp"
@@ -49,8 +53,15 @@ export function createControls(data: Store<State>): Controls {
     data.update(state => toggleGroup(state, button.dataset.group as GroupId)),
   );
   onDelegate(rowsBody, 'button[data-row]', button => data.update(state => toggleRow(state, button.dataset.row ?? '')));
+  // Kanji levels have up to 42 rows each, so their chips stay hidden until the level is opened.
+  const expanded = new Set<string>();
+  onDelegate(rowsBody, 'button[data-expand]', button => {
+    const group = button.dataset.expand ?? '';
+    if (!expanded.delete(group)) expanded.add(group);
+    controls.render();
+  });
 
-  return {
+  const controls: Controls = {
     render() {
       const state = data.get();
       const { settings } = state;
@@ -60,7 +71,7 @@ export function createControls(data: Store<State>): Controls {
       press('#new-per-day', settings.newPerDay);
       press('#goal-select', settings.goal);
       press('#speed-select', settings.speedCheck);
-      modeSelect.hidden = settings.direction === 'match';
+      modeSelect.hidden = settings.direction === 'match' || settings.direction === 'write';
       const listen = document.querySelector<HTMLButtonElement>('#direction-select [data-value="listen"]');
       if (listen) {
         listen.title = hasJapaneseVoice()
@@ -80,16 +91,31 @@ export function createControls(data: Store<State>): Controls {
       newSummary.textContent = `· ${settings.newPerDay} new/day`;
       setHtml(
         rowsBody,
-        GROUPS.map(
-          group =>
-            html`<div class="row-group">
+        GROUPS.map(group => {
+          const rows = ROW_INFO.filter(row => row.group === group.id);
+          const chips = html`<div class="row-chips">${rows.map(row => rowChip(row, settings))}</div>`;
+          if (!isKanjiGroup(group.id)) {
+            return html`<div class="row-group">
               <div class="row-group-head">${group.label}</div>
-              <div class="row-chips">
-                ${ROW_INFO.filter(row => row.group === group.id).map(row => rowChip(row, settings))}
-              </div>
-            </div>`,
-        ),
+              ${chips}
+            </div>`;
+          }
+          const open = expanded.has(group.id);
+          const selected = rows.filter(row => settings.rows.includes(row.id)).length;
+          return html`<div class="row-group">
+            <button
+              type="button"
+              class="row-group-head row-group-toggle"
+              data-expand="${group.id}"
+              aria-expanded="${String(open)}"
+            >
+              ${group.label} <span class="row-group-count">${selected}/${rows.length} rows</span>
+            </button>
+            ${open && chips}
+          </div>`;
+        }),
       );
     },
   };
+  return controls;
 }

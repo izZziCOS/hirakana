@@ -1,7 +1,7 @@
 import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
 import { formatSeconds } from './format.ts';
-import { KANA, statKey, supportsDirection } from './kana.ts';
+import { isKanji, KANA, statKey, supportsDirection } from './kana.ts';
 import { MAX_TIMED_MS, outcomeFor, personalPace, pickNext, slowThreshold, weightedPick } from './schedule.ts';
 import { recordAnswer } from './state.ts';
 import type { Card, CardKind, Drill, KanaItem, Mode, Outcome, Session, Settings, State } from './types.ts';
@@ -37,7 +37,9 @@ export const effectiveMode = (settings: Settings): Mode => (settings.direction =
 
 export const rowsPool = (settings: Settings): KanaItem[] =>
   KANA.filter(
-    item => (settings.script === 'both' || item.script === settings.script) && settings.rows.includes(item.rowId),
+    item =>
+      (settings.script === 'both' || item.script === settings.script || isKanji(item)) &&
+      settings.rows.includes(item.rowId),
   );
 
 export const activePool = (settings: Settings): KanaItem[] =>
@@ -54,7 +56,10 @@ export function emptyMessage(settings: Settings, drill: Drill | null): string {
   if (settings.direction === 'match') {
     return 'Matching needs characters that exist in both scripts. Words and loanword katakana can only be read.';
   }
-  return 'Words can only be practised in Read mode. Choose more rows above.';
+  if (settings.direction === 'meaning') return 'Meaning mode is for kanji. Choose some kanji rows above.';
+  if (settings.direction === 'write')
+    return 'Writing works with single kana and kanji. Choose some of those rows above.';
+  return 'Words can only be practised in Read mode, and kanji in Read or Meaning mode. Choose more rows above.';
 }
 
 export type NextStep =
@@ -89,7 +94,9 @@ export function chooseNext(state: State, session: Session, { now, random = Math.
   if (pick.kind === 'ahead' && !session.extra && !struggling) return { status: 'done' };
 
   const choices =
-    effectiveMode(settings) === 'choose' ? buildChoices(pick.item, { direction, pool, drillItems, random }) : [];
+    effectiveMode(settings) === 'choose' && direction !== 'write'
+      ? buildChoices(pick.item, { direction, pool, drillItems, random })
+      : [];
   return { status: 'card', ...pick, choices };
 }
 
@@ -125,6 +132,8 @@ function countAnswer(session: Session, outcome: Outcome): Session {
   return session;
 }
 
+export type StageChange = 'kanjiOnly' | 'readingBack';
+
 export interface AnswerResult {
   state: State;
   session: Session;
@@ -132,6 +141,14 @@ export interface AnswerResult {
   isCorrect: boolean;
   ms: number | null;
   wasNew: boolean;
+  stageChange: StageChange | null;
+}
+
+function stageChangeOf(before: State, after: State, key: string): StageChange | null {
+  const was = Boolean(before.stats[key]?.kanjiOnly);
+  const is = Boolean(after.stats[key]?.kanjiOnly);
+  if (was === is) return null;
+  return is ? 'kanjiOnly' : 'readingBack';
 }
 
 interface AnswerOptions {
@@ -161,13 +178,16 @@ export function submitAnswer(
     card: { ...card, answered: true, outcome, given },
     undo: { state, session, clock },
   };
+  const key = statKey(item, direction);
+  const nextState = recordAnswer(state, { item, direction, outcome, given, ms, now, run: nextSession.streak });
   return {
-    state: recordAnswer(state, { item, direction, outcome, given, ms, now, run: nextSession.streak }),
+    state: nextState,
     session: nextSession,
     outcome,
     isCorrect,
     ms,
-    wasNew: !state.stats[statKey(item, direction)]?.box,
+    wasNew: !state.stats[key]?.box,
+    stageChange: stageChangeOf(state, nextState, key),
   };
 }
 
@@ -183,7 +203,12 @@ export function undoAnswer(session: Session, clock: number): { state: State; ses
 export function canForgiveTypo(state: State, session: Session): boolean {
   const { card, undo } = session;
   return Boolean(
-    undo && card?.outcome === 'wrong' && card.given && effectiveMode(state.settings) === 'type' && !card.revealed,
+    undo &&
+    card?.outcome === 'wrong' &&
+    card.given &&
+    effectiveMode(state.settings) === 'type' &&
+    state.settings.direction !== 'write' &&
+    !card.revealed,
   );
 }
 
@@ -213,9 +238,21 @@ interface FeedbackNoteInput {
   ms: number | null;
   wasNew: boolean;
   nextReview: string;
+  stageChange?: StageChange | null;
 }
 
-export function feedbackNote({ outcome, ms, wasNew, nextReview }: FeedbackNoteInput): string {
+const STAGE_NOTE: Record<StageChange, string> = {
+  kanjiOnly: 'Mastered with the reading shown, so from now on it’s shown as kanji only.',
+  readingBack: 'The reading is shown again until you master it.',
+};
+
+export function feedbackNote(input: FeedbackNoteInput): string {
+  const note = scheduleNote(input);
+  if (!input.stageChange) return note;
+  return `${note}${note.endsWith('.') ? '' : '.'} ${STAGE_NOTE[input.stageChange]}`;
+}
+
+function scheduleNote({ outcome, ms, wasNew, nextReview }: FeedbackNoteInput): string {
   const timing = ms === null ? '' : ` (${formatSeconds(ms)})`;
   if (outcome === 'peeked') return 'You peeked, so it isn’t scored and will come back sooner.';
   if (outcome === 'slow') {

@@ -1,13 +1,20 @@
 # Kana Dojo
 
-A hiragana and katakana trainer that runs entirely in the browser. It uses spaced repetition, works offline once it has
+A hiragana, katakana and JLPT kanji trainer that runs entirely in the browser. It uses spaced repetition, works offline once it has
 loaded, and keeps progress in the browser with no backend.
 
-- **Four directions:** read (あ → ka), recall (ka → あ, picked from four options or typed), match (あ ↔ ア) and listen (hear it,
-  then pick or type it). Each has its own review schedule. Listening uses the browser's Japanese voice and is only
-  offered when one exists.
+- **Six directions:** read (あ → ka, 水 → sui or mizu), recall (ka → あ, picked from four options or typed), match (あ ↔ ア),
+  listen (hear it, then pick or type it), meaning (水 → water, for kanji) and write (ka or "water" → draw it, checked
+  stroke by stroke; up to one retried stroke in four still passes). Each has its own review schedule. Listening uses
+  the browser's Japanese voice and is only offered when one exists.
 - **Character sets:** basic kana, dakuten, combinations (きゃ), small っ and long ー, loanword katakana (ファ), ~90 everyday
-  words, and JLPT vocabulary for every level (~90 N5 words, 50–65 each for N4–N1). Practise whole sets or individual rows.
+  words, and JLPT vocabulary for every level (~90 N5 words, 50–65 each for N4–N1, shown with their kanji). Practise
+  whole sets or individual rows.
+- **Kanji:** all ~2,200 JLPT kanji (N5 79, N4 166, N3 367, N2 367, N1 1,232) in rows of 30, most frequent first. Read
+  accepts any on or kun reading; the info panel lists the readings, meanings, stroke count, stroke order and the
+  vocabulary words that use the kanji, which can be drilled together. New words whose kanji you already know come first.
+- **Two stages for kanji and words written in kanji:** the reading is shown under the kanji until it is mastered, then
+  hidden; a miss or a peek brings it back. The card says when either happens.
 - **Spaced repetition** with 9 steps from 1 minute to 2 months. Slow answers don't advance a card; the time limit adapts
   to your own pace and can be switched off. Peeking moves a card back two steps. A daily limit on new characters leads to
   a "Done for today" screen.
@@ -59,7 +66,8 @@ public/                  Copied as-is: web app manifest and icons
 vendor/kanjivg/          Stroke data for every character the app uses (see its README)
 src/
   data.ts                All kana, words, examples, notes and look-alike groups
-  kana.ts                Builds the kana list and answer lookups from the data
+  kanji-data.ts          Generated JLPT kanji list (readings, meanings); refresh with node scripts/fetch-kanji.ts
+  kana.ts                Builds the kana, word and kanji items, romaji and answer lookups from the data
   schedule.ts            Spaced repetition and answer timing
   choices.ts             Multiple-choice options and answer checking
   days.ts                Daily log, streaks, forecast and chart data
@@ -72,7 +80,7 @@ src/
   sw.ts                  Service worker for offline use
   main.ts                Wires everything together
   ui/                    One module per screen or widget, plus the html`` template helper
-scripts/                 site.ts (build), server.ts, and the dev, build and serve entry points
+scripts/                 site.ts (build), server.ts, the dev, build and serve entry points, and the data fetchers
 test/                    Unit tests, including the HTML render functions
 e2e/                     Playwright tests
 docker/                  nginx configuration
@@ -118,5 +126,9 @@ allowed, plus inline `style` attributes.
 ## Credits
 
 - Stroke order data: [KanjiVG](https://kanjivg.tagaini.net) by Ulrich Apel, CC BY-SA 3.0, stored in `vendor/kanjivg/`.
+- Kanji readings and meanings: [KANJIDIC](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project) by the Electronic
+  Dictionary Research and Development Group, CC BY-SA 4.0, via
+  [kanji-data](https://github.com/davidluzgouveia/kanji-data) by David Gouveia (MIT). JLPT levels from
+  [Jonathan Waller's JLPT resources](http://www.tanos.co.uk/jlpt/).
 - Kana font: [Klee One](https://fonts.google.com/specimen/Klee+One) by Fontworks, SIL Open Font License 1.1, from
   `@fontsource/klee-one`.

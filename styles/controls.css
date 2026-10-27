@@ -116,6 +116,36 @@
   margin-bottom: 6px;
 }
 
+.row-group-toggle,
+.grid-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.row-group-toggle::before,
+.grid-toggle::before {
+  content: '›';
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.row-group-toggle[aria-expanded='true']::before,
+.grid-toggle[aria-expanded='true']::before {
+  transform: rotate(90deg);
+}
+
+.row-group-count {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .row-chips {
   display: flex;
   flex-wrap: wrap;

@@ -1,6 +1,19 @@
 import { EXAMPLES, NOTES } from '../data.ts';
 import { formatSeconds, formatWait } from '../format.ts';
-import { DIRECTIONS, getKana, isWord, lookalikesOf, statKey, supportsDirection } from '../kana.ts';
+import {
+  DIRECTIONS,
+  getKana,
+  isKanji,
+  isWord,
+  kanjiOfWord,
+  lookalikesOf,
+  mainReading,
+  readingRomaji,
+  statKey,
+  supportsDirection,
+  toKatakana,
+  wordsWithKanji,
+} from '../kana.ts';
 import { mixUpsFor } from '../mistakes.ts';
 import { levelOf } from '../schedule.ts';
 import type { KanaItem, State } from '../types.ts';
@@ -53,7 +66,9 @@ function recordText(item: KanaItem, state: State, now: number): Html {
       html`<div>
         <span class="muted">${DIRECTION_LABEL[direction]}:</span> ${stat.correct} right · ${stat.wrong}
         wrong${stat.avgMs ? ` · avg ${formatSeconds(stat.avgMs)}` : ''} · due ${formatWait(stat.due - now)}
-        <span class="pill level-${level}">${LEVEL_LABEL[level]}</span>
+        <span class="pill level-${level}">${LEVEL_LABEL[level]}</span>${
+          stat.kanjiOnly && html` <span class="pill">Stage 2: kanji only</span>`
+        }
       </div>`,
     ];
   });
@@ -76,6 +91,25 @@ function highlightExample(word: string, kana: string): Html[] {
   return word.split(kana).flatMap((part, i) => (i ? [html`<mark>${kana}</mark>`, html`${part}`] : [html`${part}`]));
 }
 
+const USED_IN_LIMIT = 6;
+
+const kunMarkup = (reading: string): Html => {
+  const [stem = '', okurigana] = reading.split('.');
+  return html`${stem}${okurigana && html`<span class="okurigana">${okurigana}</span>`}`;
+};
+
+const readingList = (readings: string[], format: (reading: string) => Html | string): Html =>
+  html`${join(
+    readings.map(
+      reading => html`<span class="jp">${format(reading)}</span> <span class="muted">${readingRomaji(reading)}</span>`,
+    ),
+    ' · ',
+  )}`;
+
+// Opens the other item's info in the dialog; handled by onInfoLinks.
+const linkTo = (item: KanaItem, label: Html): Html =>
+  html`<button type="button" class="info-link" data-open="${item.kana}">${label}</button>`;
+
 export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html {
   const rows: Html[] = [];
   const add = (label: string, value: Html | string) =>
@@ -85,15 +119,54 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
     );
   const alternatives = item.accepted.slice(1);
 
-  add(
-    'Reading',
-    html`<strong class="romaji">${item.romaji}</strong>${
-        alternatives.length > 0 && html` <span class="muted">also accepted: ${alternatives.join(', ')}</span>`
-      }`,
-  );
+  if (item.readings) {
+    if (item.readings.on.length) add('On reading', readingList(item.readings.on, toKatakana));
+    if (item.readings.kun.length) add('Kun reading', readingList(item.readings.kun, kunMarkup));
+  } else {
+    add(
+      'Reading',
+      html`<strong class="romaji">${item.romaji}</strong>${
+          alternatives.length > 0 && html` <span class="muted">also accepted: ${alternatives.join(', ')}</span>`
+        }`,
+    );
+  }
   if (item.kanji) add('In kanji', bigJp(item.kanji));
   if (item.meaning) add('Meaning', item.meaning);
-  add('Type', `${SCRIPT_LABEL[item.script]} · ${item.row} · ${GROUP_LABEL[item.group]}`);
+  add(
+    'Type',
+    `${SCRIPT_LABEL[item.script]}${item.strokes ? ` · ${item.strokes} strokes` : ''} · ${item.row} · ${GROUP_LABEL[item.group]}`,
+  );
+  const usedIn = isKanji(item) ? wordsWithKanji(item) : [];
+  if (usedIn.length) {
+    add(
+      'Used in',
+      html`${join(
+          usedIn
+            .slice(0, USED_IN_LIMIT)
+            .map(
+              word =>
+                html`${linkTo(word, html`${bigJp(word.kanji ?? '')} ${jp(word.kana)}`)}
+                  <span class="muted">${word.meaning}</span>`,
+            ),
+          ' · ',
+        )} <button type="button" class="ghost small" data-drill="${item.kana}">Drill with its words</button>`,
+    );
+  }
+  const kanjiInWord = kanjiOfWord(item);
+  if (kanjiInWord.length) {
+    add(
+      'Kanji',
+      html`${join(
+        kanjiInWord.map(kanji => {
+          const level = levelOf(state.stats[statKey(kanji)]);
+          return html`${linkTo(kanji, bigJp(kanji.kana))} ${jp(mainReading(kanji))}
+            <span class="muted">${kanji.meanings?.[0]}</span>
+            <span class="pill level-${level}">${LEVEL_LABEL[level]}</span>`;
+        }),
+        ' · ',
+      )}`,
+    );
+  }
   if (item.counterpart) add(item.script === 'hiragana' ? 'In katakana' : 'In hiragana', bigJp(item.counterpart));
   if (!isWord(item)) add('Stroke order', strokeOrderBlock(item));
 
