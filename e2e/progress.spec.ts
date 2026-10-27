@@ -103,3 +103,48 @@ test('the info dialog opens from the progress grid', async ({ page }) => {
   await expect(page.locator('#dialog-kana')).toHaveText('か');
   await expect(page.locator('#dialog-body .stroke-count')).toHaveText('3 strokes');
 });
+
+test('the home screen asks for a backup after a week of practice and exporting clears it', async ({ page, seed }) => {
+  await seed({ version: 5, days: { [dayKey(-8)]: { answers: 3, learned: 3, scored: 3, correct: 3 } } });
+  await page.goto('/');
+  const note = page.locator('#backup-note');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('Not backed up yet.');
+
+  const downloadPromise = page.waitForEvent('download');
+  await note.getByRole('button', { name: 'Export progress' }).click();
+  await downloadPromise;
+  await expect(note).toBeHidden();
+  await page.getByRole('tab', { name: 'Progress' }).click();
+  await expect(page.locator('#backup-status')).toHaveText('Last backed up today.');
+});
+
+test('"Not now" hides the backup reminder until the next visit', async ({ page, seed }) => {
+  await seed({ version: 5, days: { [dayKey(-8)]: { answers: 3, learned: 3, scored: 3, correct: 3 } } });
+  await page.goto('/');
+  await page.locator('#backup-later').click();
+  await expect(page.locator('#backup-note')).toBeHidden();
+  await page.reload();
+  await expect(page.locator('#backup-note')).toBeVisible();
+});
+
+test('answers given in another tab are kept when this tab answers next', async ({ page, context }) => {
+  const correctCount = () =>
+    page.evaluate(
+      key =>
+        (JSON.parse(localStorage.getItem(key) ?? '{}') as { stats?: Record<string, { correct: number }> }).stats?.あ
+          ?.correct,
+      STORAGE_KEY,
+    );
+  await start(page);
+  await expect(prompt(page)).toHaveText('あ');
+  const other = await context.newPage();
+  await start(other);
+  await answer(other, 'a');
+  await expect(feedback(other)).toContainText('Correct!');
+  await expect.poll(correctCount).toBe(1);
+
+  await answer(page, 'a');
+  await expect(feedback(page)).toContainText('Correct!');
+  await expect.poll(correctCount).toBe(2);
+});

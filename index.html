@@ -113,6 +113,17 @@
             </div>
           </section>
 
+          <aside id="backup-note" class="backup-note" aria-labelledby="backup-note-title" hidden>
+            <div>
+              <p id="backup-note-title" class="backup-note-title">Back up your progress</p>
+              <p id="backup-note-detail" class="muted small"></p>
+            </div>
+            <div class="backup-note-actions">
+              <button type="button" id="backup-export" class="primary">Export progress</button>
+              <button type="button" id="backup-later" class="ghost">Not now</button>
+            </div>
+          </aside>
+
           <section id="tracks" class="home-section" aria-labelledby="tracks-h">
             <div class="section-head">
               <h2 id="tracks-h">Your tracks</h2>
@@ -331,6 +342,7 @@
           <p id="transfer-status" class="muted small" aria-live="polite"></p>
           <p class="muted small">
             Progress is saved in this browser only. Export it to back it up or move it to another device.
+            <span id="backup-status"></span>
           </p>
         </div>
       </section>
@@ -426,6 +438,41 @@
             <button data-value="off" title="Only right or wrong counts">Off</button>
           </div>
         </div>
+        <section id="sync-settings" class="sync-settings" aria-labelledby="sync-label" hidden>
+          <h3 class="row-group-head" id="sync-label">Sync between devices</h3>
+          <div id="sync-off">
+            <p class="muted small">
+              Keep the same progress on your phone and computer. It is encrypted on this device before it is uploaded,
+              and only devices with your sync code can read it.
+            </p>
+            <button type="button" id="sync-start" class="primary">Turn on sync</button>
+            <form id="sync-join" class="sync-join">
+              <label for="sync-code-input" class="small">Have a code from another device?</label>
+              <div class="sync-join-row">
+                <input
+                  id="sync-code-input"
+                  autocomplete="off"
+                  autocapitalize="characters"
+                  spellcheck="false"
+                  placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+                />
+                <button type="submit" class="ghost">Connect</button>
+              </div>
+            </form>
+          </div>
+          <div id="sync-on" hidden>
+            <p class="small">Sync code <code id="sync-code" class="sync-code"></code></p>
+            <p class="muted small">
+              Enter it on another device or open the link there. Anyone with the code can see and change your progress.
+            </p>
+            <div class="sync-actions">
+              <button type="button" id="sync-copy" class="ghost">Copy link</button>
+              <button type="button" id="sync-now" class="ghost">Sync now</button>
+              <button type="button" id="sync-stop" class="ghost danger">Turn off</button>
+            </div>
+          </div>
+          <p id="sync-status" class="muted small" aria-live="polite"></p>
+        </section>
       </div>
     </dialog>
 

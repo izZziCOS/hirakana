@@ -3,6 +3,7 @@ import { bestDayStreak, dayStreak, forecast } from '../days.ts';
 import { formatSeconds, formatWait } from '../format.ts';
 import { isKanji, isWord, KANA, statKey, supportsDirection } from '../kana.ts';
 import { isDue, levelOf } from '../schedule.ts';
+import { combinedDays } from '../state.ts';
 import type { AppStores } from '../store.ts';
 import type { Direction, Group, KanaItem, Script, State } from '../types.ts';
 import { renderAccuracyTrend, renderActivityHeatmap } from './charts.ts';
@@ -117,8 +118,8 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
   }
 
   function renderCharts(state: State, now: number): void {
-    renderActivityHeatmap(els.activity, state.days, now, onSelectDay);
-    renderAccuracyTrend(els.trend, state.days, now);
+    renderActivityHeatmap(els.activity, combinedDays(state), now, onSelectDay);
+    renderAccuracyTrend(els.trend, combinedDays(state), now);
   }
 
   function render(): void {
@@ -139,7 +140,10 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       statCard('Accuracy', answered ? `${Math.round((correct / answered) * 100)}%` : '—'),
       statCard('Mastered', html`${mastered}<small>/${items.length}</small>`),
       statCard('Due now', due),
-      statCard('Day streak', html`${dayStreak(state.days, now)}<small> best ${bestDayStreak(state.days)}</small>`),
+      statCard(
+        'Day streak',
+        html`${dayStreak(combinedDays(state), now)}<small> best ${bestDayStreak(combinedDays(state))}</small>`,
+      ),
       statCard('Best run', state.bestStreak),
     ]);
     setHtml(els.forecast, forecastTiles(keys, state, now));

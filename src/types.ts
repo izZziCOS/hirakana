@@ -136,6 +136,12 @@ export interface State {
   mistakes: Mistake[];
   days: Record<string, DayLog>;
   bestStreak: number;
+  lastBackup: number;
+  // Day logs of the other devices this progress is synced with, by device id. `days` is this device's own log.
+  deviceDays: Record<string, Record<string, DayLog>>;
+  settingsChangedAt: number;
+  resetAt: number;
+  mistakesClearedAt: number;
 }
 
 export interface Drill {

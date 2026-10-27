@@ -1,5 +1,5 @@
 import { GROUPS } from './data.ts';
-import { DAY_HISTORY, dayKey, logDay } from './days.ts';
+import { addDays, DAY_HISTORY, dateOf, dayKey, type Days, logDay } from './days.ts';
 import {
   DIRECTIONS,
   findKana,
@@ -10,7 +10,7 @@ import {
   statKey,
   supportsDirection,
 } from './kana.ts';
-import { applyAnswer, applyKanjiStage, levelOf, MAX_BOX } from './schedule.ts';
+import { applyAnswer, applyKanjiStage, DAY, levelOf, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
   Direction,
@@ -28,7 +28,7 @@ import type {
 } from './types.ts';
 import { isObject, nonNegative } from './util.ts';
 
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
 export const DEFAULT_NEW_PER_DAY = 15;
@@ -63,6 +63,11 @@ export const defaultState = (): State => ({
   mistakes: [],
   days: {},
   bestStreak: 0,
+  lastBackup: 0,
+  deviceDays: {},
+  settingsChangedAt: 0,
+  resetAt: 0,
+  mistakesClearedAt: 0,
 });
 
 const entriesOf = (value: unknown): [string, unknown][] => (isObject(value) ? Object.entries(value) : []);
@@ -95,6 +100,7 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   },
   3: data => ({ ...data, version: 4 }),
   4: data => ({ ...data, version: 5 }),
+  5: data => ({ ...data, version: 6 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -155,6 +161,8 @@ function sanitizeMistakes(raw: unknown): Mistake[] {
     .slice(0, MAX_MISTAKES);
 }
 
+export const MAX_DEVICES = 20;
+
 function sanitizeDays(raw: unknown): Record<string, DayLog> {
   return Object.fromEntries(
     entriesOf(raw)
@@ -185,6 +193,15 @@ function sanitizeState(data: RawData): State {
     mistakes: sanitizeMistakes(data.mistakes),
     days: sanitizeDays(data.days),
     bestStreak: nonNegative(data.bestStreak),
+    lastBackup: nonNegative(data.lastBackup),
+    deviceDays: Object.fromEntries(
+      entriesOf(data.deviceDays)
+        .slice(0, MAX_DEVICES)
+        .map(([device, days]) => [device, sanitizeDays(days)]),
+    ),
+    settingsChangedAt: nonNegative(data.settingsChangedAt),
+    resetAt: nonNegative(data.resetAt),
+    mistakesClearedAt: nonNegative(data.mistakesClearedAt),
   };
 }
 
@@ -259,9 +276,10 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
   };
 }
 
-export const updateSettings = (state: State, changes: Partial<Settings>): State => ({
+export const updateSettings = (state: State, changes: Partial<Settings>, now = Date.now()): State => ({
   ...state,
   settings: { ...state.settings, ...changes },
+  settingsChangedAt: now,
 });
 
 function withRows(state: State, selected: Set<string>): State {
@@ -308,6 +326,47 @@ export const rowsSummary = (state: State): string =>
     .filter(Boolean)
     .join(', ');
 
-export const clearMistakes = (state: State): State => ({ ...state, mistakes: [] });
+export const BACKUP_EVERY = 30 * DAY;
+export const FIRST_BACKUP_AFTER = 7 * DAY;
 
-export const resetProgress = (state: State): State => ({ ...defaultState(), settings: state.settings });
+export const markBackedUp = (state: State, now: number): State => ({ ...state, lastBackup: now });
+
+// Browsers may clear site storage, so after a week of practice, and then every month, the home screen asks for an export.
+export function backupDue(state: State, now: number): boolean {
+  if (state.lastBackup) return now - state.lastBackup >= BACKUP_EVERY;
+  const firstDay = Object.keys(state.days).sort()[0];
+  return firstDay !== undefined && now - dateOf(firstDay).getTime() >= FIRST_BACKUP_AFTER;
+}
+
+export function backupStatus(state: State, now: number): string {
+  if (!state.lastBackup) return 'Not backed up yet.';
+  const days = Math.floor((now - state.lastBackup) / DAY);
+  if (days < 1) return 'Last backed up today.';
+  return `Last backed up ${days} day${days === 1 ? '' : 's'} ago.`;
+}
+
+// Days from this device and every device it syncs with, added up.
+const combined = new WeakMap<State, Days>();
+export function combinedDays(state: State): Days {
+  const logs = Object.values(state.deviceDays);
+  if (!logs.length) return state.days;
+  let days = combined.get(state);
+  if (!days) {
+    days = addDays([state.days, ...logs]);
+    combined.set(state, days);
+  }
+  return days;
+}
+
+export const clearMistakes = (state: State, now = Date.now()): State => ({
+  ...state,
+  mistakes: [],
+  mistakesClearedAt: now,
+});
+
+export const resetProgress = (state: State, now = Date.now()): State => ({
+  ...defaultState(),
+  settings: state.settings,
+  settingsChangedAt: state.settingsChangedAt,
+  resetAt: now,
+});

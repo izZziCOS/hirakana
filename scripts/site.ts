@@ -82,9 +82,14 @@ async function buildFonts(): Promise<string> {
   return name;
 }
 
-// Kana stroke files (U+30xx) are precached; the ~2,200 kanji files are cached the first time each is opened.
+// Kana stroke files (U+30xx) are precached; the ~2,200 kanji files are cached the first time each is opened, in a
+// cache of their own that survives app updates (see src/sw.ts).
 const precached = (file: string): boolean =>
   !file.endsWith('.map') && (!file.startsWith('kanjivg/') || file.startsWith('kanjivg/030'));
+
+// Progress sync is offered when the site is built with the URL of a sync server (see worker/README.md).
+const SYNC_URL = process.env.SYNC_URL?.trim() ?? '';
+if (SYNC_URL && !/^https?:\/\//.test(SYNC_URL)) throw new Error(`SYNC_URL must be an http(s) URL, not ${SYNC_URL}`);
 
 async function buildServiceWorker(): Promise<void> {
   const files = (await listFiles(OUT))
@@ -118,7 +123,7 @@ export async function buildSite({ dev = false }: BuildOptions = {}): Promise<str
     sourcemap: true,
     metafile: true,
     logLevel: 'warning' as const,
-    define: { __DEV__: JSON.stringify(dev) },
+    define: { __DEV__: JSON.stringify(dev), __SYNC_URL__: JSON.stringify(SYNC_URL) },
   };
   const app = await build({
     ...shared,
@@ -145,6 +150,7 @@ export async function buildSite({ dev = false }: BuildOptions = {}): Promise<str
     if (!page.includes(placeholder)) throw new Error(`index.html is missing ${placeholder}`);
     page = page.replace(placeholder, placeholder.replace(/"[^"]+"/, `"${assets[key]}"`));
   }
+  if (SYNC_URL) page = page.replace("connect-src 'self'", `connect-src 'self' ${new URL(SYNC_URL).origin}`);
   await writeFile(join(OUT, 'index.html'), page);
 
   if (!dev) await buildServiceWorker();

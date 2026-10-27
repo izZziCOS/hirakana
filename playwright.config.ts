@@ -21,7 +21,8 @@ export default defineConfig({
   webServer: {
     command: 'npm run build && node scripts/serve.ts',
     url: `http://127.0.0.1:${PORT}`,
-    env: { PORT: String(PORT) },
+    // e2e/sync.spec.ts answers requests to this sync server itself.
+    env: { PORT: String(PORT), SYNC_URL: 'http://sync.test' },
     reuseExistingServer: !CI,
   },
 });

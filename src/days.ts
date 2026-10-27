@@ -32,6 +32,23 @@ export const startOfDay = (timestamp: number): number => new Date(timestamp).set
 
 export const emptyDay = (): DayLog => ({ answers: 0, learned: 0, scored: 0, correct: 0 });
 
+// Adds up several day logs, for example those of different devices.
+export function addDays(logs: Days[]): Days {
+  const total: Days = {};
+  for (const log of logs) {
+    for (const [key, day] of Object.entries(log)) {
+      const sum = total[key] ?? emptyDay();
+      total[key] = {
+        answers: sum.answers + day.answers,
+        learned: sum.learned + day.learned,
+        scored: sum.scored + day.scored,
+        correct: sum.correct + day.correct,
+      };
+    }
+  }
+  return total;
+}
+
 export function logDay(days: Days, now: number, entry: Partial<DayLog>): Days {
   const key = dayKey(now);
   const today = days[key] ?? emptyDay();

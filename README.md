@@ -28,7 +28,10 @@ loaded, and keeps progress in the browser with no backend.
 - **Progress:** mastery grid, 7-day review forecast, activity calendar (select a day to see its mistakes) and a weekly
   accuracy chart.
 - **Mistakes:** history, most-missed characters and mixed-up pairs (シ ⇄ ツ), each of which can be drilled.
-- **Other:** session goal, light/dark/system theme, export and import of progress, installable as an app.
+- **Sync:** optional, end-to-end encrypted sync between devices with a sync code or link, through a small server you
+  deploy yourself (see [worker/README.md](worker/README.md)).
+- **Other:** session goal, light/dark/system theme, export and import of progress with a backup reminder, installable
+  as an app.
 
 ## Getting started
 
@@ -77,6 +80,8 @@ src/
   mistakes.ts            Most-missed, mixed-up pairs and per-day filtering
   handwriting.ts         Compares a drawn stroke with the expected one
   state.ts               Saved state: defaults, migrations, import/export, update functions
+  merge.ts               Combines progress from two devices
+  sync.ts                Sync codes, encryption and the download-merge-upload round trip
   session.ts             Per-visit state: current card, drills, undo, typos, goal, "done for today"
   store.ts               A small store with batched saving to localStorage
   boot.ts                Runs before the app: applies the saved theme and shows an error if loading fails
@@ -87,6 +92,7 @@ scripts/                 site.ts (build), server.ts, the dev, build and serve en
 test/                    Unit tests, including the HTML render functions
 e2e/                     Playwright tests
 docker/                  nginx configuration
+worker/                  The optional sync server (Cloudflare Worker and D1)
 ```
 
 Everything outside `src/ui/` is pure and has no DOM access. State changes go through pure update functions applied by
@@ -104,13 +110,15 @@ Everything outside `src/ui/` is pure and has no DOM access. State changes go thr
 ## Saved data
 
 Progress is stored in `localStorage` under `kana-dojo`, so it only exists in the browser that created it. Use **Export
-progress** to back it up or move it.
+progress** to back it up or move it, or turn on sync. With sync on, `kana-dojo-sync` holds the sync code and
+`kana-dojo-device` this device's id; neither is part of an export.
 
-The saved object carries a `version` (currently 5). When the shape changes:
+The saved object carries a `version` (currently 6). When the shape changes:
 
 1. bump `STATE_VERSION` in `src/state.ts`;
 2. add a step to `MIGRATIONS` that upgrades the previous version;
-3. extend the sanitising code if there are new fields, and add a test.
+3. extend the sanitising code if there are new fields, and add a test;
+4. decide how `mergeStates` in `src/merge.ts` should combine new fields from two devices.
 
 Older saves, and imported files, are upgraded step by step and then sanitised, so unknown or malformed data is dropped
 instead of breaking the app.
@@ -124,7 +132,7 @@ instead of breaking the app.
   security headers, a read-only file system and a `/healthz` health check.
 
 The page sets a strict Content-Security-Policy in a `<meta>` tag. Only same-origin scripts, styles, fonts and data are
-allowed, plus inline `style` attributes.
+allowed, plus inline `style` attributes. A build with `SYNC_URL` also allows connecting to the sync server.
 
 ## Credits
 

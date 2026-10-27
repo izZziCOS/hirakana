@@ -1,3 +1,5 @@
+import { KANJIVG_PATH, KANJIVG_VERSION } from './ui/kanjivg.ts';
+
 interface ExtendableEvent extends Event {
   waitUntil(promise: Promise<unknown>): void;
 }
@@ -18,6 +20,9 @@ interface WorkerScope {
 const worker = self as unknown as WorkerScope;
 const CACHE_PREFIX = 'kana-dojo-';
 const CACHE = `${CACHE_PREFIX}${__VERSION__}`;
+// Kanji stroke files only change with the KanjiVG release, so they keep their own cache across app updates.
+const STROKES = `${CACHE_PREFIX}strokes-${KANJIVG_VERSION}`;
+const STROKES_URL = new URL(`${KANJIVG_PATH}/`, worker.location.href).href;
 const PAGE = 'index.html';
 
 worker.addEventListener('install', event => {
@@ -34,7 +39,11 @@ worker.addEventListener('activate', event => {
     caches
       .keys()
       .then(keys =>
-        Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE).map(key => caches.delete(key))),
+        Promise.all(
+          keys
+            .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE && key !== STROKES)
+            .map(key => caches.delete(key)),
+        ),
       )
       .then(() => worker.clients.claim()),
   );
@@ -51,9 +60,12 @@ async function fromNetworkFirst(request: Request): Promise<Response> {
   }
 }
 
-async function fromCacheFirst(request: Request): Promise<Response> {
-  const cache = await caches.open(CACHE);
-  const cached = await cache.match(request);
+// Kana stroke files are precached in the app cache; everything else fetched later goes into `store`.
+async function fromCacheFirst(request: Request, store: string): Promise<Response> {
+  const cache = await caches.open(store);
+  const cached =
+    (await cache.match(request)) ??
+    (store === CACHE ? undefined : await caches.open(CACHE).then(app => app.match(request)));
   if (cached) return cached;
   const response = await fetch(request);
   if (response.ok) await cache.put(request, response.clone());
@@ -63,5 +75,6 @@ async function fromCacheFirst(request: Request): Promise<Response> {
 worker.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== worker.location.origin) return;
-  event.respondWith(request.mode === 'navigate' ? fromNetworkFirst(request) : fromCacheFirst(request));
+  if (request.mode === 'navigate') event.respondWith(fromNetworkFirst(request));
+  else event.respondWith(fromCacheFirst(request, request.url.startsWith(STROKES_URL) ? STROKES : CACHE));
 });

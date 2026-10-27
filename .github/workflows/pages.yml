@@ -41,6 +41,9 @@ jobs:
           retention-days: 7
 
       - run: npm run build
+        env:
+          # The deployed sync server (see worker/README.md); leave the repository variable unset to build without sync.
+          SYNC_URL: ${{ vars.SYNC_URL }}
 
       - uses: actions/configure-pages@v5
 

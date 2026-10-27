@@ -12,7 +12,7 @@ import {
   slowThreshold,
   weightedPick,
 } from './schedule.ts';
-import { recordAnswer } from './state.ts';
+import { combinedDays, recordAnswer } from './state.ts';
 import type { Card, CardKind, Drill, KanaItem, Mode, Outcome, Session, Settings, State } from './types.ts';
 import type { Random } from './util.ts';
 
@@ -54,7 +54,7 @@ export const rowsPool = (settings: Settings): KanaItem[] =>
 export const activePool = (settings: Settings): KanaItem[] =>
   rowsPool(settings).filter(item => supportsDirection(item, settings.direction));
 
-export const learnedToday = (state: State, now: number): number => state.days[dayKey(now)]?.learned ?? 0;
+export const learnedToday = (state: State, now: number): number => combinedDays(state)[dayKey(now)]?.learned ?? 0;
 
 export const newLimit = (state: State, session: Session): number => state.settings.newPerDay + session.bonusNew;
 

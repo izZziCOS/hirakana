@@ -2,7 +2,16 @@ import { GROUPS, TRACKS } from '../data.ts';
 import { dayStreak } from '../days.ts';
 import { isKanjiGroup, KANA, ROW_INFO } from '../kana.ts';
 import { todaySummary, type TodaySummary } from '../session.ts';
-import { groupProgress, groupSelection, rowsSummary, toggleGroup, toggleRow } from '../state.ts';
+import {
+  backupDue,
+  backupStatus,
+  combinedDays,
+  groupProgress,
+  groupSelection,
+  rowsSummary,
+  toggleGroup,
+  toggleRow,
+} from '../state.ts';
 import type { AppStores } from '../store.ts';
 import type { Group, GroupId, RowInfo, Settings, State, Track } from '../types.ts';
 import { $, onDelegate } from './dom.ts';
@@ -122,21 +131,25 @@ export function trackCard(track: Track, state: State, open = false, openLevels =
   </article>`;
 }
 
-export function createHome({ data, session }: AppStores, isVisible: () => boolean): Home {
+export function createHome({ data, session }: AppStores, isVisible: () => boolean, onExport: () => void): Home {
   const els = {
     title: $('#hero-title'),
     detail: $('#hero-detail'),
     continueLabel: $('#continue-label'),
     tracks: $('#track-grid'),
     streak: $('#streak'),
+    backup: $('#backup-note'),
+    backupDetail: $('#backup-note-detail'),
   };
   const openTracks = new Set<string>();
   const openLevels = new Set<string>();
+  // "Not now" hides the backup reminder until the next visit.
+  let backupSnoozed = false;
 
   function render(): void {
     const state = data.get();
     const now = Date.now();
-    const streak = dayStreak(state.days, now);
+    const streak = dayStreak(combinedDays(state), now);
     els.streak.hidden = !streak;
     els.streak.textContent = `${streak}-day streak`;
     if (!isVisible()) return;
@@ -144,6 +157,8 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     els.title.textContent = copy.title;
     els.continueLabel.textContent = copy.action;
     els.detail.textContent = heroDetail(state);
+    els.backup.hidden = backupSnoozed || !backupDue(state, now);
+    els.backupDetail.textContent = `${backupStatus(state, now)} This browser can clear saved data, so keep a copy.`;
     setHtml(
       els.tracks,
       TRACKS.map(track => trackCard(track, state, openTracks.has(track.id), openLevels)),
@@ -163,6 +178,12 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
   );
   onDelegate(els.tracks, 'button[data-track]', button => toggle(openTracks, button.dataset.track ?? ''));
   onDelegate(els.tracks, 'button[data-expand]', button => toggle(openLevels, button.dataset.expand ?? ''));
+
+  $('#backup-export').addEventListener('click', onExport);
+  $('#backup-later').addEventListener('click', () => {
+    backupSnoozed = true;
+    render();
+  });
 
   data.subscribe(render);
   session.subscribe(render);

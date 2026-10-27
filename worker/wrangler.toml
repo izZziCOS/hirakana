@@ -1,0 +1,16 @@
+name = "kana-dojo-sync"
+main = "sync.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+# The site's origin, e.g. "https://you.github.io". "*" also works: the data is encrypted and there are no cookies.
+ALLOWED_ORIGIN = "https://izzzicos.github.io"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kana-dojo-sync"
+# Fill in from the output of `npx wrangler d1 create kana-dojo-sync`.
+database_id = "ff705337-7068-47ed-abf2-332a5a612c5b"
+
+[triggers]
+crons = ["17 3 * * *"]

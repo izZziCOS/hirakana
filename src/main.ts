@@ -1,7 +1,15 @@
 import { dayKey } from './days.ts';
 import { affectsPractice, endDrill, newSession, resetCard } from './session.ts';
-import { clearMistakes, exportPayload, parseImport, resetProgress, updateSettings } from './state.ts';
-import { browserStorage, createAppStores } from './store.ts';
+import {
+  backupStatus,
+  clearMistakes,
+  exportPayload,
+  markBackedUp,
+  parseImport,
+  resetProgress,
+  updateSettings,
+} from './state.ts';
+import { browserStorage, createAppStores, STORAGE_KEY } from './store.ts';
 import type { Theme } from './types.ts';
 import { confirmAction } from './ui/confirm.ts';
 import { createControls } from './ui/controls.ts';
@@ -11,6 +19,7 @@ import { $ } from './ui/dom.ts';
 import { createMistakes } from './ui/mistakes.ts';
 import { createPractice } from './ui/practice/index.ts';
 import { createProgress } from './ui/progress.ts';
+import { createSync } from './ui/sync.ts';
 
 type View = 'practice' | 'progress' | 'mistakes';
 
@@ -45,8 +54,19 @@ function registerServiceWorker(): void {
   navigator.serviceWorker.register('sw.js').catch(() => undefined);
 }
 
+// Asks the browser not to clear saved progress under storage pressure. Some browsers ask the user, so this waits until
+// there is progress worth keeping.
+function requestPersistentStorage(): void {
+  if (!('storage' in navigator) || typeof navigator.storage.persist !== 'function') return;
+  navigator.storage
+    .persisted()
+    .then(persisted => (persisted ? true : navigator.storage.persist()))
+    .catch(() => undefined);
+}
+
 function start(): void {
-  const stores = createAppStores(browserStorage());
+  const storage = browserStorage();
+  const stores = createAppStores(storage);
   const { data, session, saver } = stores;
   let activeView: View = 'practice';
   // The Learn tab is either the home screen or a practice session.
@@ -62,7 +82,11 @@ function start(): void {
   const dialog = createDialog(data, startDrill);
   const controls = createControls(data);
   const practice = createPractice(stores, () => activeView === 'practice' && learning === 'session', dialog);
-  const home = createHome(stores, () => activeView === 'practice' && learning === 'home');
+  const home = createHome(
+    stores,
+    () => activeView === 'practice' && learning === 'home',
+    () => exportProgress(),
+  );
 
   function showLearn(mode: 'home' | 'session'): void {
     learning = mode;
@@ -77,7 +101,10 @@ function start(): void {
   $('#home-btn').addEventListener('click', () => showLearn('home'));
 
   const settingsDialog = $('#settings-dialog', HTMLDialogElement);
-  $('#settings-btn').addEventListener('click', () => settingsDialog.showModal());
+  $('#settings-btn').addEventListener('click', () => {
+    syncView?.render();
+    settingsDialog.showModal();
+  });
   $('#settings-close').addEventListener('click', () => settingsDialog.close());
   settingsDialog.addEventListener('click', event => {
     if (event.target === settingsDialog) settingsDialog.close();
@@ -103,7 +130,10 @@ function start(): void {
     document.querySelectorAll<HTMLElement>('.view').forEach(section => {
       section.hidden = section.id !== `view-${view}`;
     });
-    if (view === 'progress') progress.open();
+    if (view === 'progress') {
+      progress.open();
+      renderBackupStatus();
+    }
     if (view === 'mistakes') mistakes.render();
     if (view === 'practice' && learning === 'home') home.render();
     if (view === 'practice' && learning === 'session' && !focusTab) practice.focus();
@@ -140,22 +170,42 @@ function start(): void {
   });
 
   window.addEventListener('pagehide', () => saver.flush());
+  window.addEventListener('storage', event => {
+    if (event.key === STORAGE_KEY) stores.receive(event.newValue);
+  });
+
+  let askedPersistence = false;
+  data.subscribe(state => {
+    if (askedPersistence || !Object.keys(state.stats).length) return;
+    askedPersistence = true;
+    requestPersistentStorage();
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) saver.flush();
   });
 
   const transferStatus = $('#transfer-status');
+  const backupStatusText = $('#backup-status');
+  const renderBackupStatus = () => {
+    backupStatusText.textContent = backupStatus(data.get(), Date.now());
+  };
+  data.subscribe(renderBackupStatus);
   const importFile = $('#import-file', HTMLInputElement);
 
-  $('#export-progress').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(exportPayload(data.get()), null, 2)], { type: 'application/json' });
+  function exportProgress(): void {
+    const now = Date.now();
+    data.update(state => markBackedUp(state, now));
+    saver.flush();
+    const blob = new Blob([JSON.stringify(exportPayload(data.get(), now), null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `kana-dojo-progress-${dayKey(Date.now())}.json`;
+    link.download = `kana-dojo-progress-${dayKey(now)}.json`;
     link.click();
     URL.revokeObjectURL(link.href);
     transferStatus.textContent = 'Progress downloaded.';
-  });
+  }
+
+  $('#export-progress').addEventListener('click', exportProgress);
 
   $('#import-progress').addEventListener('click', () => importFile.click());
   async function importProgress(file: File): Promise<void> {
@@ -169,7 +219,8 @@ function start(): void {
       });
       if (!confirmed) return;
       session.update(newSession);
-      data.update(() => imported);
+      // The imported file is itself a copy of this progress.
+      data.update(() => markBackedUp(imported, Date.now()));
       saver.flush();
       applyTheme(imported.settings.theme);
       practice.next();
@@ -219,10 +270,12 @@ function start(): void {
   $('#clear-mistakes').addEventListener('click', () => void clearHistory());
 
   applyTheme(data.get().settings.theme);
+  renderBackupStatus();
   controls.render();
   practice.next();
   home.render();
   registerServiceWorker();
+  const syncView = __SYNC_URL__ ? createSync(stores, storage, __SYNC_URL__) : null;
 }
 
 window.addEventListener('error', event => showError(event.error ?? event.message));

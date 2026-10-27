@@ -3,6 +3,7 @@ import { formatWait } from '../../format.ts';
 import { statKey } from '../../kana.ts';
 import { isDue, isSeen } from '../../schedule.ts';
 import { activePool, goalProgress, learnedToday, NEW_BATCH, newLimit } from '../../session.ts';
+import { combinedDays } from '../../state.ts';
 import type { Session, State } from '../../types.ts';
 import { html, type Html } from '../html.ts';
 
@@ -19,7 +20,7 @@ const nextDue = (state: State, keys: string[]): number | undefined =>
 
 export function doneScreen(state: State, now: number): Html {
   const keys = poolKeys(state);
-  const today = state.days[dayKey(now)];
+  const today = combinedDays(state)[dayKey(now)];
   const upcoming = nextDue(state, keys);
   const tomorrow = forecast(state.stats, keys, now, 2)[1] ?? 0;
   const unseen = keys.filter(key => !isSeen(state.stats, key)).length;
@@ -59,7 +60,7 @@ export function sessionBar(state: State, session: Session, now: number): Html {
   parts.push(
     html`<span>Session <strong>${session.correct}/${session.answered}</strong>${accuracy}</span>`,
     html`<span>Streak <strong>${session.streak}</strong></span>`,
-    html`<span>Day streak <strong>${dayStreak(state.days, now)}</strong></span>`,
+    html`<span>Day streak <strong>${dayStreak(combinedDays(state), now)}</strong></span>`,
   );
   const goal = goalProgress(state.settings, session);
   if (goal) {

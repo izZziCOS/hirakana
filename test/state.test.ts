@@ -4,10 +4,14 @@ import { dayKey } from '../src/days.ts';
 import { getKana } from '../src/kana.ts';
 import { intervalFor, MAX_BOX } from '../src/schedule.ts';
 import {
+  BACKUP_EVERY,
+  backupDue,
+  backupStatus,
   clearMistakes,
   defaultState,
   exportPayload,
   groupSelection,
+  markBackedUp,
   MAX_MISTAKES,
   migrateState,
   parseImport,
@@ -25,6 +29,7 @@ import {
   createStore,
   type KeyValueStorage,
   loadState,
+  parseSaved,
   SAVE_DELAY_MS,
   saveState,
   STORAGE_KEY,
@@ -270,4 +275,73 @@ test('createAppStores loads saved progress and saves changes after a short delay
   t.mock.timers.tick(SAVE_DELAY_MS);
   assert.equal(loadState(storage, NOW).bestStreak, 9);
   saver.flush();
+});
+
+test('backupDue waits a week before the first backup, then asks every month', () => {
+  const fresh = defaultState();
+  assert.equal(backupDue(fresh, NOW), false);
+  const sixDays = { ...fresh, days: { [dayKey(daysAgo(6))]: { answers: 1, learned: 1, scored: 1, correct: 1 } } };
+  assert.equal(backupDue(sixDays, NOW), false);
+  const sevenDays = { ...fresh, days: { [dayKey(daysAgo(7))]: { answers: 1, learned: 1, scored: 1, correct: 1 } } };
+  assert.equal(backupDue(sevenDays, NOW), true);
+  assert.equal(backupDue(markBackedUp(sevenDays, NOW - BACKUP_EVERY + 1), NOW), false);
+  assert.equal(backupDue(markBackedUp(sevenDays, NOW - BACKUP_EVERY), NOW), true);
+});
+
+test('backupStatus says when progress was last exported', () => {
+  assert.equal(backupStatus(defaultState(), NOW), 'Not backed up yet.');
+  assert.equal(backupStatus(markBackedUp(defaultState(), NOW - 1000), NOW), 'Last backed up today.');
+  assert.equal(backupStatus(markBackedUp(defaultState(), daysAgo(1)), NOW), 'Last backed up 1 day ago.');
+  assert.equal(backupStatus(markBackedUp(defaultState(), daysAgo(12)), NOW), 'Last backed up 12 days ago.');
+});
+
+test('lastBackup is kept through saving and cleaned on load', () => {
+  assert.equal(migrateState({ version: STATE_VERSION, lastBackup: daysAgo(3) }, NOW).lastBackup, daysAgo(3));
+  assert.equal(migrateState({ version: STATE_VERSION, lastBackup: 'soon' }, NOW).lastBackup, 0);
+  assert.equal(migrateState({ version: 2 }, NOW).lastBackup, 0);
+});
+
+test('parseSaved returns null for missing or broken data', () => {
+  assert.equal(parseSaved(null, NOW), null);
+  assert.equal(parseSaved(undefined, NOW), null);
+  assert.equal(parseSaved('{oops', NOW), null);
+  assert.equal(parseSaved(JSON.stringify({ version: 5, bestStreak: 3 }), NOW)?.bestStreak, 3);
+});
+
+test('createSaver cancel drops a pending write', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const storage = memoryStorage();
+  const saver = createSaver(storage, 400);
+  saver.schedule({ ...defaultState(), bestStreak: 1 });
+  saver.cancel();
+  t.mock.timers.tick(400);
+  saver.flush();
+  assert.equal(storage.data.size, 0);
+});
+
+test('receive takes in another tab’s progress without writing it back or keeping a stale undo', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const storage = memoryStorage({ [STORAGE_KEY]: JSON.stringify({ version: 5, bestStreak: 1 }) });
+  const stores = createAppStores(storage);
+  const { data, session, saver } = stores;
+  const receive = (raw: string | null) => stores.receive(raw, NOW);
+  data.update(state => ({ ...state, bestStreak: 2 }));
+  session.update(current => ({ ...current, undo: { state: data.get(), session: current, clock: 0 } }));
+
+  const otherTab = JSON.stringify({ version: 5, bestStreak: 7 });
+  storage.setItem(STORAGE_KEY, otherTab);
+  receive(otherTab);
+  assert.equal(data.get().bestStreak, 7);
+  assert.equal(session.get().undo, null);
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  saver.flush();
+  assert.equal(storage.getItem(STORAGE_KEY), otherTab);
+
+  receive(null);
+  receive('{oops');
+  assert.equal(data.get().bestStreak, 7);
+
+  data.update(state => ({ ...state, bestStreak: 8 }));
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.equal(loadState(storage, NOW).bestStreak, 8);
 });
