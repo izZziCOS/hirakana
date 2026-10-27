@@ -1,6 +1,6 @@
 import { GROUPS, TRACKS } from '../data.ts';
 import { dayStreak } from '../days.ts';
-import { isKanjiGroup, KANA, ROW_INFO } from '../kana.ts';
+import { isKanjiGroup, KANA, kanjiLoaded, ROW_INFO } from '../kana.ts';
 import { todaySummary, type TodaySummary } from '../session.ts';
 import {
   backupDue,
@@ -83,6 +83,7 @@ function groupRows(group: Group, settings: Settings, openLevels: Set<string>): H
 }
 
 function groupStatus(state: State, groupId: GroupId): string {
+  if (isKanjiGroup(groupId) && !kanjiLoaded()) return 'Loading…';
   const { mastered, total } = groupProgress(state, groupId);
   if (!total) return `Not in ${DIRECTION_LABEL[state.settings.direction]}`;
   if (mastered === total) return 'Mastered';

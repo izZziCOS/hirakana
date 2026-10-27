@@ -20,7 +20,8 @@ export interface SyncServerOptions {
   maxBytes: number;
 }
 
-export const MAX_BYTES = 2 * 1024 * 1024;
+// D1 rows can be at most 2,000,000 bytes, so this leaves room for the id and the other columns.
+export const MAX_BYTES = 1_900_000;
 export const KEEP_UNUSED_MS = 400 * 24 * 60 * 60 * 1000;
 const PATH = /^\/v1\/progress\/([0-9a-f]{64})$/;
 

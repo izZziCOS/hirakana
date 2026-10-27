@@ -1,5 +1,4 @@
 import { ALT_KANA, ALT_ROMAJI, CHARACTER_ROWS, KANJI_LEVELS, LOOKALIKES, WORD_ROWS } from './data.ts';
-import { KANJI_DATA } from './kanji-data.ts';
 import type { Direction, GroupId, KanaItem, KanaScript, KanjiEntry, KanjiGroupId, RowInfo, Script } from './types.ts';
 import { codePoints, unique } from './util.ts';
 
@@ -119,16 +118,23 @@ function readingAnswers(readings: string[]): string[] {
 
 const splitList = (list: string): string[] => (list ? list.split(' ') : []);
 
-const kanjiRows = KANJI_LEVELS.flatMap(level => {
-  const entries = KANJI_DATA.filter(entry => entry[1] === level);
-  return Array.from({ length: Math.ceil(entries.length / KANJI_ROW_SIZE) }, (_, i) => {
-    const rowEntries = entries.slice(i * KANJI_ROW_SIZE, (i + 1) * KANJI_ROW_SIZE);
-    const label = `N${level} · ${i * KANJI_ROW_SIZE + 1}–${i * KANJI_ROW_SIZE + rowEntries.length}`;
-    return { label, group: `k${level}` as KanjiGroupId, entries: rowEntries };
-  });
-});
+interface KanjiRow {
+  label: string;
+  group: KanjiGroupId;
+  entries: KanjiEntry[];
+}
 
-function kanjiItem([kanji, , strokes, on, kun, meanings]: KanjiEntry, row: (typeof kanjiRows)[number]): KanaItem {
+const kanjiRowsOf = (data: KanjiEntry[]): KanjiRow[] =>
+  KANJI_LEVELS.flatMap(level => {
+    const entries = data.filter(entry => entry[1] === level);
+    return Array.from({ length: Math.ceil(entries.length / KANJI_ROW_SIZE) }, (_, i) => {
+      const rowEntries = entries.slice(i * KANJI_ROW_SIZE, (i + 1) * KANJI_ROW_SIZE);
+      const label = `N${level} · ${i * KANJI_ROW_SIZE + 1}–${i * KANJI_ROW_SIZE + rowEntries.length}`;
+      return { label, group: `k${level}` as KanjiGroupId, entries: rowEntries };
+    });
+  });
+
+function kanjiItem([kanji, , strokes, on, kun, meanings]: KanjiEntry, row: KanjiRow): KanaItem {
   const readings = { on: splitList(on), kun: splitList(kun) };
   const all = [...readings.on, ...readings.kun];
   const meaningList = meanings.split('; ');
@@ -147,9 +153,8 @@ function kanjiItem([kanji, , strokes, on, kun, meanings]: KanjiEntry, row: (type
   };
 }
 
-const kanjiItems: KanaItem[] = kanjiRows.flatMap(row => row.entries.map(entry => kanjiItem(entry, row)));
-
-export const KANA: KanaItem[] = [...characterItems, ...wordItems, ...kanjiItems];
+// Kanji are added by registerKanji once src/kanji.ts has loaded (see src/kanji-loader.ts).
+export const KANA: KanaItem[] = [...characterItems, ...wordItems];
 const kanaIndex = new Map(KANA.map(item => [item.kana, item]));
 
 export const findKana = (kana: string | undefined): KanaItem | undefined =>
@@ -177,18 +182,35 @@ export const ROW_INFO: RowInfo[] = [
     group: row.group,
     preview: { [row.script]: row.mark ?? row.label },
   })),
-  ...kanjiRows.map(row => ({
-    id: rowIdOf(row),
-    label: row.label,
-    group: row.group,
-    preview: {
-      kanji: row.entries
-        .slice(0, 4)
-        .map(([kanji]) => kanji)
-        .join(''),
-    },
-  })),
 ];
+
+let kanjiRegistered = false;
+export const kanjiLoaded = (): boolean => kanjiRegistered;
+
+// Adds the JLPT kanji to KANA and ROW_INFO. They are kept out of the main bundle so that people learning kana don't
+// have to download them before the app starts.
+export function registerKanji(data: KanjiEntry[]): void {
+  if (kanjiRegistered) return;
+  kanjiRegistered = true;
+  for (const row of kanjiRowsOf(data)) {
+    for (const entry of row.entries) {
+      const item = kanjiItem(entry, row);
+      KANA.push(item);
+      kanaIndex.set(item.kana, item);
+    }
+    ROW_INFO.push({
+      id: rowIdOf(row),
+      label: row.label,
+      group: row.group,
+      preview: {
+        kanji: row.entries
+          .slice(0, 4)
+          .map(([kanji]) => kanji)
+          .join(''),
+      },
+    });
+  }
+}
 
 export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
 

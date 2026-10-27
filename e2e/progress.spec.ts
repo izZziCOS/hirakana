@@ -148,3 +148,39 @@ test('answers given in another tab are kept when this tab answers next', async (
   await expect(feedback(page)).toContainText('Correct!');
   await expect.poll(correctCount).toBe(2);
 });
+
+test('kanji progress is kept when the kanji load after the app', async ({ page, seed }) => {
+  const stat = { correct: 2, wrong: 0, streak: 2, box: 3, due: Date.now() + 3_600_000, last: Date.now() };
+  await seed({ version: 6, stats: { 日: stat, 'meaning:水': stat, あ: stat }, settings: { rows: ['k5:N5 · 1–30'] } });
+  await page.goto('/');
+  await expect(page.locator('#hero-detail')).toContainText('N5');
+  // Any change saves the whole state; the kanji cards must still be in it.
+  await page.locator('#theme-toggle').click();
+  await expect.poll(() => savedStatKeys(page)).toEqual(['日', 'meaning:水', 'あ']);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('kana-dojo')?.includes('"theme":"light"')))
+    .toBe(true);
+});
+
+test('a kana learner sees the kanji sets once they have loaded in the background', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.track-group[data-group="k5"] .track-group-status')).toHaveText('79 cards');
+});
+
+test('an import can be merged with the progress already here', async ({ page }) => {
+  await start(page);
+  await answer(page, 'a');
+  await expect(feedback(page)).toContainText('Correct!');
+  await page.getByRole('tab', { name: 'Progress' }).click();
+  const stat = { correct: 1, wrong: 0, streak: 1, box: 2, due: Date.now() + 600_000, last: Date.now() - 1000 };
+  await page.locator('#import-file').setInputFiles({
+    name: 'other.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({ app: 'kana-dojo', device: 'phone', data: { version: 6, stats: { か: stat } } }),
+    ),
+  });
+  await confirmDialog(page, 'Merge');
+  await expect(page.locator('#transfer-status')).toHaveText('Progress merged.');
+  await expect.poll(async () => (await savedStatKeys(page)).sort()).toEqual(['あ', 'か']);
+});

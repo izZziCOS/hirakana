@@ -5,7 +5,19 @@ import { randomFrom, type Random } from './util.ts';
 export const MINUTE = 60 * 1000;
 export const HOUR = 60 * MINUTE;
 export const DAY = 24 * HOUR;
-export const INTERVALS = [0, MINUTE, 10 * MINUTE, HOUR, DAY, 3 * DAY, 7 * DAY, 21 * DAY, 60 * DAY];
+export const INTERVALS = [
+  0,
+  MINUTE,
+  10 * MINUTE,
+  HOUR,
+  DAY,
+  3 * DAY,
+  7 * DAY,
+  21 * DAY,
+  60 * DAY,
+  120 * DAY,
+  240 * DAY,
+];
 export const MAX_BOX = INTERVALS.length - 1;
 export const MASTERED_BOX = 5;
 export const LEARNING_LIMIT = 5;

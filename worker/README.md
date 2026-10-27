@@ -17,7 +17,7 @@ a D1 database and never sees the code or the progress itself.
 | ---------------------- | -------------------------------------------------------------------- |
 | `GET /v1/progress/:id` | 200 with the blob and its `ETag`, or 404                             |
 | `PUT /v1/progress/:id` | 204 with the new `ETag`; needs `If-Match: "n"` or `If-None-Match: *` |
-|                        | 412 if the blob changed, 413 over 2 MB, 428 without a precondition   |
+|                        | 412 if the blob changed, 413 over 1.9 MB, 428 without a precondition |
 
 ## Deploying
 

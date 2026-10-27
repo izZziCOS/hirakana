@@ -33,6 +33,12 @@ function outputFor(metafile: Metafile | undefined, entry: string): string {
   return basename(match[0]);
 }
 
+// The shared chunks an entry imports straight away, so the page can start downloading them alongside it.
+function staticImportsOf(metafile: Metafile | undefined, entry: string): string[] {
+  const output = Object.values(metafile?.outputs ?? {}).find(candidate => candidate.entryPoint === entry);
+  return (output?.imports ?? []).filter(item => item.kind === 'import-statement').map(item => basename(item.path));
+}
+
 async function usedCodePoints(): Promise<Set<number>> {
   const sources = [join(ROOT, 'index.html'), ...(await listFiles(join(ROOT, 'src')))];
   const text = (await Promise.all(sources.map(file => readFile(file, 'utf8')))).join('');
@@ -129,6 +135,9 @@ export async function buildSite({ dev = false }: BuildOptions = {}): Promise<str
     ...shared,
     entryPoints: { main: 'src/main.ts', styles: 'styles/index.css' },
     format: 'esm',
+    // The JLPT kanji are imported on demand (src/kanji-loader.ts) and end up in a file of their own.
+    splitting: true,
+    chunkNames: '[name]-[hash]',
   });
   const boot = await build({ ...shared, entryPoints: { boot: 'src/boot.ts' }, format: 'iife' });
   const fonts = await buildFonts();
@@ -151,6 +160,18 @@ export async function buildSite({ dev = false }: BuildOptions = {}): Promise<str
     page = page.replace(placeholder, placeholder.replace(/"[^"]+"/, `"${assets[key]}"`));
   }
   if (SYNC_URL) page = page.replace("connect-src 'self'", `connect-src 'self' ${new URL(SYNC_URL).origin}`);
+  const preloads = staticImportsOf(app.metafile, 'src/main.ts').map(
+    file => `<link rel="modulepreload" href="${file}" />`,
+  );
+  page = page.replace(
+    '</head>',
+    `${preloads
+      .map(
+        link => `  ${link}
+`,
+      )
+      .join('')}  </head>`,
+  );
   await writeFile(join(OUT, 'index.html'), page);
 
   if (!dev) await buildServiceWorker();

@@ -1,4 +1,5 @@
 import { formatAgo } from '../format.ts';
+import { loadKanji } from '../kanji-loader.ts';
 import { mergeStates } from '../merge.ts';
 import type { AppStores, KeyValueStorage } from '../store.ts';
 import {
@@ -74,6 +75,7 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
     try {
       // Created on the first sync, so nothing is stored for people who never turn sync on.
       const device = deviceId(storage);
+      await loadKanji();
       const merged = await syncOnce({ server, keys: await keysFor(current.code), device, state: data.get() });
       if (config?.code !== current.code) return;
       // Answers given while the sync was under way are merged in rather than lost.

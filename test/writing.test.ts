@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import '../src/kanji.ts';
 import { answerOf, isCorrectAnswer } from '../src/choices.ts';
 import { parseWritingAnswer, writingAnswer, writingPassed } from '../src/handwriting.ts';
 import { getKana, supportsDirection } from '../src/kana.ts';

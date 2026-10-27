@@ -140,7 +140,9 @@ test('export and import round-trip the progress', () => {
   state = answer(state, 'か', 'correct', 2);
   state = answer(state, 'き', 'wrong');
   const text = JSON.stringify(exportPayload(state, NOW));
-  assert.deepEqual(parseImport(text, NOW), state);
+  assert.deepEqual(parseImport(text, NOW), { state, device: null });
+  const tagged = JSON.stringify(exportPayload(state, NOW, 'phone'));
+  assert.deepEqual(parseImport(tagged, NOW), { state, device: 'phone' });
 });
 
 test('import rejects files that are not Kana Dojo exports', () => {

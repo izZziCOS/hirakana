@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import '../src/kanji.ts';
 import { GROUPS, TRACKS } from '../src/data.ts';
 import { dayKey } from '../src/days.ts';
 import { learnMore, newSession, todaySummary } from '../src/session.ts';

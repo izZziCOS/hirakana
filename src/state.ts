@@ -219,13 +219,20 @@ export function migrateState(raw: unknown, now = Date.now()): State {
   return sanitizeState(data);
 }
 
-export const exportPayload = (state: State, now = Date.now()) => ({
+// `device` lets an import on another device merge this device's day log without counting it twice.
+export const exportPayload = (state: State, now = Date.now(), device?: string) => ({
   app: EXPORT_APP,
   exportedAt: new Date(now).toISOString(),
+  ...(device ? { device } : {}),
   data: state,
 });
 
-export function parseImport(text: string, now = Date.now()): State {
+export interface ImportedProgress {
+  state: State;
+  device: string | null;
+}
+
+export function parseImport(text: string, now = Date.now()): ImportedProgress {
   let payload: unknown;
   try {
     payload = JSON.parse(text);
@@ -238,7 +245,10 @@ export function parseImport(text: string, now = Date.now()): State {
   if (typeof payload.data.version === 'number' && payload.data.version > STATE_VERSION) {
     throw new Error('That file comes from a newer version of Kana Dojo.');
   }
-  return migrateState(payload.data, now);
+  return {
+    state: migrateState(payload.data, now),
+    device: typeof payload.device === 'string' && payload.device ? payload.device : null,
+  };
 }
 
 export interface AnswerEvent {

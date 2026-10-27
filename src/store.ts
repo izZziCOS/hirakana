@@ -45,15 +45,20 @@ export function parseSaved(raw: string | null | undefined, now = Date.now()): St
   }
 }
 
-export function loadState(storage: KeyValueStorage | null, now = Date.now()): State {
-  if (!storage) return defaultState();
+// The saved progress as stored, under the current key or an older one.
+export function savedText(storage: KeyValueStorage | null): string | null {
   try {
-    const raw = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].map(key => storage.getItem(key)).find(value => value !== null);
-    return parseSaved(raw, now) ?? defaultState();
+    return (
+      [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].map(key => storage?.getItem(key) ?? null).find(value => value !== null) ??
+      null
+    );
   } catch {
-    return defaultState();
+    return null;
   }
 }
+
+export const loadState = (storage: KeyValueStorage | null, now = Date.now()): State =>
+  parseSaved(savedText(storage), now) ?? defaultState();
 
 export function saveState(storage: KeyValueStorage | null, state: State): void {
   if (!storage) return;

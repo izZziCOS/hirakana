@@ -18,7 +18,7 @@ loaded, and keeps progress in the browser with no backend.
   vocabulary words that use the kanji, which can be drilled together. New words whose kanji you already know come first.
 - **Two stages for kanji and words written in kanji:** the reading is shown under the kanji until it is mastered, then
   hidden; a miss or a peek brings it back. The card says when either happens.
-- **Spaced repetition** with 9 steps from 1 minute to 2 months. Slow answers don't advance a card; the time limit adapts
+- **Spaced repetition** with 11 steps from 1 minute to 8 months. Slow answers don't advance a card; the time limit adapts
   to your own pace and can be switched off. Peeking moves a card back two steps. A daily limit on new characters leads to
   a "Done for today" screen.
 - **Typing help:** an on-screen kana keyboard for recall and listening, "I made a typo" after a wrong typed answer, and
@@ -73,6 +73,7 @@ vendor/kanjivg/          Stroke data for every character the app uses (see its R
 src/
   data.ts                All kana, words, examples, notes and look-alike groups
   kanji-data.ts          Generated JLPT kanji list (readings, meanings); refresh with node scripts/fetch-kanji.ts
+  kanji.ts               Adds the kanji to the item lists; loaded on demand through kanji-loader.ts
   kana.ts                Builds the kana, word and kanji items, romaji and answer lookups from the data
   schedule.ts            Spaced repetition and answer timing
   choices.ts             Multiple-choice options and answer checking
@@ -104,13 +105,17 @@ Everything outside `src/ui/` is pure and has no DOM access. State changes go thr
 
 - copies only the Klee One font subsets that cover characters the app actually shows;
 - copies the stroke data and the files in `public/`;
-- writes `dist/index.html`;
+- splits the JLPT kanji (about 60% of the code) into a file of their own. People learning kana start without it and
+  get it in the background; saved progress that involves kanji waits for it, because cleaning it up without the kanji
+  would drop those cards. Tests that need kanji import `src/kanji.ts`;
+- writes `dist/index.html`, with a `modulepreload` link for the code `main.js` shares with the kanji file;
 - generates `sw.js`, which pre-caches every built file so the app works offline.
 
 ## Saved data
 
 Progress is stored in `localStorage` under `kana-dojo`, so it only exists in the browser that created it. Use **Export
-progress** to back it up or move it, or turn on sync. With sync on, `kana-dojo-sync` holds the sync code and
+progress** to back it up or move it, or turn on sync. An import can be merged with the progress already there or
+replace it. With sync on, `kana-dojo-sync` holds the sync code and
 `kana-dojo-device` this device's id; neither is part of an export.
 
 The saved object carries a `version` (currently 6). When the shape changes:

@@ -9,9 +9,13 @@ import {
   resetProgress,
   updateSettings,
 } from './state.ts';
-import { browserStorage, createAppStores, STORAGE_KEY } from './store.ts';
+import { kanjiLoaded } from './kana.ts';
+import { loadKanji, mentionsKanji } from './kanji-loader.ts';
+import { mergeStates } from './merge.ts';
+import { browserStorage, createAppStores, type KeyValueStorage, savedText, STORAGE_KEY } from './store.ts';
+import { deviceId } from './sync.ts';
 import type { Theme } from './types.ts';
-import { confirmAction } from './ui/confirm.ts';
+import { chooseAction, confirmAction } from './ui/confirm.ts';
 import { createControls } from './ui/controls.ts';
 import { createDialog, type StartDrill } from './ui/dialog.ts';
 import { createHome } from './ui/home.ts';
@@ -64,8 +68,7 @@ function requestPersistentStorage(): void {
     .catch(() => undefined);
 }
 
-function start(): void {
-  const storage = browserStorage();
+function start(storage: KeyValueStorage | null): void {
   const stores = createAppStores(storage);
   const { data, session, saver } = stores;
   let activeView: View = 'practice';
@@ -170,8 +173,10 @@ function start(): void {
   });
 
   window.addEventListener('pagehide', () => saver.flush());
+  // Another tab's progress may include kanji, which this tab can only read once they have loaded.
   window.addEventListener('storage', event => {
-    if (event.key === STORAGE_KEY) stores.receive(event.newValue);
+    if (event.key !== STORAGE_KEY) return;
+    void loadKanji().then(() => stores.receive(storage?.getItem(STORAGE_KEY) ?? null));
   });
 
   let askedPersistence = false;
@@ -196,7 +201,8 @@ function start(): void {
     const now = Date.now();
     data.update(state => markBackedUp(state, now));
     saver.flush();
-    const blob = new Blob([JSON.stringify(exportPayload(data.get(), now), null, 2)], { type: 'application/json' });
+    const payload = exportPayload(data.get(), now, deviceId(storage));
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `kana-dojo-progress-${dayKey(now)}.json`;
@@ -210,22 +216,31 @@ function start(): void {
   $('#import-progress').addEventListener('click', () => importFile.click());
   async function importProgress(file: File): Promise<void> {
     try {
-      const imported = parseImport(await file.text());
+      await loadKanji();
+      const { state: imported, device: from } = parseImport(await file.text());
       const answers = Object.values(imported.stats).reduce((sum, s) => sum + s.correct + s.wrong, 0);
-      const confirmed = await confirmAction({
-        title: 'Replace your progress?',
-        message: `The file has ${answers} answers and ${imported.mistakes.length} mistakes. Your current progress will be replaced.`,
-        confirmLabel: 'Replace',
+      const choice = await chooseAction({
+        title: 'Import progress?',
+        message:
+          `The file has ${answers} answers and ${imported.mistakes.length} mistakes. ` +
+          'Merge adds it to the progress here, keeping the latest review of each card. Replace discards the progress here.',
+        confirmLabel: 'Merge',
+        altLabel: 'Replace',
       });
-      if (!confirmed) return;
+      if (choice === 'cancel') return;
       session.update(newSession);
-      // The imported file is itself a copy of this progress.
-      data.update(() => markBackedUp(imported, Date.now()));
+      if (choice === 'confirm') {
+        const device = deviceId(storage);
+        data.update(state => mergeStates(state, device, imported, from ?? device));
+      } else {
+        // The imported file is itself a copy of this progress.
+        data.update(() => markBackedUp(imported, Date.now()));
+      }
       saver.flush();
-      applyTheme(imported.settings.theme);
+      applyTheme(data.get().settings.theme);
       practice.next();
       progress.render();
-      transferStatus.textContent = 'Progress imported.';
+      transferStatus.textContent = choice === 'confirm' ? 'Progress merged.' : 'Progress imported.';
     } catch (error) {
       transferStatus.textContent = error instanceof Error ? error.message : 'Import failed.';
     } finally {
@@ -276,14 +291,28 @@ function start(): void {
   home.render();
   registerServiceWorker();
   const syncView = __SYNC_URL__ ? createSync(stores, storage, __SYNC_URL__) : null;
+
+  if (!kanjiLoaded()) {
+    const loadInBackground = () =>
+      loadKanji().then(() => {
+        home.render();
+        progress.render();
+      });
+    loadInBackground().catch(() => window.addEventListener('online', () => void loadInBackground(), { once: true }));
+  }
+}
+
+// Kana learners start straight away and get the kanji in the background. Saved progress with kanji in it waits for them,
+// and if they can't be loaded the app stops with an error rather than drop those cards.
+async function boot(): Promise<void> {
+  const storage = browserStorage();
+  if (mentionsKanji(savedText(storage))) await loadKanji();
+  start(storage);
 }
 
 window.addEventListener('error', event => showError(event.error ?? event.message));
 window.addEventListener('unhandledrejection', event => showError(event.reason));
 
-try {
-  start();
+boot().then(() => {
   document.documentElement.dataset.ready = 'true';
-} catch (error) {
-  showError(error);
-}
+}, showError);

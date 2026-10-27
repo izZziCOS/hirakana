@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import '../src/kanji.ts';
 import { answerOf, buildChoices, isCorrectAnswer, meaningKey } from '../src/choices.ts';
 import { GROUPS } from '../src/data.ts';
 import {

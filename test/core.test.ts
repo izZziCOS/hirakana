@@ -416,3 +416,11 @@ test('the html helper escapes values and keeps trusted fragments', () => {
   assert.equal(toMarkup(html`${false}${null}${undefined}${0}`), '0');
   assert.equal(toMarkup(trusted('<i>ok</i>')), '<i>ok</i>');
 });
+
+test('reviews space out to about eight months at the last step', () => {
+  assert.equal(MAX_BOX, 10);
+  assert.equal(intervalFor(MAX_BOX - 2), 60 * DAY);
+  assert.equal(intervalFor(MAX_BOX), 240 * DAY);
+  const due = { correct: 9, wrong: 0, streak: 9, box: MAX_BOX - 1, due: NOW, last: NOW - 120 * DAY };
+  assert.equal(applyAnswer(due, 'correct', NOW).due, NOW + 240 * DAY);
+});
