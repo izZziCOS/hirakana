@@ -320,11 +320,35 @@
   border-bottom: 1px solid var(--line);
 }
 
-.deck-name {
+.deck-info {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
+  padding: 10px 0;
+}
+
+.deck-name {
   overflow-wrap: anywhere;
   font-weight: 600;
+}
+
+/* Mastered, then learning, in the colours of the progress grid. */
+.deck-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.deck-bar-mastered {
+  background: var(--good);
+}
+
+.deck-bar-learning {
+  background: var(--warn);
 }
 
 .deck-status:empty {

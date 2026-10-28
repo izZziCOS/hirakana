@@ -20,7 +20,7 @@ import {
   statKey,
   supportsDirection,
 } from './kana.ts';
-import { applyAnswer, applyKanjiStage, DAY, levelOf, MAX_BOX } from './schedule.ts';
+import { applyAnswer, applyKanjiStage, DAY, isDue, levelOf, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
   Deck,
@@ -382,6 +382,32 @@ export function groupProgress(state: State, groupId: GroupId): { mastered: numbe
   const items = KANA.filter(item => item.group === groupId && supportsDirection(item, direction));
   const mastered = items.filter(item => levelOf(state.stats[statKey(item, direction)]) === 'mastered').length;
   return { mastered, total: items.length };
+}
+
+export interface DeckProgress {
+  // Write and Match don't take words, so a deck shows its Read progress then.
+  direction: Direction;
+  total: number;
+  mastered: number;
+  // Seen but not mastered yet, the ones that need work included.
+  learning: number;
+  due: number;
+}
+
+// Where the learner is with an imported deck, in the direction being practised.
+export function deckProgress(state: State, deck: Deck, now = Date.now()): DeckProgress {
+  const practised = state.settings.direction === 'mixed' ? 'read' : state.settings.direction;
+  const items = deckItems(deck);
+  const direction = items.every(item => supportsDirection(item, practised)) ? practised : 'read';
+  const progress = { direction, total: items.length, mastered: 0, learning: 0, due: 0 };
+  for (const item of items) {
+    const key = statKey(item, direction);
+    const level = levelOf(state.stats[key]);
+    if (level === 'mastered') progress.mastered++;
+    else if (level !== 'new') progress.learning++;
+    if (isDue(state.stats, key, now)) progress.due++;
+  }
+  return progress;
 }
 
 export const groupSelection = (state: State, groupId: GroupId): 'all' | 'some' | 'none' => {

@@ -19,7 +19,7 @@ test('a word list can be imported, practised and deleted', async ({ page }) => {
   await expect(card).toContainText(
     'Added “Genki 1” with 2 words. 1 line without a kana word and a meaning was left out.',
   );
-  await expect(card.locator('.deck-list li')).toHaveText([/Genki 1\s+2 words\s+Delete/]);
+  await expect(card.locator('.deck-list li')).toHaveText([/Genki 1\s+2 words · not started\s+Delete/]);
   await expect(page.locator('#hero-detail')).toContainText('Imported words');
 
   // The new deck's row is picked, and its words come before the basic kana that are new too.
@@ -37,6 +37,8 @@ test('a word list can be imported, practised and deleted', async ({ page }) => {
   await expect.poll(deckKeys).toHaveLength(2);
 
   await page.locator('#home-btn').click();
+  await expect(card.locator('.deck-list li')).toContainText('2 words · 0 mastered · 2 learning');
+  await expect(card.locator('.deck-bar')).toHaveAttribute('aria-label', '0% mastered, 100% learning');
   await card.getByRole('button', { name: 'Delete' }).click();
   await confirmDialog(page, 'Delete deck');
   await expect(card).toContainText('Deleted “Genki 1”.');

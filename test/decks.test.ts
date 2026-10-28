@@ -19,16 +19,19 @@ import { mergeStates } from '../src/merge.ts';
 import { chooseNext, newSession, practiceEntries, rowsPool } from '../src/session.ts';
 import {
   addDeck,
+  deckProgress,
   defaultState,
   deleteDeck,
   migrateState,
   recordAnswer,
   resetProgress,
   updateDeck,
+  updateSettings,
 } from '../src/state.ts';
 import type { Deck, State } from '../src/types.ts';
 
 const NOW = new Date(2026, 0, 10, 12).getTime();
+const DAY = 24 * 60 * 60 * 1000;
 
 const deck = (id: string, words: Deck['words'], name = `Deck ${id}`): Deck => ({
   id,
@@ -299,5 +302,34 @@ test('the words of imported decks are introduced before other new cards, the new
   assert.equal(step.status === 'card' && step.item.id, '@col/あか/赤');
   const entries = practiceEntries(state).map(entry => entry.item.id);
   assert.deepEqual(entries.slice(0, 4), ['@col/あか/赤', '@zoo/ねこ/猫', '@zoo/いぬ/犬', '@zoo/パンダ']);
+  registerDecks([]);
+});
+
+test('a deck’s progress counts its mastered, learning and due words in the direction being practised', () => {
+  registerDecks([animals]);
+  const mastered = { correct: 5, wrong: 0, streak: 5, box: 6, due: NOW + DAY, last: NOW };
+  const learning = { correct: 1, wrong: 1, streak: 0, box: 1, due: NOW - 1, last: NOW };
+  const state = {
+    ...addDeck(defaultState(), animals, NOW),
+    stats: { '@zoo/ねこ/猫': mastered, '@zoo/いぬ/犬': learning, 'recall:@zoo/パンダ': mastered },
+  };
+  assert.deepEqual(deckProgress(state, animals, NOW), {
+    direction: 'read',
+    total: 3,
+    mastered: 1,
+    learning: 1,
+    due: 1,
+  });
+  const recall = updateSettings(state, { direction: 'recall' });
+  assert.deepEqual(deckProgress(recall, animals, NOW), {
+    direction: 'recall',
+    total: 3,
+    mastered: 1,
+    learning: 0,
+    due: 0,
+  });
+  // Words can't be written, so a deck shows its Read progress then.
+  assert.equal(deckProgress(updateSettings(state, { direction: 'write' }), animals, NOW).direction, 'read');
+  assert.equal(deckProgress(updateSettings(state, { direction: 'mixed' }), animals, NOW).direction, 'read');
   registerDecks([]);
 });

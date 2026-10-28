@@ -9,7 +9,9 @@ import {
   backupDue,
   backupStatus,
   combinedDays,
+  deckProgress,
   deleteDeck,
+  type DeckProgress,
   updateDeck,
   groupProgress,
   groupSelection,
@@ -103,19 +105,39 @@ function groupStatus(state: State, groupId: GroupId): string {
 }
 
 // The decks card lists the imported decks and takes new ones; deckStatus says how the last import went.
-function deckTools(decks: Deck[], deckStatus: string): Html {
+// "40 words · 12 mastered · 8 learning · 3 due", or that nothing has been practised yet.
+export function deckSummary({ direction, total, mastered, learning, due }: DeckProgress, practised: string): string {
+  const words = plural(total, 'word');
+  const where = direction === practised ? '' : ` in ${DIRECTION_LABEL[direction]}`;
+  if (!mastered && !learning) return `${words} · not started${where}`;
+  const parts = [words, `${mastered} mastered`, `${learning} learning`, due ? `${due} due` : ''];
+  return parts.filter(Boolean).join(' · ') + where;
+}
+
+function deckItem(state: State, deck: Deck, now: number): Html {
+  const progress = deckProgress(state, deck, now);
+  const mastered = percent(progress.mastered, progress.total);
+  const learning = percent(progress.learning, progress.total);
+  const practised = singleDirection(state.settings.direction);
+  return html`<li>
+    <div class="deck-info">
+      <span class="deck-name">${deck.name}</span>
+      <span class="muted small">${deckSummary(progress, practised)}</span>
+      <div class="deck-bar" role="img" aria-label="${mastered}% mastered, ${learning}% learning">
+        <span class="deck-bar-mastered" style="width: ${mastered}%"></span
+        ><span class="deck-bar-learning" style="width: ${learning}%"></span>
+      </div>
+    </div>
+    <button type="button" class="ghost small danger" data-delete-deck="${deck.id}">Delete</button>
+  </li>`;
+}
+
+function deckTools(state: State, deckStatus: string, now: number): Html {
   return html`<div class="deck-tools">
     ${
-      decks.length > 0 &&
+      state.decks.length > 0 &&
       html`<ul class="deck-list">
-        ${decks.map(
-          deck =>
-            html`<li>
-              <span class="deck-name">${deck.name}</span>
-              <span class="muted small">${plural(deck.words.length, 'word')}</span>
-              <button type="button" class="ghost small danger" data-delete-deck="${deck.id}">Delete</button>
-            </li>`,
-        )}
+        ${state.decks.map(deck => deckItem(state, deck, now))}
       </ul>`
     }
     <button type="button" class="ghost" data-import-deck>Import a word list</button>
@@ -134,6 +156,7 @@ export function trackCard(
   open = false,
   openLevels = new Set<string>(),
   deckStatus = '',
+  now = Date.now(),
 ): Html {
   // Without any decks the decks card only offers to import one.
   const empty = track.id === 'decks' && !state.decks.length;
@@ -181,7 +204,7 @@ export function trackCard(
       </button>`
     }
     ${open && html`<div class="track-rows">${groups.map(group => groupRows(group, state.settings, openLevels))}</div>`}
-    ${track.id === 'decks' && deckTools(state.decks, deckStatus)}
+    ${track.id === 'decks' && deckTools(state, deckStatus, now)}
   </article>`;
 }
 

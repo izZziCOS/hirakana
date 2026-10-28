@@ -6,7 +6,7 @@ import { dayKey } from '../src/days.ts';
 import { learnMore, newSession, todaySummary } from '../src/session.ts';
 import { registerDecks } from '../src/decks.ts';
 import { addDeck, defaultState, groupProgress, migrateState, updateSettings } from '../src/state.ts';
-import { heroCopy, heroDetail, trackCard } from '../src/ui/home.ts';
+import { deckSummary, heroCopy, heroDetail, trackCard } from '../src/ui/home.ts';
 import { toMarkup } from '../src/ui/html.ts';
 
 const NOW = new Date(2026, 0, 10, 12).getTime();
@@ -102,7 +102,8 @@ test('the decks card offers an import and lists the decks with a way to delete e
   assert.match(markup, /data-group="custom"\s+aria-pressed="true"/);
   assert.match(markup, /data-row="custom:genki"/);
   assert.match(markup, /data-delete-deck="genki"/);
-  assert.match(text(markup), /Genki 3 1 word Delete/);
+  assert.match(text(markup), /Genki 3 1 word · not started Delete/);
+  assert.match(markup, /class="deck-bar" role="img" aria-label="0% mastered, 0% learning"/);
   assert.match(text(markup), /Added “Genki 3” with 1 word\./);
   assert.match(text(markup), /Word lists you import · 1 card\b/);
   registerDecks([]);
@@ -117,4 +118,12 @@ test('sets with many rows keep them hidden until opened', () => {
   assert.match(closed, /data-row="words:/, 'a small set shows its rows straight away');
   const open = toMarkup(trackCard(vocabulary, defaultState(), true, new Set(['n5'])));
   assert.match(open, /data-row="n5:N5 · 1–30"/);
+});
+
+test('a deck’s summary says how far along it is, and in which direction when that differs', () => {
+  const progress = { direction: 'read', total: 40, mastered: 12, learning: 8, due: 3 } as const;
+  assert.equal(deckSummary(progress, 'read'), '40 words · 12 mastered · 8 learning · 3 due');
+  assert.equal(deckSummary({ ...progress, due: 0 }, 'read'), '40 words · 12 mastered · 8 learning');
+  assert.equal(deckSummary(progress, 'write'), '40 words · 12 mastered · 8 learning · 3 due in Read');
+  assert.equal(deckSummary({ ...progress, mastered: 0, learning: 0 }, 'recall'), '40 words · not started in Read');
 });
