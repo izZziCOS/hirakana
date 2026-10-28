@@ -343,7 +343,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     const card = result?.session.card;
     if (!result || !card) return;
     window.clearTimeout(advanceTimer);
-    const milestones = milestonesOf(data.get().stats, result.state.stats, card.item, card.direction);
+    const milestones = milestonesOf(data.get().stats, result.state.stats, card.item, card.direction, settings().script);
     session.update(() => result.session);
     data.update(() => result.state);
     renderResult(card, result, card.given, justReachedGoal(settings(), before, result.session), milestones);

@@ -9,6 +9,7 @@ import type {
   KanjiPart,
   RowInfo,
   Script,
+  ScriptSetting,
   VocabEntry,
   Word,
 } from './types.ts';
@@ -343,6 +344,10 @@ export function registerVocabulary(data: VocabEntry[]): void {
 }
 
 export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
+
+// Whether a card is practised with this script picked. Kanji and imported decks are practised whichever it is.
+export const inScript = (item: KanaItem, script: ScriptSetting): boolean =>
+  script === 'both' || item.script === script || isKanji(item) || item.group === 'custom';
 
 // Other kanji built with one of this kanji's parts, or with this kanji as a part, most common first.
 export function kanjiSharingParts(item: KanaItem, limit: number): KanaItem[] {

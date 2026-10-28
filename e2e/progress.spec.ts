@@ -185,3 +185,20 @@ test('an import can be merged with the progress already here', async ({ page }) 
   await expect(page.locator('#transfer-status')).toHaveText('Progress merged.');
   await expect.poll(async () => (await savedStatKeys(page)).sort()).toEqual(['あ', 'か']);
 });
+
+test('every set on the progress screen can be closed and opened again', async ({ page }) => {
+  await openApp(page);
+  await page.getByRole('tab', { name: 'Progress' }).click();
+  const dakuten = page.locator('#progress-grids .grid-toggle[data-expand="dakuten"]');
+  await expect(dakuten).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#progress-grids .cell[data-open="が"]')).toBeVisible();
+  await dakuten.click();
+  await expect(dakuten).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#progress-grids .cell[data-open="が"]')).toHaveCount(0);
+  // Basic stays open, and switching direction keeps Dakuten closed.
+  await expect(page.locator('#progress-grids .cell[data-open="あ"]')).toBeVisible();
+  await page.locator('#progress-direction [data-value="recall"]').click();
+  await expect(page.locator('#progress-grids .cell[data-open="が"]')).toHaveCount(0);
+  await dakuten.click();
+  await expect(page.locator('#progress-grids .cell[data-open="が"]')).toBeVisible();
+});

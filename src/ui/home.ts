@@ -1,7 +1,7 @@
 import { GROUPS, TRACKS } from '../data.ts';
 import { dayStreak } from '../days.ts';
 import { deckChanges, deckNameOf, newDeckId, parseDeck } from '../decks.ts';
-import { isKanjiGroup, KANA, kanjiLoaded, ROW_INFO } from '../kana.ts';
+import { inScript, isKanjiGroup, KANA, kanjiLoaded, ROW_INFO, toKatakana } from '../kana.ts';
 import { groupRecall } from '../milestones.ts';
 import { singleDirection, todaySummary, type TodaySummary } from '../session.ts';
 import {
@@ -12,6 +12,7 @@ import {
   deckProgress,
   deleteDeck,
   type DeckProgress,
+  type GroupProgress,
   updateDeck,
   groupProgress,
   groupSelection,
@@ -20,7 +21,7 @@ import {
   toggleRow,
 } from '../state.ts';
 import type { AppStores } from '../store.ts';
-import type { Deck, Group, GroupId, RowInfo, Settings, State, Track } from '../types.ts';
+import type { Deck, Group, GroupId, RowInfo, ScriptSetting, Settings, State, Track } from '../types.ts';
 import { chooseAction, confirmAction } from './confirm.ts';
 import { $, onDelegate } from './dom.ts';
 import { html, setHtml, type Html } from './html.ts';
@@ -94,14 +95,28 @@ function groupRows(group: Group, settings: Settings, openLevels: Set<string>): H
   </div>`;
 }
 
-function groupStatus(state: State, groupId: GroupId): string {
+// Green for mastered, then amber for learning, in the colours of the progress grid.
+function progressBar(size: string, { mastered, learning, total }: GroupProgress): Html {
+  const masteredShare = percent(mastered, total);
+  const learningShare = percent(learning, total);
+  return html`<div
+    class="progress-bar ${size}"
+    role="img"
+    aria-label="${masteredShare}% mastered, ${learningShare}% learning"
+  >
+    <span class="progress-mastered" style="width: ${masteredShare}%"></span
+    ><span class="progress-learning" style="width: ${learningShare}%"></span>
+  </div>`;
+}
+
+function groupStatus(state: State, groupId: GroupId, { mastered, learning, total }: GroupProgress): string {
   if (isKanjiGroup(groupId) && !kanjiLoaded()) return 'Loading…';
-  const { mastered, total } = groupProgress(state, groupId);
   if (!total) return `Not in ${DIRECTION_LABEL[state.settings.direction]}`;
-  const recall = groupRecall(state.stats, groupId, singleDirection(state.settings.direction));
+  const recall = groupRecall(state.stats, groupId, singleDirection(state.settings.direction), state.settings.script);
   const remembered = recall === null ? '' : ` · ${recall}% remembered`;
   if (mastered === total) return `Mastered${remembered}`;
-  return mastered ? `${percent(mastered, total)}% mastered${remembered}` : plural(total, 'card');
+  if (mastered) return `${percent(mastered, total)}% mastered${remembered}`;
+  return learning ? `${learning} of ${plural(total, 'card')} started${remembered}` : plural(total, 'card');
 }
 
 // The decks card lists the imported decks and takes new ones; deckStatus says how the last import went.
@@ -116,17 +131,12 @@ export function deckSummary({ direction, total, mastered, learning, due }: DeckP
 
 function deckItem(state: State, deck: Deck, now: number): Html {
   const progress = deckProgress(state, deck, now);
-  const mastered = percent(progress.mastered, progress.total);
-  const learning = percent(progress.learning, progress.total);
   const practised = singleDirection(state.settings.direction);
   return html`<li>
     <div class="deck-info">
       <span class="deck-name">${deck.name}</span>
       <span class="muted small">${deckSummary(progress, practised)}</span>
-      <div class="deck-bar" role="img" aria-label="${mastered}% mastered, ${learning}% learning">
-        <span class="deck-bar-mastered" style="width: ${mastered}%"></span
-        ><span class="deck-bar-learning" style="width: ${learning}%"></span>
-      </div>
+      ${progressBar('deck-bar', progress)}
     </div>
     <button type="button" class="ghost small danger" data-delete-deck="${deck.id}">Delete</button>
   </li>`;
@@ -150,6 +160,29 @@ function deckTools(state: State, deckStatus: string, now: number): Html {
   </div>`;
 }
 
+const KANA_SUMMARY: Record<ScriptSetting, string> = {
+  hiragana: 'Hiragana',
+  katakana: 'Katakana',
+  both: 'Hiragana & katakana',
+};
+
+// The kana track is written in the script that is picked: ア and ア–ン once katakana is.
+function inPickedScript(track: Track, groups: Group[], script: ScriptSetting): { track: Track; groups: Group[] } {
+  if (track.id !== 'kana') return { track, groups };
+  const write = (text: string) => (script === 'katakana' ? toKatakana(text) : text);
+  return {
+    track: { ...track, glyph: write(track.glyph), summary: KANA_SUMMARY[script] },
+    groups: groups.map(group => ({ ...group, label: write(group.label), hint: write(group.hint) })),
+  };
+}
+
+// A set with no cards in the picked script, such as loanword katakana with hiragana picked, is left out. Kanji that
+// haven't loaded yet are still shown.
+const hasCardsIn = (group: Group, script: ScriptSetting): boolean => {
+  const items = KANA.filter(item => item.group === group.id);
+  return !items.length || items.some(item => inScript(item, script));
+};
+
 export function trackCard(
   track: Track,
   state: State,
@@ -158,31 +191,30 @@ export function trackCard(
   deckStatus = '',
   now = Date.now(),
 ): Html {
+  const { script } = state.settings;
   // Without any decks the decks card only offers to import one.
   const empty = track.id === 'decks' && !state.decks.length;
-  const groups = empty ? [] : GROUPS.filter(group => track.groups.includes(group.id));
-  const progress = groups.map(group => groupProgress(state, group.id));
-  const mastered = progress.reduce((sum, p) => sum + p.mastered, 0);
-  const total = progress.reduce((sum, p) => sum + p.total, 0);
-  const cards = KANA.filter(item => track.groups.includes(item.group)).length;
-  const share = percent(mastered, total);
+  const { track: shown, groups } = inPickedScript(
+    track,
+    empty ? [] : GROUPS.filter(group => track.groups.includes(group.id) && hasCardsIn(group, script)),
+    script,
+  );
+  const sets = groups.map(group => ({ group, progress: groupProgress(state, group.id) }));
+  const sum = (key: keyof GroupProgress) => sets.reduce((total, set) => total + set.progress[key], 0);
+  const trackProgress = { mastered: sum('mastered'), learning: sum('learning'), total: sum('total') };
+  const cards = KANA.filter(item => track.groups.includes(item.group) && inScript(item, script)).length;
   return html`<article class="track" aria-labelledby="track-${track.id}">
     <div class="track-head">
-      <span class="track-glyph track-${track.id} jp" aria-hidden="true">${track.glyph}</span>
+      <span class="track-glyph track-${track.id} jp" aria-hidden="true">${shown.glyph}</span>
       <div>
         <h3 id="track-${track.id}">${track.label}</h3>
-        <p class="muted small">${track.summary} · ${plural(cards, 'card')}</p>
+        <p class="muted small">${shown.summary} · ${plural(cards, 'card')}</p>
       </div>
     </div>
-    ${
-      !empty &&
-      html`<div class="track-bar" role="img" aria-label="${share}% mastered">
-        <span style="width: ${share}%"></span>
-      </div>`
-    }
+    ${!empty && progressBar('track-bar', trackProgress)}
     <ul class="track-groups">
-      ${groups.map(
-        group =>
+      ${sets.map(
+        ({ group, progress }) =>
           html`<li>
             <button
               type="button"
@@ -192,7 +224,8 @@ export function trackCard(
             >
               <span class="track-check" aria-hidden="true"></span>
               <span class="track-group-name">${group.label} <span class="jp muted">${group.hint}</span></span>
-              <span class="track-group-status">${groupStatus(state, group.id)}</span>
+              <span class="track-group-status">${groupStatus(state, group.id, progress)}</span>
+              ${progress.total > 0 && progressBar('set-bar', progress)}
             </button>
           </li>`,
       )}

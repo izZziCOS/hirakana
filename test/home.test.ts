@@ -39,13 +39,32 @@ test('today’s summary counts due reviews and the new cards still allowed', () 
   assert.deepEqual(todaySummary(used, newSession(), NOW), { due: 1, newLeft: 0 });
 });
 
-test('set progress counts mastered cards in the current direction', () => {
+test('set progress counts mastered and learning cards in the current direction and script', () => {
   const mastered = { correct: 5, wrong: 0, streak: 5, box: 6, due: NOW, last: NOW };
-  const state = migrateState({ version: 5, stats: { あ: mastered, ア: mastered } });
-  assert.deepEqual(groupProgress(state, 'basic'), { mastered: 2, total: 92 });
-  assert.deepEqual(groupProgress(updateSettings(state, { direction: 'recall' }), 'basic'), { mastered: 0, total: 92 });
-  assert.deepEqual(groupProgress(updateSettings(state, { direction: 'recall' }), 'words'), { mastered: 0, total: 90 });
-  assert.deepEqual(groupProgress(updateSettings(state, { direction: 'write' }), 'words'), { mastered: 0, total: 0 });
+  const learning = { correct: 1, wrong: 1, streak: 0, box: 1, due: NOW, last: NOW };
+  const state = migrateState({ version: 5, stats: { あ: mastered, ア: mastered, い: learning } });
+  assert.deepEqual(groupProgress(state, 'basic'), { mastered: 1, learning: 1, total: 46 });
+  const katakana = updateSettings(state, { script: 'katakana' });
+  assert.deepEqual(groupProgress(katakana, 'basic'), { mastered: 1, learning: 0, total: 46 });
+  const both = updateSettings(state, { script: 'both' });
+  assert.deepEqual(groupProgress(both, 'basic'), { mastered: 2, learning: 1, total: 92 });
+  const recall = updateSettings(both, { direction: 'recall' });
+  assert.deepEqual(groupProgress(recall, 'basic'), { mastered: 0, learning: 0, total: 92 });
+  assert.deepEqual(groupProgress(recall, 'words'), { mastered: 0, learning: 0, total: 90 });
+  const write = updateSettings(state, { direction: 'write' });
+  assert.deepEqual(groupProgress(write, 'words'), { mastered: 0, learning: 0, total: 0 });
+});
+
+test('a set shows its progress from the first answer, before anything is mastered', () => {
+  const learning = { correct: 1, wrong: 0, streak: 1, box: 2, due: NOW, last: NOW };
+  const state = migrateState({ version: 7, stats: { あ: learning, い: learning } });
+  assert.ok(kanaTrack);
+  const markup = toMarkup(trackCard(kanaTrack, state));
+  assert.match(text(markup), /Basic あ–ん 2 of 46 cards started/);
+  // The track's bar and each set's bar show the cards being learned.
+  assert.match(markup, /class="progress-bar track-bar"\s+role="img"\s+aria-label="0% mastered, 2% learning"/);
+  assert.match(markup, /class="progress-bar set-bar"\s+role="img"\s+aria-label="0% mastered, 4% learning"/);
+  assert.equal((markup.match(/progress-bar set-bar/g) ?? []).length, 4, 'loanword katakana is left out');
 });
 
 test('the hero says what Continue will bring up', () => {
@@ -64,9 +83,9 @@ test('track cards show each set’s selection and progress', () => {
   const markup = toMarkup(trackCard(kanaTrack, state));
   assert.match(markup, /data-group="basic"\s+aria-pressed="mixed"/);
   assert.match(markup, /data-group="dakuten"\s+aria-pressed="false"/);
-  assert.match(text(markup), /Basic あ–ん 5% mastered/);
-  assert.match(text(markup), /Dakuten が・ぱ 50 cards/);
-  assert.match(markup, /aria-label="2% mastered"/);
+  assert.match(text(markup), /Basic あ–ん 11% mastered/);
+  assert.match(text(markup), /Dakuten が・ぱ 25 cards/);
+  assert.match(markup, /aria-label="4% mastered, 0% learning"/);
   assert.doesNotMatch(markup, /data-row=/, 'rows stay hidden until the track is opened');
 
   const open = toMarkup(trackCard(kanaTrack, state, true));
@@ -103,7 +122,7 @@ test('the decks card offers an import and lists the decks with a way to delete e
   assert.match(markup, /data-row="custom:genki"/);
   assert.match(markup, /data-delete-deck="genki"/);
   assert.match(text(markup), /Genki 3 1 word · not started Delete/);
-  assert.match(markup, /class="deck-bar" role="img" aria-label="0% mastered, 0% learning"/);
+  assert.match(markup, /class="progress-bar deck-bar"\s+role="img"\s+aria-label="0% mastered, 0% learning"/);
   assert.match(text(markup), /Added “Genki 3” with 1 word\./);
   assert.match(text(markup), /Word lists you import · 1 card\b/);
   registerDecks([]);
@@ -126,4 +145,25 @@ test('a deck’s summary says how far along it is, and in which direction when t
   assert.equal(deckSummary({ ...progress, due: 0 }, 'read'), '40 words · 12 mastered · 8 learning');
   assert.equal(deckSummary(progress, 'write'), '40 words · 12 mastered · 8 learning · 3 due in Read');
   assert.equal(deckSummary({ ...progress, mastered: 0, learning: 0 }, 'recall'), '40 words · not started in Read');
+});
+
+test('the kana card follows the picked script: its text, its sets and its counts', () => {
+  assert.ok(kanaTrack);
+  const hiragana = text(toMarkup(trackCard(kanaTrack, defaultState())));
+  assert.match(hiragana, /^あ Kana Hiragana · 115 cards/);
+  assert.match(
+    hiragana,
+    /Basic あ–ん 46 cards Dakuten が・ぱ 25 cards Combinations きゃ 33 cards Small っ &amp; long ー きって 11 cards/,
+  );
+  assert.doesNotMatch(hiragana, /Loanword katakana/, 'it has no hiragana cards');
+
+  const katakana = text(toMarkup(trackCard(kanaTrack, updateSettings(defaultState(), { script: 'katakana' }), true)));
+  assert.match(katakana, /^ア Kana Katakana · 141 cards/);
+  assert.match(katakana, /Basic ア–ン 46 cards Dakuten ガ・パ 25 cards Combinations キャ 33 cards/);
+  assert.match(katakana, /Small ッ &amp; long ー キッテ 17 cards Loanword katakana ファ 20 cards/);
+  assert.match(katakana, /Hide rows Basic .* Small ッ &amp; long ー/, 'the opened rows are headed in katakana too');
+
+  const both = text(toMarkup(trackCard(kanaTrack, updateSettings(defaultState(), { script: 'both' }))));
+  assert.match(both, /^あ Kana Hiragana &amp; katakana · 256 cards/);
+  assert.match(both, /Loanword katakana ファ 20 cards/);
 });

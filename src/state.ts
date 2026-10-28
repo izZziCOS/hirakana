@@ -14,6 +14,7 @@ import {
   DIRECTIONS,
   findKana,
   hasReadingStage,
+  inScript,
   KANA,
   parseStatKey,
   ROW_INFO,
@@ -376,12 +377,26 @@ export function toggleGroup(state: State, groupId: GroupId): State {
   return withRows(state, selected);
 }
 
-// Mastered and total cards of a set in the current direction, for the track cards.
-export function groupProgress(state: State, groupId: GroupId): { mastered: number; total: number } {
+export interface GroupProgress {
+  mastered: number;
+  // Seen but not mastered yet.
+  learning: number;
+  total: number;
+}
+
+// How far along a set is in the current direction and script, for the track cards.
+export function groupProgress(state: State, groupId: GroupId): GroupProgress {
   const direction = state.settings.direction === 'mixed' ? 'read' : state.settings.direction;
-  const items = KANA.filter(item => item.group === groupId && supportsDirection(item, direction));
-  const mastered = items.filter(item => levelOf(state.stats[statKey(item, direction)]) === 'mastered').length;
-  return { mastered, total: items.length };
+  const progress = { mastered: 0, learning: 0, total: 0 };
+  for (const item of KANA) {
+    if (item.group !== groupId || !supportsDirection(item, direction) || !inScript(item, state.settings.script))
+      continue;
+    progress.total++;
+    const level = levelOf(state.stats[statKey(item, direction)]);
+    if (level === 'mastered') progress.mastered++;
+    else if (level !== 'new') progress.learning++;
+  }
+  return progress;
 }
 
 export interface DeckProgress {

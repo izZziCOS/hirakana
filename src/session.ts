@@ -1,8 +1,8 @@
 import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
-import { DECK_GROUP, deckRowId } from './decks.ts';
+import { deckRowId } from './decks.ts';
 import { formatSeconds } from './format.ts';
-import { DIRECTIONS, isKanji, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
+import { DIRECTIONS, inScript, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
 import { mixUpOf } from './mistakes.ts';
 import {
   isDue,
@@ -69,11 +69,7 @@ export const singleDirection = (direction: PracticeDirection): Direction =>
 
 // Kanji and imported decks are practised whichever script is picked.
 export const rowsPool = (settings: Settings): KanaItem[] =>
-  KANA.filter(
-    item =>
-      (settings.script === 'both' || item.script === settings.script || isKanji(item) || item.group === DECK_GROUP) &&
-      settings.rows.includes(item.rowId),
-  );
+  KANA.filter(item => inScript(item, settings.script) && settings.rows.includes(item.rowId));
 
 export const activePool = (
   settings: Settings,

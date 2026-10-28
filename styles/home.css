@@ -198,18 +198,32 @@
   color: light-dark(#2f5d2a, #a6d39c);
 }
 
-.track-bar {
+/* Mastered, then learning, in the colours of the progress grid: a track, each of its sets and each deck. */
+.progress-bar {
+  display: flex;
   height: 8px;
   border-radius: 999px;
   background: var(--sunken);
   overflow: hidden;
 }
 
-.track-bar span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
+.progress-mastered {
   background: var(--good);
+}
+
+.progress-learning {
+  background: var(--warn);
+}
+
+/* Under the set's name and status, the full width of both. */
+.set-bar {
+  flex-basis: calc(100% - 30px);
+  height: 4px;
+  margin: 2px 0 2px 30px;
+}
+
+.deck-bar {
+  height: 6px;
 }
 
 .track-groups {
@@ -222,8 +236,9 @@
 
 .track-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
   width: 100%;
   min-height: 44px;
   padding: 6px 4px;
@@ -332,23 +347,6 @@
 .deck-name {
   overflow-wrap: anywhere;
   font-weight: 600;
-}
-
-/* Mastered, then learning, in the colours of the progress grid. */
-.deck-bar {
-  display: flex;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--sunken);
-  overflow: hidden;
-}
-
-.deck-bar-mastered {
-  background: var(--good);
-}
-
-.deck-bar-learning {
-  background: var(--warn);
 }
 
 .deck-status:empty {

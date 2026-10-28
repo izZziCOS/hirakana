@@ -52,8 +52,9 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
   };
   let script: Script = data.get().settings.script === 'katakana' ? 'katakana' : 'hiragana';
   let direction: Direction = singleDirection(data.get().settings.direction);
-  // A kanji level has up to 1,232 cells and a word level up to 2,500, so these are drawn only once they are opened.
-  const expanded = new Set<string>();
+  // Every set can be closed. Kanji levels (up to 1,244 cells) and word levels (up to 2,600) start closed and are drawn
+  // only once opened; the others start open. This holds the sets the learner has flipped from how they start.
+  const toggled = new Set<string>();
 
   function cell(state: State, item: KanaItem, now: number, column?: number): Html {
     const stat = state.stats[statKey(item, direction)];
@@ -115,37 +116,32 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       >${mastered}/${groupItems.length} mastered${recall !== null && ` · ${recall}% remembered`}</span
     >`;
     const first = groupItems[0];
-    let body: Html;
-    if (first && (isKanji(first) || groupItems.length > MAX_OPEN_CELLS)) {
-      const open = expanded.has(group.id);
-      const grid = isKanji(first) ? 'kanji-grid' : 'word-grid';
-      return html`<section class="grid-section">
-        <h3>
-          <button type="button" class="grid-toggle" data-expand="${group.id}" aria-expanded="${String(open)}">
-            ${group.label} ${summary}
-          </button>
-        </h3>
-        ${open && html`<div class="${grid}">${groupItems.map(item => cell(state, item, now))}</div>`}
-      </section>`;
-    } else if (first && isWord(first)) {
-      body = html`<div class="word-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
-    } else {
-      const columns = group.id === 'yoon' ? 'auo' : 'aiueo';
-      const rowLabels = [...new Set(groupItems.map(k => k.row))];
-      body = html`<div class="kana-grid">
-        ${rowLabels.map(
-          label =>
-            html`<div class="grid-row" style="--cols:${columns.length}">
-              <span class="grid-label">${label.replace('-row', '')}</span>
-              ${groupItems.filter(k => k.row === label).map(k => cell(state, k, now, columnOf(k, columns)))}
-            </div>`,
-        )}
-      </div>`;
-    }
+    const startsOpen = first !== undefined && !isKanji(first) && groupItems.length <= MAX_OPEN_CELLS;
+    const open = startsOpen !== toggled.has(group.id);
     return html`<section class="grid-section">
-      <h3>${group.label} ${summary}</h3>
-      ${body}
+      <h3>
+        <button type="button" class="grid-toggle" data-expand="${group.id}" aria-expanded="${String(open)}">
+          ${group.label} ${summary}
+        </button>
+      </h3>
+      ${open && first && gridOf(state, group, groupItems, first, now)}
     </section>`;
+  }
+
+  function gridOf(state: State, group: Group, groupItems: KanaItem[], first: KanaItem, now: number): Html {
+    if (isKanji(first)) return html`<div class="kanji-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
+    if (isWord(first)) return html`<div class="word-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
+    const columns = group.id === 'yoon' ? 'auo' : 'aiueo';
+    const rowLabels = [...new Set(groupItems.map(k => k.row))];
+    return html`<div class="kana-grid">
+      ${rowLabels.map(
+        label =>
+          html`<div class="grid-row" style="--cols:${columns.length}">
+            <span class="grid-label">${label.replace('-row', '')}</span>
+            ${groupItems.filter(k => k.row === label).map(k => cell(state, k, now, columnOf(k, columns)))}
+          </div>`,
+      )}
+    </div>`;
   }
 
   function renderCharts(state: State, now: number): void {
@@ -201,7 +197,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
   onDelegate(els.readableWords, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
   onDelegate(els.grids, '[data-expand]', element => {
     const group = element.dataset.expand ?? '';
-    if (!expanded.delete(group)) expanded.add(group);
+    if (!toggled.delete(group)) toggled.add(group);
     render();
   });
 
