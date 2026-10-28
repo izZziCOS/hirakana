@@ -1,5 +1,6 @@
 import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
+import { DECK_GROUP, deckRowId } from './decks.ts';
 import { formatSeconds } from './format.ts';
 import { DIRECTIONS, isKanji, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
 import { mixUpOf } from './mistakes.ts';
@@ -66,10 +67,11 @@ export const effectiveMode = (settings: Settings, direction: PracticeDirection =
 export const singleDirection = (direction: PracticeDirection): Direction =>
   direction === 'mixed' ? 'read' : direction;
 
+// Kanji and imported decks are practised whichever script is picked.
 export const rowsPool = (settings: Settings): KanaItem[] =>
   KANA.filter(
     item =>
-      (settings.script === 'both' || item.script === settings.script || isKanji(item)) &&
+      (settings.script === 'both' || item.script === settings.script || isKanji(item) || item.group === DECK_GROUP) &&
       settings.rows.includes(item.rowId),
   );
 
@@ -86,12 +88,21 @@ export function mixedDirections(stats: Stats, voice = true): Direction[] {
   );
 }
 
+// The words of imported decks come first, the most recently imported deck first: they were imported to be studied.
+function byDeck(state: State): (item: KanaItem) => number {
+  const rank = new Map(state.decks.map((deck, i) => [deckRowId(deck), state.decks.length - i]));
+  return item => rank.get(item.rowId) ?? state.decks.length + 1;
+}
+
 export function practiceEntries(state: State, voice = true): Entry[] {
   const { settings, stats } = state;
   const directions = settings.direction === 'mixed' ? mixedDirections(stats, voice) : [settings.direction];
-  return rowsPool(settings).flatMap(item =>
-    directions.filter(direction => supportsDirection(item, direction)).map(direction => ({ item, direction })),
-  );
+  const rank = byDeck(state);
+  return rowsPool(settings)
+    .sort((a, b) => rank(a) - rank(b))
+    .flatMap(item =>
+      directions.filter(direction => supportsDirection(item, direction)).map(direction => ({ item, direction })),
+    );
 }
 
 export const practiceKeys = (state: State, voice = true): string[] =>
@@ -132,10 +143,10 @@ export function emptyMessage(settings: Settings, drill: Drill | null): string {
   if (settings.direction === 'match') {
     return 'Matching needs characters that exist in both scripts. Words and loanword katakana can only be read.';
   }
-  if (settings.direction === 'meaning') return 'Meaning mode is for kanji. Choose some kanji rows above.';
+  if (settings.direction === 'meaning') return 'Meaning mode is for kanji and words. Choose some of those rows above.';
   if (settings.direction === 'write')
     return 'Writing works with single kana and kanji. Choose some of those rows above.';
-  return 'Words can be practised in Read and Listen mode, and kanji in Read or Meaning mode. Choose more rows above.';
+  return 'Kanji can be practised in Read or Meaning mode, and words in every mode but Match and Write. Choose more rows above.';
 }
 
 export type NextStep =
@@ -217,7 +228,7 @@ export function showCard(session: Session, step: NextStep, shownAt: number, unti
 
 // After a mix-up both characters come back within the next few cards: the one picked by mistake, then the right one.
 export function queueContrast(followUps: Entry[], card: Card, given: string | null, now: number): Entry[] {
-  const mixUp = given ? mixUpOf({ kana: card.item.kana, given, at: now, direction: card.direction }) : null;
+  const mixUp = given ? mixUpOf({ kana: card.item.id, given, at: now, direction: card.direction }) : null;
   if (!mixUp) return followUps;
   const [item, other] = mixUp;
   const added = [other, item]

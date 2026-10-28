@@ -1,4 +1,4 @@
-import { findKana, getKana, kanaForAnswer } from '../kana.ts';
+import { findKana, getKana, isWord, kanaForAnswer } from '../kana.ts';
 import { dateOf } from '../days.ts';
 import { parseWritingAnswer } from '../handwriting.ts';
 import { confusionPairs, mistakesOnDay, mostMissed, type MixUpPair } from '../mistakes.ts';
@@ -34,7 +34,11 @@ function picked(given: string): Html {
 
 function mistakeLine(mistake: Mistake, item: KanaItem): Html {
   if (!mistake.given) {
-    return html`${mistake.direction === 'recall' ? item.romaji : jp(item.kana)} · <span class="muted">skipped</span>`;
+    const prompt = mistake.direction !== 'recall' ? jp(item.kana) : isWord(item) ? `“${item.meaning}”` : item.romaji;
+    return html`${prompt} · <span class="muted">skipped</span>`;
+  }
+  if (mistake.direction === 'recall' && isWord(item)) {
+    return html`Recall <strong>“${item.meaning}”</strong> → ${jp(item.kana)} · you answered ${picked(mistake.given)}`;
   }
   if (mistake.direction === 'recall') {
     return html`Recall <strong>${item.romaji}</strong> → ${jp(item.kana)} · you answered ${picked(mistake.given)}`;
@@ -72,7 +76,7 @@ function historyItems(mistakes: Mistake[]): Html[] {
     const time = new Date(mistake.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     return html`${header}
       <li class="mistake">
-        <button class="mistake-kana jp ${sizeClass(item.kana)}" data-kana="${item.kana}" title="Show info">
+        <button class="mistake-kana jp ${sizeClass(item.kana)}" data-open="${item.id}" title="Show info">
           ${item.kana}
         </button>
         <div class="mistake-text">
@@ -93,11 +97,11 @@ function historyItems(mistakes: Mistake[]): Html[] {
 const pairCard = ({ items: [a, b], count }: MixUpPair): Html =>
   html`<div class="pair-card">
     <div class="pair-kana">
-      <button class="jp" data-kana="${a.kana}">${a.kana}</button><span class="pair-arrow">⇄</span
-      ><button class="jp" data-kana="${b.kana}">${b.kana}</button>
+      <button class="jp" data-open="${a.id}">${a.kana}</button><span class="pair-arrow">⇄</span
+      ><button class="jp" data-open="${b.id}">${b.kana}</button>
     </div>
     <div class="pair-meta">${a.romaji} / ${b.romaji}<span class="count">×${count}</span></div>
-    <button class="ghost small" data-pair="${a.kana}|${b.kana}">Drill</button>
+    <button class="ghost small" data-pair="${a.id}|${b.id}">Drill</button>
   </div>`;
 
 export function createMistakes(
@@ -137,7 +141,7 @@ export function createMistakes(
       top.length
         ? top.map(
             ({ item, count }) =>
-              html`<button class="missed-chip" data-kana="${item.kana}">
+              html`<button class="missed-chip" data-open="${item.id}">
                 ${jp(item.kana)}<span class="missed-romaji">${item.romaji}</span><span class="count">×${count}</span>
               </button>`,
           )
@@ -171,12 +175,12 @@ export function createMistakes(
   });
 
   [els.mostMissed, els.pairs, els.list].forEach(container => {
-    onDelegate(container, '[data-pair], [data-kana]', element => {
+    onDelegate(container, '[data-pair], [data-open]', element => {
       if (element.dataset.pair) {
         const items = element.dataset.pair.split('|').map(getKana);
         startDrill(items.map(item => item.kana).join(' ⇄ '), items);
-      } else if (element.dataset.kana) {
-        dialog.open(element.dataset.kana);
+      } else if (element.dataset.open) {
+        dialog.open(element.dataset.open);
       }
     });
   });

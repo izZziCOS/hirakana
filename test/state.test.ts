@@ -96,13 +96,14 @@ test('migrateState keeps per-direction stats and drops unsupported ones', () => 
         'recall:あ': { box: 2, due: NOW },
         'match:ファ': { box: 2, due: NOW },
         'recall:やま': { box: 2, due: NOW },
+        'write:やま': { box: 2, due: NOW },
       },
     },
     NOW,
   );
   assert.equal(state.settings.direction, 'recall');
   assert.equal(state.settings.newPerDay, 25);
-  assert.deepEqual(Object.keys(state.stats), ['recall:あ']);
+  assert.deepEqual(Object.keys(state.stats), ['recall:あ', 'recall:やま']);
 });
 
 test('migrateState drops unknown and malformed data', () => {
@@ -346,4 +347,59 @@ test('receive takes in another tab’s progress without writing it back or keepi
   data.update(state => ({ ...state, bestStreak: 8 }));
   t.mock.timers.tick(SAVE_DELAY_MS);
   assert.equal(loadState(storage, NOW).bestStreak, 8);
+});
+
+test('answers this tab hasn’t saved yet survive a save from another tab, and are then saved for it', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const storage = memoryStorage({ [STORAGE_KEY]: JSON.stringify({ version: 7 }) });
+  const thisTab = createAppStores(storage);
+  const answer = (state: State, kana: string, now: number) =>
+    recordAnswer(state, {
+      item: getKana(kana),
+      direction: 'read',
+      outcome: 'correct',
+      given: null,
+      ms: 900,
+      now,
+      run: 1,
+    });
+
+  // This tab answers あ; before its save runs, the other tab saves its answer to い.
+  thisTab.data.update(state => answer(state, 'あ', NOW));
+  const otherTab = JSON.stringify(answer(loadState(storage, NOW), 'い', NOW + 1));
+  storage.setItem(STORAGE_KEY, otherTab);
+  thisTab.receive(otherTab, NOW + 2);
+  assert.deepEqual(Object.keys(thisTab.data.get().stats).sort(), ['あ', 'い']);
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.deepEqual(Object.keys(loadState(storage, NOW).stats).sort(), ['あ', 'い']);
+
+  // Receiving its own merged save back adds nothing, so nothing is written again.
+  const saved = storage.getItem(STORAGE_KEY);
+  const setItem = t.mock.method(storage, 'setItem');
+  thisTab.receive(saved, NOW + 3);
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  thisTab.saver.flush();
+  assert.equal(setItem.mock.callCount(), 0);
+});
+
+test('a save the browser refuses is reported until a save works again', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const storage = memoryStorage();
+  let full = true;
+  const write = storage.setItem;
+  storage.setItem = (key, value) => {
+    if (full) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    write(key, value);
+  };
+  const stores = createAppStores(storage);
+  assert.equal(stores.saveFailed.get(), false);
+  stores.data.update(state => ({ ...state, bestStreak: 1 }));
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.equal(stores.saveFailed.get(), true);
+  full = false;
+  stores.data.update(state => ({ ...state, bestStreak: 2 }));
+  stores.saver.flush();
+  assert.equal(stores.saveFailed.get(), false);
+  assert.equal(loadState(storage, NOW).bestStreak, 2);
+  assert.equal(saveState(null, defaultState()), false);
 });

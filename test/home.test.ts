@@ -4,7 +4,8 @@ import '../src/kanji.ts';
 import { GROUPS, TRACKS } from '../src/data.ts';
 import { dayKey } from '../src/days.ts';
 import { learnMore, newSession, todaySummary } from '../src/session.ts';
-import { defaultState, groupProgress, migrateState, updateSettings } from '../src/state.ts';
+import { registerDecks } from '../src/decks.ts';
+import { addDeck, defaultState, groupProgress, migrateState, updateSettings } from '../src/state.ts';
 import { heroCopy, heroDetail, trackCard } from '../src/ui/home.ts';
 import { toMarkup } from '../src/ui/html.ts';
 
@@ -17,7 +18,7 @@ const text = (markup: string) =>
 const kanaTrack = TRACKS[0];
 const kanjiTrack = TRACKS[2];
 
-test('the three tracks cover every set exactly once', () => {
+test('the tracks cover every set exactly once', () => {
   const grouped = TRACKS.flatMap(track => track.groups);
   assert.deepEqual([...grouped].sort(), GROUPS.map(group => group.id).sort());
   assert.equal(new Set(grouped).size, grouped.length);
@@ -43,7 +44,8 @@ test('set progress counts mastered cards in the current direction', () => {
   const state = migrateState({ version: 5, stats: { あ: mastered, ア: mastered } });
   assert.deepEqual(groupProgress(state, 'basic'), { mastered: 2, total: 92 });
   assert.deepEqual(groupProgress(updateSettings(state, { direction: 'recall' }), 'basic'), { mastered: 0, total: 92 });
-  assert.deepEqual(groupProgress(updateSettings(state, { direction: 'recall' }), 'words'), { mastered: 0, total: 0 });
+  assert.deepEqual(groupProgress(updateSettings(state, { direction: 'recall' }), 'words'), { mastered: 0, total: 90 });
+  assert.deepEqual(groupProgress(updateSettings(state, { direction: 'write' }), 'words'), { mastered: 0, total: 0 });
 });
 
 test('the hero says what Continue will bring up', () => {
@@ -76,6 +78,43 @@ test('track cards show each set’s selection and progress', () => {
   assert.match(kanji, /data-row="k5:N5 · 1–30"/);
   assert.doesNotMatch(kanji, /data-row="k4:/, 'closed kanji levels keep their rows hidden');
 
-  const recall = toMarkup(trackCard(TRACKS[1] ?? kanaTrack, updateSettings(state, { direction: 'recall' })));
-  assert.match(text(recall), /Everyday words ねこ Not in Recall/);
+  const write = toMarkup(trackCard(TRACKS[1] ?? kanaTrack, updateSettings(state, { direction: 'write' })));
+  assert.match(text(write), /Everyday words ねこ Not in Write/);
+});
+
+test('the decks card offers an import and lists the decks with a way to delete each', () => {
+  const decksTrack = TRACKS.find(track => track.id === 'decks');
+  assert.ok(decksTrack);
+  const empty = toMarkup(trackCard(decksTrack, defaultState()));
+  assert.match(empty, /data-import-deck/);
+  assert.doesNotMatch(empty, /data-group=|track-bar|Choose rows/, 'nothing to pick without decks');
+
+  const deck = {
+    id: 'genki',
+    name: 'Genki 3',
+    words: [{ kana: 'ねこ', meaning: 'cat' }],
+    addedAt: NOW,
+    updatedAt: NOW,
+  };
+  const state = addDeck(defaultState(), deck, NOW);
+  registerDecks(state.decks);
+  const markup = toMarkup(trackCard(decksTrack, state, true, new Set(), 'Added “Genki 3” with 1 word.'));
+  assert.match(markup, /data-group="custom"\s+aria-pressed="true"/);
+  assert.match(markup, /data-row="custom:genki"/);
+  assert.match(markup, /data-delete-deck="genki"/);
+  assert.match(text(markup), /Genki 3 1 word Delete/);
+  assert.match(text(markup), /Added “Genki 3” with 1 word\./);
+  assert.match(text(markup), /Word lists you import · 1 card\b/);
+  registerDecks([]);
+});
+
+test('sets with many rows keep them hidden until opened', () => {
+  const vocabulary = TRACKS.find(track => track.id === 'vocabulary');
+  assert.ok(vocabulary);
+  const closed = toMarkup(trackCard(vocabulary, defaultState(), true));
+  assert.match(closed, /data-expand="n5"\s+aria-expanded="false"/);
+  assert.doesNotMatch(closed, /data-row="n5:/);
+  assert.match(closed, /data-row="words:/, 'a small set shows its rows straight away');
+  const open = toMarkup(trackCard(vocabulary, defaultState(), true, new Set(['n5'])));
+  assert.match(open, /data-row="n5:N5 · 1–30"/);
 });

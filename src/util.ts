@@ -7,6 +7,14 @@ export const unique = <T>(list: T[]): T[] => [...new Set(list)];
 export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+// JSON with object keys in order, so two values with the same content give the same text.
+export const stableJson = (value: unknown): string =>
+  JSON.stringify(value, (_, inner: unknown) =>
+    isObject(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : inner,
+  );
+
 export const nonNegative = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
 

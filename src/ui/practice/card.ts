@@ -27,7 +27,8 @@ export function introMarkup(item: KanaItem): Html {
 export function promptLabel(item: KanaItem, direction: Direction, mode: Mode, kanjiOnly = false): string {
   if (kanjiOnly) return `${GROUP_LABEL[item.group]} · stage 2: kanji only`;
   const action = mode === 'type' ? 'Type' : 'Pick';
-  if (direction === 'recall') return `${action} the ${item.script} · ${GROUP_LABEL[item.group]}`;
+  if (direction === 'recall')
+    return `${action} the ${isWord(item) ? 'word' : item.script} · ${GROUP_LABEL[item.group]}`;
   if (direction === 'listen') return `Listen, then ${action.toLowerCase()} the ${isWord(item) ? 'word' : item.script}`;
   if (direction === 'match') return `${SCRIPT_LABEL[item.script]} → ${otherScript(item.script)}`;
   if (direction === 'meaning') return `${action} the meaning · ${GROUP_LABEL[item.group]}`;
@@ -36,6 +37,7 @@ export function promptLabel(item: KanaItem, direction: Direction, mode: Mode, ka
 }
 
 export function placeholderFor(item: KanaItem, direction: Direction): string {
+  if (direction === 'recall' && isWord(item)) return `Type the word in ${item.script} or romaji…`;
   if (typesKana(direction)) return `Type it in ${item.script}…`;
   if (direction === 'meaning') return 'Type the meaning in English…';
   if (isKanji(item)) return 'Type any reading in romaji…';
@@ -64,6 +66,9 @@ export const promptMarkup = (item: KanaItem, kanjiOnly = false): Html =>
         }`
     : html`${item.kana}`;
 
+// Recalling a word starts from its meaning.
+export const meaningPromptMarkup = (item: KanaItem): Html => html`<span class="prompt-meaning">${item.meaning}</span>`;
+
 // Write mode names the character without showing it: romaji for kana, meaning and main reading for kanji.
 export const writePromptMarkup = (item: KanaItem): Html =>
   isKanji(item)
@@ -84,6 +89,11 @@ function picked(given: string): Html {
 
 export function resultMessage(item: KanaItem, direction: Direction, isCorrect: boolean, given: string | null): Html {
   const yourPick = given === null ? '' : html` You answered ${picked(given)}.`;
+  if (direction === 'recall' && isWord(item)) {
+    return isCorrect
+      ? html`<strong>Correct!</strong> “${item.meaning}” is ${spelled(item)}, ${item.romaji}.`
+      : html`<strong>“${item.meaning}” is ${spelled(item)}, ${item.romaji}.</strong>${yourPick}`;
+  }
   if (direction === 'recall') {
     return isCorrect
       ? html`<strong>Correct!</strong> ${item.romaji} = ${jp(item.kana)}`
@@ -108,10 +118,10 @@ export function resultMessage(item: KanaItem, direction: Direction, isCorrect: b
       : html`<strong>That was ${jp(item.kana)} (${item.romaji}).</strong>${retried}`;
   }
   if (direction === 'meaning') {
+    const shown = isWord(item) ? spelled(item) : jp(item.kana);
     return isCorrect
-      ? html`<strong>Correct!</strong> ${jp(item.kana)} means “${item.meaning}”.`
-      : html`<strong>${jp(item.kana)} means “${item.meaning}”.</strong
-          >${given === null ? '' : ` You answered “${given}”.`}`;
+      ? html`<strong>Correct!</strong> ${shown} means “${item.meaning}”.`
+      : html`<strong>${shown} means “${item.meaning}”.</strong>${given === null ? '' : ` You answered “${given}”.`}`;
   }
   if (isKanji(item)) {
     return isCorrect

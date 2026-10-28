@@ -1,4 +1,14 @@
 import { GROUPS } from './data.ts';
+import {
+  deckItems,
+  deckOfItem,
+  deckRowId,
+  isDeckId,
+  isDeckItemId,
+  isDeckRowId,
+  MAX_DECKS,
+  sanitizeDecks,
+} from './decks.ts';
 import { addDays, DAY_HISTORY, dateOf, dayKey, type Days, logDay } from './days.ts';
 import {
   DIRECTIONS,
@@ -13,6 +23,8 @@ import {
 import { applyAnswer, applyKanjiStage, DAY, levelOf, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
+  Deck,
+  DeckWord,
   Direction,
   GroupId,
   KanaItem,
@@ -26,9 +38,9 @@ import type {
   State,
   Theme,
 } from './types.ts';
-import { isObject, nonNegative } from './util.ts';
+import { isObject, nonNegative, unique } from './util.ts';
 
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
 export const DEFAULT_NEW_PER_DAY = 15;
@@ -69,6 +81,8 @@ export const defaultState = (): State => ({
   settingsChangedAt: 0,
   resetAt: 0,
   mistakesClearedAt: 0,
+  decks: [],
+  deletedDecks: {},
 });
 
 const entriesOf = (value: unknown): [string, unknown][] => (isObject(value) ? Object.entries(value) : []);
@@ -102,6 +116,8 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   3: data => ({ ...data, version: 4 }),
   4: data => ({ ...data, version: 5 }),
   5: data => ({ ...data, version: 6 }),
+  // Imported decks; the sanitising below fills them in.
+  6: data => ({ ...data, version: 7 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -119,19 +135,46 @@ function sanitizeStat(stat: RawData): Stat {
   return clean;
 }
 
-function validStatEntry([key, stat]: [string, unknown]): boolean {
-  const { direction, kana } = parseStatKey(key);
-  const item = findKana(kana);
-  return item !== undefined && includes(DIRECTIONS, direction) && supportsDirection(item, direction) && isObject(stat);
+type FindItem = (id: string) => KanaItem | undefined;
+
+const validStatEntry =
+  (find: FindItem) =>
+  ([key, stat]: [string, unknown]): boolean => {
+    const { direction, kana } = parseStatKey(key);
+    const item = find(kana);
+    return (
+      item !== undefined && includes(DIRECTIONS, direction) && supportsDirection(item, direction) && isObject(stat)
+    );
+  };
+
+// Kanji and word rows are named by position ("k5:N5 · 61–79"), so a longer list renames the last rows of a level. A
+// saved row that no longer exists becomes the row of the same set that now holds its first card.
+const NUMBERED_ROW = /^(.+ · )(\d+)(?:–(\d+))?$/;
+
+function currentRow(id: string): string | undefined {
+  const [, name, first] = NUMBERED_ROW.exec(id) ?? [];
+  if (!name || !first) return undefined;
+  const start = Number(first);
+  return ROW_INFO.find(row => {
+    const [, rowName, rowFirst, rowLast = rowFirst] = NUMBERED_ROW.exec(row.id) ?? [];
+    return rowName === name && Number(rowFirst) <= start && start <= Number(rowLast);
+  })?.id;
 }
 
-function sanitizeSettings(raw: unknown): Settings {
+function sanitizeSettings(raw: unknown, decks: Deck[]): Settings {
   const fresh = defaultState().settings;
   const settings = isObject(raw) ? raw : {};
-  const knownRows = new Set(ROW_INFO.map(row => row.id));
-  const rows = Array.isArray(settings.rows)
-    ? settings.rows.filter((id): id is string => typeof id === 'string' && knownRows.has(id))
-    : [];
+  const knownRows = new Set([
+    ...ROW_INFO.filter(row => !isDeckRowId(row.id)).map(row => row.id),
+    ...decks.map(deckRowId),
+  ]);
+  const rows = unique(
+    (Array.isArray(settings.rows) ? settings.rows : []).flatMap(id => {
+      if (typeof id !== 'string') return [];
+      const row = knownRows.has(id) ? id : currentRow(id);
+      return row ? [row] : [];
+    }),
+  );
   return {
     script: includes(SCRIPT_SETTINGS, settings.script) ? settings.script : fresh.script,
     rows: rows.length ? rows : fresh.rows,
@@ -149,9 +192,9 @@ function sanitizeSettings(raw: unknown): Settings {
   };
 }
 
-function sanitizeMistakes(raw: unknown): Mistake[] {
+function sanitizeMistakes(raw: unknown, find: FindItem): Mistake[] {
   return (Array.isArray(raw) ? raw : [])
-    .filter((m): m is RawData => isObject(m) && typeof m.kana === 'string' && Boolean(findKana(m.kana)))
+    .filter((m): m is RawData => isObject(m) && typeof m.kana === 'string' && Boolean(find(m.kana)))
     .filter(m => typeof m.at === 'number' && Number.isFinite(m.at))
     .map(m => ({
       kana: m.kana as string,
@@ -183,16 +226,22 @@ function sanitizeDays(raw: unknown): Record<string, DayLog> {
   );
 }
 
+export const MAX_DELETED_DECKS = 200;
+
 function sanitizeState(data: RawData): State {
+  const decks = sanitizeDecks(data.decks);
+  // Cards of imported decks are checked against the decks saved with them, not the ones this tab has open.
+  const deckCards = new Map(decks.flatMap(deckItems).map(item => [item.id, item]));
+  const find: FindItem = id => (isDeckItemId(id) ? deckCards.get(id) : findKana(id));
   return {
     version: STATE_VERSION,
-    settings: sanitizeSettings(data.settings),
+    settings: sanitizeSettings(data.settings, decks),
     stats: Object.fromEntries(
       entriesOf(data.stats)
-        .filter(validStatEntry)
+        .filter(validStatEntry(find))
         .map(([key, stat]) => [key, sanitizeStat(stat as RawData)]),
     ),
-    mistakes: sanitizeMistakes(data.mistakes),
+    mistakes: sanitizeMistakes(data.mistakes, find),
     days: sanitizeDays(data.days),
     bestStreak: nonNegative(data.bestStreak),
     lastBackup: nonNegative(data.lastBackup),
@@ -204,6 +253,15 @@ function sanitizeState(data: RawData): State {
     settingsChangedAt: nonNegative(data.settingsChangedAt),
     resetAt: nonNegative(data.resetAt),
     mistakesClearedAt: nonNegative(data.mistakesClearedAt),
+    decks,
+    deletedDecks: Object.fromEntries(
+      entriesOf(data.deletedDecks)
+        .filter((entry): entry is [string, number] => isDeckId(entry[0]) && typeof entry[1] === 'number')
+        .filter(([id]) => !decks.some(deck => deck.id === id))
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, MAX_DELETED_DECKS)
+        .map(([id, at]) => [id, nonNegative(at)]),
+    ),
   };
 }
 
@@ -272,7 +330,11 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
     ...state,
     stats: {
       ...state.stats,
-      [key]: hasReadingStage(item) && direction !== 'write' ? applyKanjiStage(stat, outcome) : stat,
+      // Writing and recalling a word start from its reading or meaning, so the kanji stage doesn't apply.
+      [key]:
+        hasReadingStage(item) && direction !== 'write' && direction !== 'recall'
+          ? applyKanjiStage(stat, outcome)
+          : stat,
     },
     days: logDay(state.days, now, {
       answers: 1,
@@ -282,7 +344,7 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
     }),
     mistakes:
       outcome === 'wrong'
-        ? [{ kana: item.kana, given: given ?? '', at: now, direction }, ...state.mistakes].slice(0, MAX_MISTAKES)
+        ? [{ kana: item.id, given: given ?? '', at: now, direction }, ...state.mistakes].slice(0, MAX_MISTAKES)
         : state.mistakes,
     bestStreak: Math.max(state.bestStreak, run),
   };
@@ -376,9 +438,54 @@ export const clearMistakes = (state: State, now = Date.now()): State => ({
   mistakesClearedAt: now,
 });
 
+// Imported decks are kept: they are the material, not the progress.
 export const resetProgress = (state: State, now = Date.now()): State => ({
   ...defaultState(),
   settings: state.settings,
   settingsChangedAt: state.settingsChangedAt,
   resetAt: now,
+  decks: state.decks,
+  deletedDecks: state.deletedDecks,
 });
+
+// Adds an imported deck and picks its row, so Continue practises it.
+export function addDeck(state: State, deck: Deck, now = Date.now()): State {
+  if (state.decks.length >= MAX_DECKS) throw new Error(`You can keep up to ${MAX_DECKS} decks. Delete one first.`);
+  return {
+    ...updateSettings(state, { rows: [...state.settings.rows, deckRowId(deck)] }, now),
+    decks: [...state.decks, deck],
+  };
+}
+
+// Replaces a deck's words with those of a new version of it. Words whose kana and kanji are unchanged keep their cards
+// and progress; the cards and mistakes of words that are gone go too.
+export function updateDeck(state: State, deckId: string, words: DeckWord[], now = Date.now()): State {
+  const decks = state.decks.map(deck => (deck.id === deckId ? { ...deck, words, updatedAt: now } : deck));
+  const updated = decks.find(deck => deck.id === deckId);
+  if (!updated) return state;
+  const cards = new Set(deckItems(updated).map(item => item.id));
+  const gone = (id: string) => deckOfItem(id) === deckId && !cards.has(id);
+  return {
+    ...state,
+    decks,
+    stats: Object.fromEntries(Object.entries(state.stats).filter(([key]) => !gone(parseStatKey(key).kana))),
+    mistakes: state.mistakes.filter(mistake => !gone(mistake.kana)),
+  };
+}
+
+// Deletes a deck with its cards and mistakes. Without it no rows may be left, so the basic kana come back.
+export function deleteDeck(state: State, deckId: string, now = Date.now()): State {
+  const inDeck = (id: string) => deckOfItem(id) === deckId;
+  const rows = state.settings.rows.filter(row => row !== deckRowId({ id: deckId }));
+  const withoutRow =
+    rows.length === state.settings.rows.length
+      ? state
+      : updateSettings(state, { rows: rows.length ? rows : defaultRows() }, now);
+  return {
+    ...withoutRow,
+    decks: state.decks.filter(deck => deck.id !== deckId),
+    deletedDecks: { ...state.deletedDecks, [deckId]: now },
+    stats: Object.fromEntries(Object.entries(state.stats).filter(([key]) => !inDeck(parseStatKey(key).kana))),
+    mistakes: state.mistakes.filter(mistake => !inDeck(mistake.kana)),
+  };
+}

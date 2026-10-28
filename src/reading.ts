@@ -44,5 +44,5 @@ export function readableWords(stats: Stats): ReadableWord[] {
   const marksKnown = knowsMarks(stats);
   return KANA.filter(item => isWord(item) && canReadKana(item.kana, stats, marksKnown))
     .map(item => ({ item, inKanji: Boolean(item.kanji) && knowsKanjiOf(item, stats) }))
-    .sort((a, b) => Number(Boolean(stats[a.item.kana])) - Number(Boolean(stats[b.item.kana])));
+    .sort((a, b) => Number(Boolean(stats[statKey(a.item)])) - Number(Boolean(stats[statKey(b.item)])));
 }

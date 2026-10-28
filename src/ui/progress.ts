@@ -25,6 +25,8 @@ function columnOf(item: KanaItem, columns: string): number {
   return index === -1 ? 0 : index;
 }
 
+const MAX_OPEN_CELLS = 120;
+
 const statCard = (label: string, value: Html | string | number): Html =>
   html`<div class="stat-card">
     <div class="stat-value">${value}</div>
@@ -50,7 +52,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
   };
   let script: Script = data.get().settings.script === 'katakana' ? 'katakana' : 'hiragana';
   let direction: Direction = singleDirection(data.get().settings.direction);
-  // A kanji level has up to 1,232 cells, so each level is drawn only once it is opened.
+  // A kanji level has up to 1,232 cells and a word level up to 2,500, so these are drawn only once they are opened.
   const expanded = new Set<string>();
 
   function cell(state: State, item: KanaItem, now: number, column?: number): Html {
@@ -65,7 +67,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       class="cell level-${level}${isWord(item) ? ' word-cell' : ''}${isKanji(item) ? ' kanji-cell' : ''}${
         stat?.kanjiOnly ? ' kanji-only' : ''
       }"
-      data-kana="${item.kana}"
+      data-open="${item.id}"
       style="${column === undefined ? '' : `grid-column:${column + 2}`}"
       title="${`${item.kanji ? `${item.kanji} · ` : ''}${item.romaji} — ${LEVEL_LABEL[level]}${stage}${review}${speed}`}"
     >
@@ -98,7 +100,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       els.readableWords,
       words.slice(0, READABLE_SHOWN).map(
         ({ item, inKanji }) =>
-          html`<button type="button" class="readable-word" data-kana="${item.kana}" title="${item.meaning ?? ''}">
+          html`<button type="button" class="readable-word" data-open="${item.id}" title="${item.meaning ?? ''}">
             <span class="jp">${inKanji && item.kanji ? item.kanji : item.kana}</span>
             <span class="muted small">${item.romaji}</span>
           </button>`,
@@ -114,18 +116,19 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     >`;
     const first = groupItems[0];
     let body: Html;
-    if (first && isWord(first)) {
-      body = html`<div class="word-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
-    } else if (first && isKanji(first)) {
+    if (first && (isKanji(first) || groupItems.length > MAX_OPEN_CELLS)) {
       const open = expanded.has(group.id);
+      const grid = isKanji(first) ? 'kanji-grid' : 'word-grid';
       return html`<section class="grid-section">
         <h3>
           <button type="button" class="grid-toggle" data-expand="${group.id}" aria-expanded="${String(open)}">
             ${group.label} ${summary}
           </button>
         </h3>
-        ${open && html`<div class="kanji-grid">${groupItems.map(item => cell(state, item, now))}</div>`}
+        ${open && html`<div class="${grid}">${groupItems.map(item => cell(state, item, now))}</div>`}
       </section>`;
+    } else if (first && isWord(first)) {
+      body = html`<div class="word-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
     } else {
       const columns = group.id === 'yoon' ? 'auo' : 'aiueo';
       const rowLabels = [...new Set(groupItems.map(k => k.row))];
@@ -194,8 +197,8 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     direction = value as Direction;
     render();
   });
-  onDelegate(els.grids, '[data-kana]', element => dialog.open(element.dataset.kana ?? ''));
-  onDelegate(els.readableWords, '[data-kana]', element => dialog.open(element.dataset.kana ?? ''));
+  onDelegate(els.grids, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
+  onDelegate(els.readableWords, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
   onDelegate(els.grids, '[data-expand]', element => {
     const group = element.dataset.expand ?? '';
     if (!expanded.delete(group)) expanded.add(group);

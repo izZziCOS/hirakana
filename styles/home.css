@@ -193,6 +193,11 @@
   color: light-dark(#4b3b7a, #c4b5ef);
 }
 
+.track-decks {
+  background: light-dark(#e9f1e6, #1f2d1f);
+  color: light-dark(#2f5d2a, #a6d39c);
+}
+
 .track-bar {
   height: 8px;
   border-radius: 999px;
@@ -285,6 +290,45 @@
   gap: 12px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
+}
+
+.deck-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.deck-tools p {
+  margin: 0;
+}
+
+.deck-list {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
+}
+
+.deck-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.deck-status:empty {
+  display: none;
 }
 
 .mode-groups {

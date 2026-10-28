@@ -1,3 +1,4 @@
+import { DECK_GROUP } from './decks.ts';
 import { findKana, isWord, kanjiOfWord, parseStatKey, statKey } from './kana.ts';
 import type { Direction, Entry, KanaItem, Level, Mode, Outcome, Pick, Stat } from './types.ts';
 import { randomFrom, type Random } from './util.ts';
@@ -22,6 +23,7 @@ export const MAX_BOX = INTERVALS.length - 1;
 export const MASTERED_BOX = 5;
 export const LEARNING_LIMIT = 5;
 export const PEEK_PENALTY = 2;
+export const MISS_PENALTY = 3;
 export const MAX_TIMED_MS = 60 * 1000;
 
 export type Stats = Record<string, Stat>;
@@ -106,11 +108,14 @@ export function applyAnswer(previous: Stat | undefined, outcome: Outcome, now: n
   stat.streak = 0;
   if (outcome === 'peeked') {
     stat.box = Math.max(1, stat.box - PEEK_PENALTY);
-  } else {
-    stat.wrong++;
-    stat.box = 1;
+    stat.due = now + intervalFor(stat.box);
+    return stat;
   }
-  stat.due = now + intervalFor(stat.box);
+  // A miss moves the card back a few steps rather than to the start, so a long-known card isn't relearned from
+  // scratch, and brings it back a minute later to be answered right before the longer gaps resume.
+  stat.wrong++;
+  stat.box = Math.max(1, stat.box - MISS_PENALTY);
+  stat.due = now + intervalFor(1);
   return stat;
 }
 
@@ -216,7 +221,11 @@ export function pickEntry({
 
   const struggling = entries.filter(entry => stats[key(entry)]?.box === 1).length;
   const unseenEntries = others.filter(entry => !isSeen(stats, key(entry)) && canIntroduce(entry));
-  const unseen = unseenEntries.find(entry => knowsKanjiOf(entry.item, stats)) ?? unseenEntries[0];
+  // Words whose kanji are known go first, but never ahead of an imported deck's words, which come first anyway.
+  const first = unseenEntries[0];
+  const inDeck = (entry: Entry) => entry.item.group === DECK_GROUP;
+  const unseen =
+    unseenEntries.find(entry => inDeck(entry) === (first && inDeck(first)) && knowsKanjiOf(entry.item, stats)) ?? first;
   if (unseen && allowNew && struggling < LEARNING_LIMIT) return { ...unseen, kind: 'new' };
 
   const ahead = randomFrom(

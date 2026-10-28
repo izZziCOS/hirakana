@@ -9,13 +9,13 @@ import { canSpeak, speak } from './speech.ts';
 import { mountStrokeOrder } from './strokes.ts';
 
 export interface KanaDialog {
-  open(kana: string): void;
+  open(id: string): void;
 }
 
 export type StartDrill = (label: string, items: KanaItem[]) => void;
 
 // Info panels link kanji and words to each other and can drill a kanji together with its words.
-export function bindInfoLinks(container: HTMLElement, open: (kana: string) => void, drill: StartDrill): void {
+export function bindInfoLinks(container: HTMLElement, open: (id: string) => void, drill: StartDrill): void {
   onDelegate(container, '[data-open]', element => open(element.dataset.open ?? ''));
   onDelegate(container, '[data-drill]', element => {
     const kanji = findKana(element.dataset.drill);
@@ -36,8 +36,8 @@ export function createDialog(data: Store<State>, drill: StartDrill): KanaDialog 
   });
   speakButton.addEventListener('click', () => speak(currentKana));
 
-  function open(kana: string): void {
-    const item = findKana(kana);
+  function open(id: string): void {
+    const item = findKana(id);
     if (!item) return;
     currentKana = item.kana;
     kanaLabel.textContent = item.kana;

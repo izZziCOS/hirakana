@@ -2,6 +2,8 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { join, resolve } from 'node:path';
 import { isWord, KANA } from '../src/kana.ts';
+// Registers the JLPT kanji, which the app otherwise loads on demand.
+import '../src/kanji.ts';
 import { codePoints } from '../src/util.ts';
 import { KANJIVG_VERSION, kanjivgFile } from '../src/ui/kanjivg.ts';
 

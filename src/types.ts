@@ -8,7 +8,20 @@ export type PracticeDirection = Direction | 'mixed';
 export type Theme = 'system' | 'light' | 'dark';
 export type SpeedCheck = 'adaptive' | 'off';
 export type GroupId =
-  'basic' | 'dakuten' | 'yoon' | 'sokuon' | 'extended' | 'words' | 'n5' | 'n4' | 'n3' | 'n2' | 'n1' | KanjiGroupId;
+  | 'basic'
+  | 'dakuten'
+  | 'yoon'
+  | 'sokuon'
+  | 'extended'
+  | 'words'
+  | 'n5'
+  | 'n4'
+  | 'n3'
+  | 'n2'
+  | 'n1'
+  | KanjiGroupId
+  // Imported decks.
+  | 'custom';
 export type KanjiGroupId = 'k5' | 'k4' | 'k3' | 'k2' | 'k1';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
 export type CardKind = 'new' | 'review' | 'ahead' | 'drill' | 'contrast';
@@ -22,7 +35,7 @@ export interface Group {
 
 // The home screen groups the character sets into three tracks.
 export interface Track {
-  id: 'kana' | 'vocabulary' | 'kanji';
+  id: 'kana' | 'vocabulary' | 'kanji' | 'decks';
   label: string;
   glyph: string;
   summary: string;
@@ -63,6 +76,9 @@ export interface Example {
 }
 
 export interface KanaItem {
+  // What progress and mistakes are saved under: the kana or kanji itself, except for words that share their kana with
+  // another item (はし for 橋 and 箸), which add their spelling (はし/箸).
+  id: string;
   kana: string;
   script: Script;
   romaji: string;
@@ -94,6 +110,25 @@ export interface KanjiReadings {
 
 export type KanjiEntry = [kanji: string, level: number, strokes: number, on: string, kun: string, meanings: string];
 
+export type VocabEntry = [level: number, kana: string, kanji: string, meaning: string, id?: string];
+
+// A word of an imported deck.
+export interface DeckWord {
+  kana: string;
+  kanji?: string;
+  meaning: string;
+}
+
+export interface Deck {
+  // A few lower-case letters and digits; the deck's cards and row are saved under it.
+  id: string;
+  name: string;
+  words: DeckWord[];
+  addedAt: number;
+  // When its words last changed: importing a new version of a deck replaces them.
+  updatedAt: number;
+}
+
 export interface RowInfo {
   id: string;
   label: string;
@@ -113,6 +148,7 @@ export interface Stat {
 }
 
 export interface Mistake {
+  // The id of the item that was missed.
   kana: string;
   given: string;
   at: number;
@@ -153,6 +189,9 @@ export interface State {
   settingsChangedAt: number;
   resetAt: number;
   mistakesClearedAt: number;
+  decks: Deck[];
+  // When each deleted deck was deleted, so syncing doesn't bring it back from a device that still has it.
+  deletedDecks: Record<string, number>;
 }
 
 export interface Drill {

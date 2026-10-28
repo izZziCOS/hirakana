@@ -106,9 +106,9 @@ test('chooseNext explains why nothing can be practised', () => {
   const empty = chooseNext(hiraganaLoanwords, newSession(), { now: NOW });
   assert.match(empty.status === 'empty' ? empty.message : '', /exist in hiragana/);
 
-  const wordsInRecall = withSettings({ rows: ['words:Food'], direction: 'recall' });
-  const step = chooseNext(wordsInRecall, newSession(), { now: NOW });
-  assert.equal(step.status === 'empty' && step.message, emptyMessage(wordsInRecall.settings, null));
+  const wordsInWrite = withSettings({ rows: ['words:Food'], direction: 'write' });
+  const step = chooseNext(wordsInWrite, newSession(), { now: NOW });
+  assert.equal(step.status === 'empty' && step.message, emptyMessage(wordsInWrite.settings, null));
   assert.match(emptyMessage(withSettings({ direction: 'match' }).settings, null), /both scripts/);
 });
 
@@ -122,7 +122,7 @@ test('chooseNext drills only the drilled characters, and endDrill stops it', () 
   const plain = newSession();
   assert.equal(endDrill(plain), plain);
   const wordDrill = startDrill(newSession(), { label: 'words', items: [getKana('やま')] });
-  assert.equal(chooseNext(withSettings({ direction: 'recall' }), wordDrill, { now: NOW }).status, 'empty');
+  assert.equal(chooseNext(withSettings({ direction: 'write' }), wordDrill, { now: NOW }).status, 'empty');
 });
 
 test('showCard puts the next card into the session, or clears it', () => {

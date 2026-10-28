@@ -1,4 +1,5 @@
 import { dayKey } from './days.ts';
+import { sameDecks } from './decks.ts';
 import { affectsPractice, endDrill, newSession, resetCard } from './session.ts';
 import {
   backupStatus,
@@ -10,7 +11,7 @@ import {
   updateSettings,
 } from './state.ts';
 import { kanjiLoaded } from './kana.ts';
-import { loadKanji, mentionsKanji } from './kanji-loader.ts';
+import { loadKanji, needsKanji } from './kanji-loader.ts';
 import { mergeStates } from './merge.ts';
 import { browserStorage, createAppStores, type KeyValueStorage, savedText, STORAGE_KEY } from './store.ts';
 import { deviceId } from './sync.ts';
@@ -23,11 +24,12 @@ import { $ } from './ui/dom.ts';
 import { createMistakes } from './ui/mistakes.ts';
 import { createPractice } from './ui/practice/index.ts';
 import { createProgress } from './ui/progress.ts';
+import { createReader } from './ui/reader.ts';
 import { createSync } from './ui/sync.ts';
 
-type View = 'practice' | 'progress' | 'mistakes';
+type View = 'practice' | 'read' | 'progress' | 'mistakes';
 
-const VIEWS: View[] = ['practice', 'progress', 'mistakes'];
+const VIEWS: View[] = ['practice', 'read', 'progress', 'mistakes'];
 const NEXT_THEME: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' };
 const THEME_ICON: Record<Theme, string> = { system: '◐', light: '☀', dark: '☾' };
 const THEME_LABEL: Record<Theme, string> = {
@@ -113,6 +115,7 @@ function start(storage: KeyValueStorage | null): void {
     if (event.target === settingsDialog) settingsDialog.close();
   });
   const mistakes = createMistakes(stores, dialog, startDrill);
+  const reader = createReader(stores, isActive('read'));
   const progress = createProgress(stores, {
     dialog,
     isActive: isActive('progress'),
@@ -138,6 +141,7 @@ function start(storage: KeyValueStorage | null): void {
       renderBackupStatus();
     }
     if (view === 'mistakes') mistakes.render();
+    if (view === 'read') reader.render();
     if (view === 'practice' && learning === 'home') home.render();
     if (view === 'practice' && learning === 'session' && !focusTab) practice.focus();
   }
@@ -163,6 +167,13 @@ function start(storage: KeyValueStorage | null): void {
     data.update(state => updateSettings(state, { theme: NEXT_THEME[state.settings.theme] }));
   });
 
+  // A card or drill from a deleted deck can't stay on screen.
+  data.subscribe((state, previous) => {
+    if (sameDecks(state.decks, previous.decks)) return;
+    session.update(current => resetCard(endDrill({ ...current, followUps: [] })));
+    practice.next();
+  });
+
   data.subscribe((state, previous) => {
     if (state.settings === previous.settings) return;
     controls.render();
@@ -171,6 +182,12 @@ function start(storage: KeyValueStorage | null): void {
     session.update(current => resetCard(endDrill(current)));
     practice.next();
   });
+
+  const saveError = $('#save-error');
+  stores.saveFailed.subscribe(failed => {
+    saveError.hidden = !failed;
+  });
+  $('#save-error-export').addEventListener('click', () => exportProgress());
 
   window.addEventListener('pagehide', () => saver.flush());
   // Another tab's progress may include kanji, which this tab can only read once they have loaded.
@@ -297,16 +314,17 @@ function start(storage: KeyValueStorage | null): void {
       loadKanji().then(() => {
         home.render();
         progress.render();
+        reader.render();
       });
     loadInBackground().catch(() => window.addEventListener('online', () => void loadInBackground(), { once: true }));
   }
 }
 
-// Kana learners start straight away and get the kanji in the background. Saved progress with kanji in it waits for them,
-// and if they can't be loaded the app stops with an error rather than drop those cards.
+// Kana learners start straight away and get the kanji and the full word list in the background. Saved progress that
+// uses them waits for them, and if they can't be loaded the app stops with an error rather than drop those cards.
 async function boot(): Promise<void> {
   const storage = browserStorage();
-  if (mentionsKanji(savedText(storage))) await loadKanji();
+  if (needsKanji(savedText(storage))) await loadKanji();
   start(storage);
 }
 

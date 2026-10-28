@@ -67,6 +67,23 @@ for (const theme of ['light', 'dark'] as const) {
       expect(await violations(page)).toEqual([]);
     });
 
+    test('the reader and an imported deck have no accessibility violations', async ({ page, seed }) => {
+      await seed({
+        version: 7,
+        decks: [{ id: 'genki', name: 'Genki 1', words: [{ kana: 'ねこ', kanji: '猫', meaning: 'cat' }], addedAt: 1 }],
+        settings: { rows: ['basic:Vowels', 'custom:genki'] },
+      });
+      await openApp(page);
+      await page.locator('[data-track="decks"]').click();
+      await expect(page.locator('[data-delete-deck="genki"]')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('tab', { name: 'Read' }).click();
+      await page.locator('#reader-show').getByRole('button', { name: 'All' }).click();
+      await expect(page.locator('.sentence-word.show-reading').first()).toBeVisible();
+      await page.locator('.sentence details summary').first().click();
+      expect(await violations(page)).toEqual([]);
+    });
+
     test('the confirm dialog has no accessibility violations', async ({ page }) => {
       await openApp(page);
       await page.getByRole('tab', { name: 'Progress' }).click();
@@ -81,6 +98,8 @@ test('tabs can be used with the keyboard', async ({ page }) => {
   await openApp(page);
   const practiceTab = page.getByRole('tab', { name: 'Learn' });
   await practiceTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Read' })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   const progressTab = page.getByRole('tab', { name: 'Progress' });
   await expect(progressTab).toBeFocused();

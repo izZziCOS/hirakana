@@ -81,6 +81,11 @@ export const GROUPS: Group[] = [
     label: 'JLPT N1 kanji',
     hint: '氏',
   },
+  {
+    id: 'custom',
+    label: 'Imported words',
+    hint: '',
+  },
 ];
 
 export const KANJI_LEVELS = [5, 4, 3, 2, 1] as const;
@@ -106,6 +111,13 @@ export const TRACKS: Track[] = [
     glyph: '水',
     summary: 'JLPT N5–N1',
     groups: ['k5', 'k4', 'k3', 'k2', 'k1'],
+  },
+  {
+    id: 'decks',
+    label: 'Your decks',
+    glyph: '札',
+    summary: 'Word lists you import',
+    groups: ['custom'],
   },
 ];
 

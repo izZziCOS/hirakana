@@ -108,6 +108,13 @@
   margin: 24px 0 30px;
 }
 
+/* A word recalled from its meaning: English that may run to a few words. */
+.kana.is-meaning {
+  font-size: clamp(1.8rem, 6vw, 2.6rem);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
 .kana-choices .choice {
   font-size: 1.9rem;
   padding: 10px;

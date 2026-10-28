@@ -34,6 +34,17 @@
         <button
           class="tab"
           role="tab"
+          id="tab-read"
+          aria-controls="view-read"
+          data-view="read"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          Read
+        </button>
+        <button
+          class="tab"
+          role="tab"
           id="tab-progress"
           aria-controls="view-progress"
           data-view="progress"
@@ -83,6 +94,13 @@
       <a href="">Reload</a>
     </div>
 
+    <div id="save-error" class="app-error" role="alert" hidden>
+      <strong>Your progress isn’t being saved.</strong>
+      <span
+        >This browser won’t store it, perhaps because its storage is full or blocked. Export it to keep a copy.</span
+      >
+      <button type="button" id="save-error-export" class="link-btn">Export progress</button>
+    </div>
     <main>
       <section id="view-practice" class="view" role="tabpanel" aria-labelledby="tab-practice">
         <div id="learn-home" class="learn-home">
@@ -138,6 +156,12 @@
             </div>
             <p class="muted small track-help">Turn a set on or off, or open a track to pick single rows.</p>
             <div class="track-grid" id="track-grid"></div>
+            <input
+              id="deck-file"
+              type="file"
+              accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
+              hidden
+            />
           </section>
 
           <section class="home-section" aria-labelledby="modes-h">
@@ -154,7 +178,7 @@
                   <button data-value="listen" title="Hear the kana, pick it">
                     Listen ♪→<span class="jp">あ</span>
                   </button>
-                  <button data-value="meaning" title="See a kanji, give its meaning">
+                  <button data-value="meaning" title="See a kanji or word, give its meaning">
                     Meaning <span class="jp">水</span>→water
                   </button>
                 </div>
@@ -162,7 +186,7 @@
               <div class="mode-group">
                 <h3>Produce <span class="muted">· recall it yourself</span></h3>
                 <div class="mode-chips">
-                  <button data-value="recall" title="See the reading, pick the kana">
+                  <button data-value="recall" title="See the reading, give the kana; or see a meaning, give the word">
                     Recall ka→<span class="jp">あ</span>
                   </button>
                   <button data-value="write" title="See the reading or meaning, write the kana or kanji">
@@ -291,6 +315,31 @@
         </div>
       </section>
 
+      <section id="view-read" class="view" role="tabpanel" aria-labelledby="tab-read" hidden>
+        <div class="section-head">
+          <h2>Read</h2>
+        </div>
+        <p id="reader-summary" class="muted"></p>
+        <div class="reader-controls">
+          <div class="reader-control">
+            <span id="reader-show-label" class="muted small">Show</span>
+            <div class="segmented small" id="reader-show" aria-labelledby="reader-show-label">
+              <button data-value="readable">Ones I can read</button>
+              <button data-value="all">All</button>
+            </div>
+          </div>
+          <div class="reader-control">
+            <span id="reader-furigana-label" class="muted small">Readings over kanji</span>
+            <div class="segmented small" id="reader-furigana" aria-labelledby="reader-furigana-label">
+              <button data-value="new" title="Only over kanji you haven’t learned yet">New kanji</button>
+              <button data-value="all">All kanji</button>
+              <button data-value="none">None</button>
+            </div>
+          </div>
+        </div>
+        <p class="muted small">Select a word written in kanji to show or hide its reading.</p>
+        <ol id="sentence-list" class="sentence-list"></ol>
+      </section>
       <section id="view-progress" class="view" role="tabpanel" aria-labelledby="tab-progress" hidden>
         <div class="section-head">
           <h2>Progress</h2>
@@ -346,9 +395,9 @@
         <div id="progress-grids"></div>
         <p class="muted small">
           Reviews are spaced out further each time you get one right: 1 min → 10 min → 1 hour → 1 day → 3 days → 1 week
-          → 3 weeks → 2 months. A wrong answer sends the character back to the start; a correct but slow answer keeps it
-          where it is; peeking moves it back two steps. Mastered means you still knew it after a gap of 3 days or more.
-          Each direction is tracked separately. Tap a character for details.
+          → 3 weeks → 2 months. A wrong answer moves the character back three steps and asks it again a minute later; a
+          correct but slow answer keeps it where it is; peeking moves it back two steps. Mastered means you still knew
+          it after a gap of 3 days or more. Each direction is tracked separately. Tap a character for details.
         </p>
 
         <div class="danger-zone">

@@ -1,6 +1,10 @@
+import { registerDecks } from './decks.ts';
+import { mergeStates } from './merge.ts';
 import { newSession } from './session.ts';
 import { defaultState, migrateState } from './state.ts';
+import { deviceId } from './sync.ts';
 import type { Session, State } from './types.ts';
+import { stableJson } from './util.ts';
 
 import { LEGACY_STORAGE_KEYS, STORAGE_KEY } from './storage-key.ts';
 
@@ -60,13 +64,15 @@ export function savedText(storage: KeyValueStorage | null): string | null {
 export const loadState = (storage: KeyValueStorage | null, now = Date.now()): State =>
   parseSaved(savedText(storage), now) ?? defaultState();
 
-export function saveState(storage: KeyValueStorage | null, state: State): void {
-  if (!storage) return;
+// Whether the progress was saved: the browser may have no storage for the page, or refuse to store more.
+export function saveState(storage: KeyValueStorage | null, state: State): boolean {
+  if (!storage) return false;
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(state));
     LEGACY_STORAGE_KEYS.forEach(key => storage.removeItem(key));
+    return true;
   } catch {
-    return;
+    return false;
   }
 }
 
@@ -86,12 +92,16 @@ export interface Saver {
   cancel(): void;
 }
 
-export function createSaver(storage: KeyValueStorage | null, delay = SAVE_DELAY_MS): Saver {
+export function createSaver(
+  storage: KeyValueStorage | null,
+  delay = SAVE_DELAY_MS,
+  onSaved: (saved: boolean) => void = () => undefined,
+): Saver {
   let pending: State | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const flush = () => {
     clearTimeout(timer);
-    if (pending) saveState(storage, pending);
+    if (pending) onSaved(saveState(storage, pending));
     pending = null;
   };
   return {
@@ -112,26 +122,37 @@ export interface AppStores {
   data: Store<State>;
   session: Store<Session>;
   saver: Saver;
-  // Takes in progress saved by another tab, so the tabs don't overwrite each other's answers.
+  // Whether the last save failed, so the page can warn that progress isn't being kept.
+  saveFailed: Store<boolean>;
+  // Merges in progress saved by another tab, so the tabs don't overwrite each other's answers.
   receive(raw: string | null, now?: number): void;
 }
 
 export function createAppStores(storage: KeyValueStorage | null): AppStores {
   const data = createStore(loadState(storage));
   const session = createStore(newSession());
-  const saver = createSaver(storage);
+  const saveFailed = createStore(false);
+  const saver = createSaver(storage, SAVE_DELAY_MS, saved => saveFailed.update(() => !saved));
   let receiving = false;
+  // The cards of imported decks follow the saved decks.
+  registerDecks(data.get().decks);
+  data.subscribe(state => registerDecks(state.decks));
   data.subscribe(state => {
     if (!receiving) saver.schedule(state);
   });
 
   function receive(raw: string | null, now = Date.now()): void {
-    const state = parseSaved(raw, now);
-    if (!state) return;
-    saver.cancel();
-    receiving = true;
+    const incoming = parseSaved(raw, now);
+    if (!incoming) return;
+    // Both tabs are this device, and answers this tab hasn't saved yet are merged in rather than lost.
+    const device = deviceId(storage);
+    const merged = mergeStates(data.get(), device, incoming, device);
+    // This tab saves only what the other tab doesn't have yet, so the two don't keep answering each other's saves.
+    const adds = stableJson(merged) !== stableJson(incoming);
+    if (!adds) saver.cancel();
+    receiving = !adds;
     try {
-      data.update(() => state);
+      data.update(() => merged);
     } finally {
       receiving = false;
     }
@@ -139,5 +160,5 @@ export function createAppStores(storage: KeyValueStorage | null): AppStores {
     session.update(current => (current.undo ? { ...current, undo: null } : current));
   }
 
-  return { data, session, saver, receive };
+  return { data, session, saver, saveFailed, receive };
 }

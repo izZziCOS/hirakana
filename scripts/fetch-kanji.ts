@@ -9,6 +9,7 @@ interface Entry {
   strokes: number;
   freq: number | null;
   jlpt_new: number | null;
+  jlpt_old: number | null;
   meanings: string[];
   readings_on: string[];
   readings_kun: string[];
@@ -30,8 +31,17 @@ const clean = (readings: string[]) =>
   ].join(' ');
 const quote = (text: string) => `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 
+// The source has no current level for 19 kanji that were on the test before 2010, 分 among them. Those take the level
+// their old one became: old 4 is N5, old 3 is N4, old 2 was split into N3 and N2 (N3 here) and old 1 is N1.
+const NEW_LEVEL: Record<number, number> = { 4: 5, 3: 4, 2: 3, 1: 1 };
+const levelOf = (entry: Entry): number | null =>
+  entry.jlpt_new ?? (entry.jlpt_old === null ? null : (NEW_LEVEL[entry.jlpt_old] ?? null));
+
 const lines = Object.entries(data)
-  .filter((entry): entry is [string, Entry & { jlpt_new: number }] => entry[1].jlpt_new !== null)
+  .flatMap(([kanji, entry]): [string, Entry & { jlpt_new: number }][] => {
+    const level = levelOf(entry);
+    return level === null ? [] : [[kanji, { ...entry, jlpt_new: level }]];
+  })
   .sort(
     ([, a], [, b]) => b.jlpt_new - a.jlpt_new || (a.freq ?? Infinity) - (b.freq ?? Infinity) || a.strokes - b.strokes,
   )

@@ -99,7 +99,7 @@ test('an invalid import file is rejected with a message', async ({ page }) => {
 test('the info dialog opens from the progress grid', async ({ page }) => {
   await openApp(page);
   await page.getByRole('tab', { name: 'Progress' }).click();
-  await page.locator('#progress-grids .cell[data-kana="か"]').click();
+  await page.locator('#progress-grids .cell[data-open="か"]').click();
   await expect(page.locator('#kana-dialog')).toBeVisible();
   await expect(page.locator('#dialog-kana')).toHaveText('か');
   await expect(page.locator('#dialog-body .stroke-count')).toHaveText('3 strokes');
@@ -165,7 +165,7 @@ test('kanji progress is kept when the kanji load after the app', async ({ page, 
 
 test('a kana learner sees the kanji sets once they have loaded in the background', async ({ page }) => {
   await openApp(page);
-  await expect(page.locator('.track-group[data-group="k5"] .track-group-status')).toHaveText('79 cards');
+  await expect(page.locator('.track-group[data-group="k5"] .track-group-status')).toHaveText('80 cards');
 });
 
 test('an import can be merged with the progress already here', async ({ page }) => {

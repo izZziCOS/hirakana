@@ -42,7 +42,10 @@ export function isCorrectAnswer(item: KanaItem, direction: Direction, given: str
     const written = parseWritingAnswer(given);
     return written !== null && writingPassed(written.mistakes, written.strokes);
   }
-  return normalizeAnswer(given) === answerOf(item, direction);
+  const typed = normalizeAnswer(given);
+  // A word recalled from its meaning can be typed in kana or in romaji.
+  if (direction === 'recall' && isWord(item) && item.accepted.includes(typed)) return true;
+  return typed === answerOf(item, direction);
 }
 
 const sharesReading = (a: KanaItem, b: KanaItem): boolean =>
@@ -55,8 +58,16 @@ interface ChoiceOptions {
   random?: Random;
 }
 
+// A small imported deck has too few words of its own to choose from, so other words in the same script fill in.
+const MIN_GROUP = 4;
+function sameGroupItems(item: KanaItem, script = item.script): KanaItem[] {
+  const group = KANA.filter(k => k.group === item.group && k.script === script);
+  if (group.length >= MIN_GROUP || !isWord(item)) return group;
+  return [...group, ...KANA.filter(k => isWord(k) && k.group !== item.group && k.script === script)];
+}
+
 function readChoices(item: KanaItem, pool: KanaItem[], drillItems: KanaItem[], random: Random): string[] {
-  const sameGroup = KANA.filter(k => k.group === item.group && k.script === item.script).map(k => k.romaji);
+  const sameGroup = sameGroupItems(item).map(k => k.romaji);
   let candidates: string[];
   if (item.group === 'sokuon') {
     candidates = [...wordVariants(item.romaji), ...shuffle(sameGroup, random)];
@@ -126,10 +137,7 @@ export function buildChoices(
     ...shuffle(lookalikesOf(answer), random),
     ...shuffle(lookalikesOf(item).map(toAnswerScript), random),
     ...shuffle(pool.filter(k => k.group === item.group).map(toAnswerScript), random),
-    ...shuffle(
-      KANA.filter(k => k.group === item.group && k.script === answer.script),
-      random,
-    ),
+    ...shuffle(sameGroupItems(item, answer.script), random),
   ].filter(
     (k): k is KanaItem =>
       k !== undefined &&

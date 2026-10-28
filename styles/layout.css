@@ -84,7 +84,8 @@ main {
   color: var(--ink);
 }
 
-.app-error a {
+.app-error a,
+.app-error .link-btn {
   margin-left: auto;
   color: var(--bad);
   font-weight: 700;

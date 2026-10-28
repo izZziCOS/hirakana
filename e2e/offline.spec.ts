@@ -23,7 +23,7 @@ test('the app keeps working offline once it has loaded', async ({ page, context 
   await expect(page.locator('.stroke-count')).toHaveText('3 strokes');
   await page.getByRole('tab', { name: 'Progress' }).click();
   await page
-    .locator('#progress-grids .cell[data-kana="ゼ"]')
+    .locator('#progress-grids .cell[data-open="ゼ"]')
     .waitFor({ state: 'detached' })
     .catch(() => undefined);
   await context.setOffline(false);

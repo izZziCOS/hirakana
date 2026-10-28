@@ -1,7 +1,7 @@
 import { answerOf } from '../../choices.ts';
 import { formatWait } from '../../format.ts';
 import { writingAnswer } from '../../handwriting.ts';
-import { hasReadingStage, isKanji, normalizeAnswer, statKey } from '../../kana.ts';
+import { hasReadingStage, isKanji, isWord, normalizeAnswer, statKey } from '../../kana.ts';
 import { milestonesOf } from '../../milestones.ts';
 import {
   ADVANCE_DELAY,
@@ -43,6 +43,7 @@ import {
   promptMarkup,
   resultMessage,
   typesKana,
+  meaningPromptMarkup,
   writePromptMarkup,
 } from './card.ts';
 import { kanaPad } from './kana-pad.ts';
@@ -136,15 +137,25 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     const writing = direction === 'write';
     const writingKanji = writing && isKanji(card.item);
     const isRomaji = direction === 'recall' || writing;
-    const prompt = listening ? '♪' : isRomaji ? card.item.romaji : card.item.kana;
+    // A word is recalled from its meaning rather than its romaji.
+    const fromMeaning = direction === 'recall' && isWord(card.item);
+    const prompt = listening
+      ? '♪'
+      : fromMeaning
+        ? (card.item.meaning ?? '')
+        : isRomaji
+          ? card.item.romaji
+          : card.item.kana;
     const withKanji = !listening && !isRomaji && hasReadingStage(card.item);
     const kanjiOnly = withKanji && Boolean(data.get().stats[statKey(card.item, direction)]?.kanjiOnly);
     els.prompt.hidden = false;
-    if (writingKanji) setHtml(els.prompt, writePromptMarkup(card.item));
+    if (fromMeaning) setHtml(els.prompt, meaningPromptMarkup(card.item));
+    else if (writingKanji) setHtml(els.prompt, writePromptMarkup(card.item));
     else if (withKanji) setHtml(els.prompt, promptMarkup(card.item, kanjiOnly));
     else els.prompt.textContent = prompt;
     els.prompt.classList.toggle('has-kanji', withKanji || writingKanji);
     sizePrompt(prompt, isRomaji, listening);
+    els.prompt.classList.toggle('is-meaning', fromMeaning);
 
     const label = promptLabel(card.item, direction, modeOf(card), kanjiOnly);
     els.script.textContent = settings().direction === 'mixed' ? `${DIRECTION_LABEL[direction]} · ${label}` : label;

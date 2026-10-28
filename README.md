@@ -3,19 +3,28 @@
 A hiragana, katakana and JLPT kanji trainer that runs entirely in the browser. It uses spaced repetition, works offline once it has
 loaded, and keeps progress in the browser with no backend.
 
-- **Home screen:** a "Today" panel with the reviews due and new cards left and one Continue button, three tracks
-  (Kana, Vocabulary, Kanji) whose sets and rows you switch on and off, and the practice modes grouped into Recognise,
+- **Home screen:** a "Today" panel with the reviews due and new cards left and one Continue button, four tracks
+  (Kana, Vocabulary, Kanji, Your decks) whose sets and rows you switch on and off, and the practice modes grouped into Recognise,
   Produce and Compare. Daily limits, the session goal, the speed check and introductions live in a Settings dialog.
-- **Six directions:** read (あ → ka, 水 → sui or mizu), recall (ka → あ, picked from four options or typed), match (あ ↔ ア),
-  listen (hear a kana or a word, then pick or type it), meaning (水 → water, for kanji) and write (ka or "water" → draw
+- **Six directions:** read (あ → ka, 水 → sui or mizu), recall (ka → あ, or cat → ねこ for words, picked from four options or typed), match (あ ↔ ア),
+  listen (hear a kana or a word, then pick or type it), meaning (水 → water, ねこ → cat, for kanji and words) and write (ka or "water" → draw
   it, checked stroke by stroke; up to one retried stroke in four still passes). Each has its own review schedule.
   Listening uses the browser's Japanese voice and is only offered when one exists. **Mixed** practice brings due
   cards from every direction you use into one session; new characters are learned by reading first, and the other
   directions open up once a character can be read.
 - **Character sets:** basic kana, dakuten, combinations (きゃ), small っ and long ー, loanword katakana (ファ), ~90 everyday
-  words, and JLPT vocabulary for every level (~90 N5 words, 50–65 each for N4–N1, shown with their kanji). Practise
-  whole sets or individual rows.
-- **Kanji:** all ~2,200 JLPT kanji (N5 79, N4 166, N3 367, N2 367, N1 1,232) in rows of 30, most frequent first. Read
+  words, and the full JLPT vocabulary lists (~7,700 words: about 590 N5, 600 N4, 2,100 N3, 1,650 N2 and 2,650 N1,
+  shown with their kanji). Each level starts with hand-picked themed rows, then the rest in rows of 30, words whose
+  kanji are taught earliest first. Practise whole sets or individual rows.
+- **Your own decks:** import a word list as CSV or tab-separated text, such as an Anki deck exported as "Notes in Plain
+  Text" (HTML, `漢字[かんじ]` furigana and romaji columns are handled). Each line needs a kana word and a meaning; a
+  kanji spelling is optional. Decks are practised in Read, Listen, Meaning and Recall, saved with your progress and synced. Importing a file
+  with the name of a deck you already have updates that deck and keeps your progress on the words still in it. New
+  words from your decks are introduced before other new cards.
+- **Reading:** the Read tab lists short sentences (kana-only ones first, up to about N3) that use only the kana and
+  kanji you know, or all of them with readings over the kanji you haven't learned. Select a word to show or hide its
+  reading; each sentence has its meaning and can be read aloud.
+- **Kanji:** all ~2,230 JLPT kanji (N5 80, N4 166, N3 373, N2 367, N1 1,244) in rows of 30, most frequent first. Read
   accepts any on or kun reading; the info panel lists the readings, meanings, stroke count, stroke order and the
   vocabulary words that use the kanji, which can be drilled together. It also shows the parts a kanji is built from
   (語 = 言 + 吾, from KanjiVG) and other kanji that share them. New words whose kanji you already know come first.
@@ -25,7 +34,8 @@ loaded, and keeps progress in the browser with no backend.
   and example before it is tested, a minute later (can be turned off in Settings). After a mix-up, both characters
   come back within the next few cards to tell them apart.
 - **Spaced repetition** with 11 steps from 1 minute to 8 months. Slow answers don't advance a card; the time limit adapts
-  to your own pace and can be switched off. Peeking moves a card back two steps. A daily limit on new characters leads to
+  to your own pace and can be switched off. A miss moves a card back three steps (not to the start) and asks it again a
+  minute later; peeking moves it back two steps. A daily limit on new characters leads to
   a "Done for today" screen.
 - **Typing help:** an on-screen kana keyboard for recall and listening, "I made a typo" after a wrong typed answer, and
   undo for the last answer.
@@ -81,7 +91,10 @@ src/
   data.ts                All kana, words, examples, notes and look-alike groups
   kanji-data.ts          Generated JLPT kanji list (readings, meanings); refresh with node scripts/fetch-kanji.ts
   kanji-parts.ts         Generated parts of each kanji from KanjiVG; refresh with node scripts/make-kanji-parts.ts
-  kanji.ts               Adds the kanji to the item lists; loaded on demand through kanji-loader.ts
+  vocab-data.ts          Generated JLPT word list; refresh with node scripts/fetch-vocabulary.ts
+  sentences.ts           Reading sentences with their furigana, and which ones the learner can read
+  decks.ts               Imported word lists: parsing CSV and Anki exports, and their cards
+  kanji.ts               Adds the kanji and the JLPT word list to the item lists; loaded on demand through kanji-loader.ts
   reading.ts             Which words the learner can read with the characters they know
   milestones.ts          Recall rates per set and milestones after an answer
   kana.ts                Builds the kana, word and kanji items, romaji and answer lookups from the data
@@ -115,7 +128,7 @@ Everything outside `src/ui/` is pure and has no DOM access. State changes go thr
 
 - copies only the Klee One font subsets that cover characters the app actually shows;
 - copies the stroke data and the files in `public/`;
-- splits the JLPT kanji (about 60% of the code) into a file of their own. People learning kana start without it and
+- splits the JLPT kanji and the full JLPT word list (about 80% of the code) into a file of their own. People learning kana start without it and
   get it in the background; saved progress that involves kanji waits for it, because cleaning it up without the kanji
   would drop those cards. Tests that need kanji import `src/kanji.ts`;
 - writes `dist/index.html`, with a `modulepreload` link for the code `main.js` shares with the kanji file;
@@ -128,7 +141,7 @@ progress** to back it up or move it, or turn on sync. An import can be merged wi
 replace it. With sync on, `kana-dojo-sync` holds the sync code and
 `kana-dojo-device` this device's id; neither is part of an export.
 
-The saved object carries a `version` (currently 6). When the shape changes:
+The saved object carries a `version` (currently 7). When the shape changes:
 
 1. bump `STATE_VERSION` in `src/state.ts`;
 2. add a step to `MIGRATIONS` that upgrades the previous version;
@@ -152,10 +165,13 @@ allowed, plus inline `style` attributes. A build with `SYNC_URL` also allows con
 ## Credits
 
 - Stroke order data: [KanjiVG](https://kanjivg.tagaini.net) by Ulrich Apel, CC BY-SA 3.0, stored in `vendor/kanjivg/`.
+- JLPT vocabulary: [open-anki-jlpt-decks](https://github.com/jamsinclair/open-anki-jlpt-decks) by Jamie Sinclair (MIT),
+  based on Jonathan Waller's JLPT lists, stored in `src/vocab-data.ts`.
 - Kanji readings and meanings: [KANJIDIC](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project) by the Electronic
   Dictionary Research and Development Group, CC BY-SA 4.0, via
   [kanji-data](https://github.com/davidluzgouveia/kanji-data) by David Gouveia (MIT). JLPT levels from
-  [Jonathan Waller's JLPT resources](http://www.tanos.co.uk/jlpt/).
+  [Jonathan Waller's JLPT resources](http://www.tanos.co.uk/jlpt/); 19 kanji missing there (分 among them) take the
+  level their pre-2010 JLPT level became (see `scripts/fetch-kanji.ts`).
 - Photos, under the [Unsplash License](https://unsplash.com/license): the Hakone torii on the home screen by
   [Tianshu Liu](https://unsplash.com/photos/torii-gate-japan-SBK40fdKbAg) and the Miyajima torii behind a practice
   session by [Manoa Angelo](https://unsplash.com/photos/a-red-torii-gate-stands-in-the-sea-7NNgxNXac0k), stored in

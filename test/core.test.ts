@@ -34,6 +34,7 @@ import {
   MAX_BOX,
   MINUTE,
   outcomeFor,
+  MISS_PENALTY,
   PEEK_PENALTY,
   personalPace,
   pickNext,
@@ -86,7 +87,8 @@ test('statKey keeps reading stats under the bare kana and round-trips', () => {
 
 test('supportsDirection limits words and loanword katakana', () => {
   assert.ok(supportsDirection(getKana('やま'), 'read'));
-  assert.ok(!supportsDirection(getKana('やま'), 'recall'));
+  assert.ok(supportsDirection(getKana('やま'), 'recall'), 'a word is recalled from its meaning');
+  assert.ok(!supportsDirection(getKana('やま'), 'write'));
   assert.ok(!supportsDirection(getKana('コーヒー'), 'match'));
   assert.ok(supportsDirection(getKana('ファ'), 'recall'));
   assert.ok(!supportsDirection(getKana('ファ'), 'match'));
@@ -163,12 +165,21 @@ test('the box never goes past the last interval', () => {
   assert.equal(applyAnswer(stat(MAX_BOX, NOW), 'correct', NOW).box, MAX_BOX);
 });
 
-test('a wrong answer drops the kana back to box 1', () => {
+test('a wrong answer moves the kana back three boxes and brings it back a minute later', () => {
   const result = applyAnswer({ ...stat(6, NOW), correct: 5, streak: 5 }, 'wrong', NOW);
-  assert.equal(result.box, 1);
+  assert.equal(result.box, 6 - MISS_PENALTY);
   assert.equal(result.wrong, 1);
   assert.equal(result.streak, 0);
   assert.equal(result.due, NOW + MINUTE);
+  assert.equal(applyAnswer(stat(2, NOW), 'wrong', NOW).box, 1);
+  assert.equal(applyAnswer(undefined, 'wrong', NOW).box, 1);
+});
+
+test('a missed card answered right a minute later resumes one step above where it fell to', () => {
+  const missed = applyAnswer(stat(MAX_BOX, NOW), 'wrong', NOW);
+  const relearned = applyAnswer(missed, 'correct', NOW + MINUTE);
+  assert.equal(relearned.box, MAX_BOX - MISS_PENALTY + 1);
+  assert.equal(relearned.due, NOW + MINUTE + intervalFor(relearned.box));
 });
 
 test('peeking moves the kana back two boxes without counting as wrong', () => {

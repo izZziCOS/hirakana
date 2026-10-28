@@ -4,7 +4,9 @@ import { readableWords } from './reading.ts';
 import { levelOf, type Stats } from './schedule.ts';
 import type { Direction, GroupId, KanaItem } from './types.ts';
 
-export const READABLE_STEPS = [10, 25, 50, 100, 200, 300, 400];
+export const READABLE_STEPS = [
+  10, 25, 50, 100, 200, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000,
+];
 // Below this many answers a recall rate says more about luck than memory.
 export const MIN_RECALL_ANSWERS = 10;
 

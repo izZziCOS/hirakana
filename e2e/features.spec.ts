@@ -101,6 +101,8 @@ test('the session goal shows progress and celebrates when reached', async ({ pag
   for (const romaji of ['a', 'i', 'u', 'e', 'o', 'ka', 'ki', 'ku', 'ke']) {
     await answer(page, romaji);
     await expect(feedback(page)).toContainText('Correct!');
+    // A milestone (a new number of readable words) keeps the card up until Next.
+    if (await page.locator('#feedback .milestone').isVisible()) await page.keyboard.press('Enter');
     await expect(feedback(page)).not.toContainText('Correct!');
   }
   await answer(page, 'ko');

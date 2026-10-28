@@ -47,7 +47,7 @@ test('a kanji’s info lists its parts and other kanji built with them', async (
   await page.getByRole('tab', { name: 'Progress' }).click();
   await page.locator('#progress-script [data-value="kanji"]').click();
   await page.locator('[data-expand="k5"]').click();
-  await page.locator('#progress-grids .cell[data-kana="語"]').click();
+  await page.locator('#progress-grids .cell[data-open="語"]').click();
   const body = page.locator('#dialog-body');
   await expect(body).toContainText('Parts');
   await expect(body.locator('[data-open="言"]')).toBeVisible();

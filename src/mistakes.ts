@@ -23,7 +23,7 @@ export function confusionPairs(mistakes: Mistake[], limit = 8): MixUpPair[] {
     const mixUp = mixUpOf(mistake);
     if (!mixUp) return;
     const key = mixUp
-      .map(item => item.kana)
+      .map(item => item.id)
       .sort()
       .join('|');
     const pair = pairs.get(key) ?? { items: mixUp, count: 0 };

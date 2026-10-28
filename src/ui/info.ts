@@ -111,7 +111,7 @@ const readingList = (readings: string[], format: (reading: string) => Html | str
 
 // Opens the other item's info in the dialog; handled by onInfoLinks.
 const linkTo = (item: KanaItem, label: Html): Html =>
-  html`<button type="button" class="info-link" data-open="${item.kana}">${label}</button>`;
+  html`<button type="button" class="info-link" data-open="${item.id}">${label}</button>`;
 
 export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html {
   const rows: Html[] = [];
@@ -179,7 +179,7 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
                   <span class="muted">${word.meaning}</span>`,
             ),
           ' · ',
-        )} <button type="button" class="ghost small" data-drill="${item.kana}">Drill with its words</button>`,
+        )} <button type="button" class="ghost small" data-drill="${item.id}">Drill with its words</button>`,
     );
   }
   const kanjiInWord = kanjiOfWord(item);

@@ -57,7 +57,7 @@ const kanjiIn = (group: string) => KANA.filter(item => item.group === group);
 test('every JLPT level has its full kanji list, split into rows', () => {
   assert.deepEqual(
     ['k5', 'k4', 'k3', 'k2', 'k1'].map(group => kanjiIn(group).length),
-    [79, 166, 367, 367, 1232],
+    [80, 166, 373, 367, 1244],
   );
   ROW_INFO.filter(row => row.group.startsWith('k')).forEach(row => {
     const items = KANA.filter(item => item.rowId === row.id);
@@ -106,7 +106,7 @@ test('kanji are practised by reading or meaning only', () => {
   assert.ok(!supportsDirection(water, 'recall'));
   assert.ok(!supportsDirection(water, 'match'));
   assert.ok(!supportsDirection(getKana('あ'), 'meaning'));
-  assert.ok(!supportsDirection(getKana('やま'), 'meaning'));
+  assert.ok(supportsDirection(getKana('やま'), 'meaning'));
 });
 
 test('meanings are matched loosely', () => {
@@ -149,9 +149,12 @@ test('kanji rows are practised whatever script is picked', () => {
   assert.ok(rowsPool(state.settings).some(item => item.kana === '水'));
   assert.ok(activePool(state.settings).length > 0);
   const kanaOnly = updateSettings(state, { rows: ['basic:Vowels'] });
-  assert.equal(emptyMessage(kanaOnly.settings, null), 'Meaning mode is for kanji. Choose some kanji rows above.');
+  assert.equal(
+    emptyMessage(kanaOnly.settings, null),
+    'Meaning mode is for kanji and words. Choose some of those rows above.',
+  );
   const recallKanji = updateSettings(state, { direction: 'recall' });
-  assert.match(emptyMessage(recallKanji.settings, null), /kanji in Read or Meaning mode/);
+  assert.match(emptyMessage(recallKanji.settings, null), /Kanji can be practised in Read or Meaning mode/);
 });
 
 test('meaning stats and settings survive a save and reload', () => {
@@ -342,4 +345,19 @@ test('new words whose kanji you know come first', () => {
   assert.ok(knowsKanjiOf(getKana('かお'), { 顔: learned }));
   assert.ok(!knowsKanjiOf(getKana('やま'), { 顔: learned }), 'words without kanji never jump ahead');
   assert.equal(pickNext({ pool, stats: { 顔: learned }, now: NOW })?.item.kana, 'かお');
+});
+
+test('kanji the source left without a level take the one their old JLPT level became', () => {
+  assert.equal(getKana('分').group, 'k5');
+  assert.equal(getKana('的').group, 'k3');
+  assert.equal(getKana('璽').group, 'k1');
+  assert.ok(getKana('分').accepted.includes('fun'));
+});
+
+test('a saved row that a longer kanji list renamed becomes the row now holding its first kanji', () => {
+  const state = migrateState({
+    version: 7,
+    settings: { rows: ['k5:N5 · 61–79', 'k1:N1 · 1231–1232', 'k3:N3 · 361–367', 'k5:N5 · 99–120', 'basic:Vowels'] },
+  });
+  assert.deepEqual(state.settings.rows, ['k5:N5 · 61–80', 'k1:N1 · 1231–1244', 'k3:N3 · 361–373', 'basic:Vowels']);
 });
