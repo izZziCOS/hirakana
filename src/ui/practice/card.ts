@@ -12,13 +12,16 @@ import { parseWritingAnswer } from '../../handwriting.ts';
 import type { Direction, KanaItem, Mode } from '../../types.ts';
 import { unique } from '../../util.ts';
 import { jp } from '../dom.ts';
+import { clozeMarkup } from '../grammar.ts';
 import { html, type Html } from '../html.ts';
 import { GROUP_LABEL, SCRIPT_LABEL } from '../labels.ts';
 
-export const typesKana = (direction: Direction): boolean => direction === 'recall' || direction === 'listen';
+export const typesKana = (direction: Direction): boolean =>
+  direction === 'recall' || direction === 'listen' || direction === 'cloze';
 
 // The line under a character being introduced: how it reads and, for words and kanji, what it means.
 export function introMarkup(item: KanaItem): Html {
+  if (item.cloze) return html`<strong>${item.cloze.point.label}</strong> · ${item.cloze.point.meaning}`;
   if (isKanji(item)) return html`<strong>${item.meanings?.[0]}</strong> · ${readingSummary(item)}`;
   if (isWord(item)) return html`<strong>${item.romaji}</strong> · ${item.meaning}`;
   return html`<strong>${item.romaji}</strong>`;
@@ -32,11 +35,13 @@ export function promptLabel(item: KanaItem, direction: Direction, mode: Mode, ka
   if (direction === 'listen') return `Listen, then ${action.toLowerCase()} the ${isWord(item) ? 'word' : item.script}`;
   if (direction === 'match') return `${SCRIPT_LABEL[item.script]} → ${otherScript(item.script)}`;
   if (direction === 'meaning') return `${action} the meaning · ${GROUP_LABEL[item.group]}`;
+  if (direction === 'cloze') return `${action} the missing part · ${GROUP_LABEL[item.group]}`;
   if (direction === 'write') return `Write the ${isKanji(item) ? 'kanji' : item.script} · ${GROUP_LABEL[item.group]}`;
   return `${SCRIPT_LABEL[item.script]} · ${GROUP_LABEL[item.group]}`;
 }
 
 export function placeholderFor(item: KanaItem, direction: Direction): string {
+  if (direction === 'cloze') return 'Type the missing part in kana or romaji…';
   if (direction === 'recall' && isWord(item)) return `Type the word in ${item.script} or romaji…`;
   if (typesKana(direction)) return `Type it in ${item.script}…`;
   if (direction === 'meaning') return 'Type the meaning in English…';
@@ -109,6 +114,12 @@ export function resultMessage(item: KanaItem, direction: Direction, isCorrect: b
     return isCorrect
       ? html`<strong>Correct!</strong> ${jp(item.kana)} = ${jp(counterpart)}`
       : html`<strong>${jp(item.kana)} is ${jp(counterpart)} in ${otherScript(item.script)}.</strong>${yourPick}`;
+  }
+  if (direction === 'cloze') {
+    const sentence = html`${clozeMarkup(item, null, true)} “${item.cloze?.english}”`;
+    return isCorrect
+      ? html`<strong>Correct!</strong> ${sentence}`
+      : html`<strong>${sentence}</strong>${given === null ? '' : html` You answered ${jp(given)}.`}`;
   }
   if (direction === 'write') {
     const written = given === null ? null : parseWritingAnswer(given);

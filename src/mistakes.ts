@@ -9,7 +9,8 @@ export interface MixUpPair {
 
 export function mixUpOf(mistake: Mistake): [KanaItem, KanaItem] | null {
   const target = findKana(mistake.kana);
-  if (!target || !mistake.given) return null;
+  // A wrong particle or ending isn't another card mixed up with this one.
+  if (!target || !mistake.given || mistake.direction === 'cloze') return null;
   let answered: KanaItem | null | undefined;
   if (mistake.direction === 'recall' || mistake.direction === 'listen') answered = findKana(mistake.given);
   else if (mistake.direction === 'match') answered = findKana(findKana(mistake.given)?.counterpart);

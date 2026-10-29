@@ -1,0 +1,71 @@
+/* Grammar: sentences with a gap to fill in, on the card, in the info panel and in the progress grid. */
+
+.track-grammar {
+  background: light-dark(#f4ece0, #352b1d);
+  color: light-dark(#7a4f12, #e7c48c);
+}
+
+.kana.is-sentence {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  line-height: 1.9;
+  margin: 24px 0 28px;
+  text-wrap: balance;
+}
+
+.cloze-sentence rt {
+  font-size: 0.45em;
+  color: var(--muted);
+}
+
+.cloze-gap {
+  display: inline-block;
+  width: 2.2em;
+  height: 1.1em;
+  margin: 0 0.15em;
+  vertical-align: -0.15em;
+  border-bottom: 3px solid var(--accent);
+}
+
+.cloze-answer {
+  padding: 0 0.1em;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.cloze-english {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.grammar-examples {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.grammar-examples li {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+}
+
+.grammar-row {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.grammar-row .grid-label {
+  text-align: start;
+}

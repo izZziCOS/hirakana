@@ -1,7 +1,7 @@
 import { GROUPS } from '../data.ts';
 import { bestDayStreak, dayStreak, forecast } from '../days.ts';
 import { formatSeconds, formatWait } from '../format.ts';
-import { isKanji, isWord, KANA, statKey, supportsDirection } from '../kana.ts';
+import { isGrammar, isKanji, isWord, KANA, statKey, supportsDirection } from '../kana.ts';
 import { recallRate } from '../milestones.ts';
 import { readableWords } from '../reading.ts';
 import { isDue, levelOf } from '../schedule.ts';
@@ -12,6 +12,7 @@ import type { Direction, Group, KanaItem, Script, State } from '../types.ts';
 import { renderAccuracyTrend, renderActivityHeatmap } from './charts.ts';
 import type { KanaDialog } from './dialog.ts';
 import { $, onDelegate, onSegmented, press } from './dom.ts';
+import { shortLabel } from './grammar.ts';
 import { html, setHtml, type Html } from './html.ts';
 import { LEVEL_LABEL } from './labels.ts';
 
@@ -65,14 +66,14 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     const speed = stat?.avgMs ? ` · avg ${formatSeconds(stat.avgMs)}` : '';
     const stage = stat?.kanjiOnly ? ' · stage 2: kanji only' : '';
     return html`<button
-      class="cell level-${level}${isWord(item) ? ' word-cell' : ''}${isKanji(item) ? ' kanji-cell' : ''}${
+      class="cell level-${level}${isWord(item) || isGrammar(item) ? ' word-cell' : ''}${isKanji(item) ? ' kanji-cell' : ''}${
         stat?.kanjiOnly ? ' kanji-only' : ''
       }"
       data-open="${item.id}"
       style="${column === undefined ? '' : `grid-column:${column + 2}`}"
-      title="${`${item.kanji ? `${item.kanji} · ` : ''}${item.romaji} — ${LEVEL_LABEL[level]}${stage}${review}${speed}`}"
+      title="${`${item.kanji ? `${item.kanji} · ` : ''}${item.cloze ? `${item.kana} · ` : ''}${item.romaji} — ${LEVEL_LABEL[level]}${stage}${review}${speed}`}"
     >
-      <span class="cell-kana jp">${stat?.kanjiOnly ? (item.kanji ?? item.kana) : item.kana}</span
+      <span class="cell-kana jp">${stat?.kanjiOnly ? (item.kanji ?? item.kana) : shortLabel(item)}</span
       ><span class="cell-romaji">${item.romaji}</span><span class="cell-acc">${accuracy}</span
       ><span class="visually-hidden">${LEVEL_LABEL[level]}${stage}</span>
     </button>`;
@@ -130,6 +131,18 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
 
   function gridOf(state: State, group: Group, groupItems: KanaItem[], first: KanaItem, now: number): Html {
     if (isKanji(first)) return html`<div class="kanji-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
+    if (isGrammar(first)) {
+      const points = [...new Set(groupItems.map(k => k.row))];
+      return html`<div class="grammar-grid">
+        ${points.map(
+          label =>
+            html`<div class="grammar-row">
+              <span class="grid-label jp">${label}</span>
+              <div class="word-grid">${groupItems.filter(k => k.row === label).map(k => cell(state, k, now))}</div>
+            </div>`,
+        )}
+      </div>`;
+    }
     if (isWord(first)) return html`<div class="word-grid">${groupItems.map(item => cell(state, item, now))}</div>`;
     const columns = group.id === 'yoon' ? 'auo' : 'aiueo';
     const rowLabels = [...new Set(groupItems.map(k => k.row))];
@@ -179,7 +192,8 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     setHtml(
       els.grids,
       GROUPS.map(group => {
-        const groupItems = items.filter(k => k.script === script && k.group === group.id);
+        // Grammar is shown whichever script is picked.
+        const groupItems = items.filter(k => (k.script === script || isGrammar(k)) && k.group === group.id);
         return groupItems.length ? groupSection(state, group, groupItems, now) : null;
       }),
     );

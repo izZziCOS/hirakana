@@ -31,12 +31,12 @@ test('today’s summary counts due reviews and the new cards still allowed', () 
     version: 5,
     settings: { rows: ['basic:Vowels'], newPerDay: 5 },
     stats: { あ: due, い: later },
-    days: { [dayKey(NOW)]: { answers: 2, learned: 2, scored: 2, correct: 2 } },
+    days: { [dayKey(NOW)]: { answers: 2, learned: 2, reviews: 0, scored: 2, correct: 2 } },
   });
-  assert.deepEqual(todaySummary(state, newSession(), NOW), { due: 1, newLeft: 3 });
-  assert.deepEqual(todaySummary(state, learnMore(newSession()), NOW), { due: 1, newLeft: 3 }, 'only 3 unseen');
+  assert.deepEqual(todaySummary(state, newSession(), NOW), { due: 1, newLeft: 3, held: 0 });
+  assert.deepEqual(todaySummary(state, learnMore(newSession()), NOW), { due: 1, newLeft: 3, held: 0 }, 'only 3 unseen');
   const used = updateSettings(state, { newPerDay: 2 });
-  assert.deepEqual(todaySummary(used, newSession(), NOW), { due: 1, newLeft: 0 });
+  assert.deepEqual(todaySummary(used, newSession(), NOW), { due: 1, newLeft: 0, held: 0 });
 });
 
 test('set progress counts mastered and learning cards in the current direction and script', () => {

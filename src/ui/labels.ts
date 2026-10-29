@@ -32,5 +32,6 @@ export const DIRECTION_LABEL: Record<PracticeDirection, string> = {
   listen: 'Listen',
   meaning: 'Meaning',
   write: 'Write',
+  cloze: 'Fill in',
   mixed: 'Mixed',
 };

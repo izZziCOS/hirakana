@@ -30,7 +30,7 @@ export const shiftDay = (key: string, days: number): string => {
 
 export const startOfDay = (timestamp: number): number => new Date(timestamp).setHours(0, 0, 0, 0);
 
-export const emptyDay = (): DayLog => ({ answers: 0, learned: 0, scored: 0, correct: 0 });
+export const emptyDay = (): DayLog => ({ answers: 0, learned: 0, reviews: 0, scored: 0, correct: 0 });
 
 // Adds up several day logs, for example those of different devices.
 export function addDays(logs: Days[]): Days {
@@ -41,6 +41,7 @@ export function addDays(logs: Days[]): Days {
       total[key] = {
         answers: sum.answers + day.answers,
         learned: sum.learned + day.learned,
+        reviews: sum.reviews + day.reviews,
         scored: sum.scored + day.scored,
         correct: sum.correct + day.correct,
       };
@@ -57,6 +58,7 @@ export function logDay(days: Days, now: number, entry: Partial<DayLog>): Days {
     [key]: {
       answers: today.answers + (entry.answers ?? 0),
       learned: today.learned + (entry.learned ?? 0),
+      reviews: today.reviews + (entry.reviews ?? 0),
       scored: today.scored + (entry.scored ?? 0),
       correct: today.correct + (entry.correct ?? 0),
     },

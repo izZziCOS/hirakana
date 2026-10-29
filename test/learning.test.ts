@@ -79,10 +79,10 @@ test('a character seen for the first time is introduced, and the introduction co
 
 test('mixed practice reads first and adds the other directions already in use', () => {
   const fresh = vowels('mixed');
-  assert.deepEqual(mixedDirections(fresh.stats), ['read']);
+  assert.deepEqual(mixedDirections(fresh.stats), ['read', 'cloze']);
   const used = withStats(fresh, ['recall:か', 'listen:か', 'write:か'], known());
-  assert.deepEqual(mixedDirections(used.stats), ['read', 'recall', 'listen', 'write']);
-  assert.deepEqual(mixedDirections(used.stats, false), ['read', 'recall', 'write']);
+  assert.deepEqual(mixedDirections(used.stats), ['read', 'recall', 'listen', 'write', 'cloze']);
+  assert.deepEqual(mixedDirections(used.stats, false), ['read', 'recall', 'write', 'cloze']);
   assert.equal(practiceEntries(used).length, 5 * 4);
 
   // Recall for あ waits until あ can be read; reading い is introduced instead.

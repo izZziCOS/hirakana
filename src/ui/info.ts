@@ -21,6 +21,7 @@ import { levelOf } from '../schedule.ts';
 import type { KanaItem, State } from '../types.ts';
 import { codePoints } from '../util.ts';
 import { bigJp, jp } from './dom.ts';
+import { clozeMarkup, pointItems } from './grammar.ts';
 import { html, type Html } from './html.ts';
 import { DIRECTION_LABEL, GROUP_LABEL, LEVEL_LABEL, SCRIPT_LABEL } from './labels.ts';
 
@@ -113,13 +114,55 @@ const readingList = (readings: string[], format: (reading: string) => Html | str
 const linkTo = (item: KanaItem, label: Html): Html =>
   html`<button type="button" class="info-link" data-open="${item.id}">${label}</button>`;
 
+const infoRow = (label: string, value: Html | string): Html =>
+  html`<dt>${label}</dt>
+    <dd>${value}</dd>`;
+
+// A grammar card explains its point and shows the point's other sentences.
+function grammarInfo(item: KanaItem, state: State, now: number): Html {
+  const { cloze } = item;
+  if (!cloze) return html``;
+  const { point } = cloze;
+  const others = pointItems(item).filter(other => other !== item);
+  const example = (other: KanaItem) =>
+    html`<li>
+      <span class="jp">${clozeMarkup(other, state.stats, true)}</span>
+      <span class="muted">${other.cloze?.english}</span>
+    </li>`;
+  return html`<dl class="info-list">
+    ${[
+      infoRow('Pattern', jp(point.pattern)),
+      infoRow('Meaning', point.meaning),
+      infoRow('How it works', point.note),
+      infoRow(
+        'This sentence',
+        html`<span class="jp big">${clozeMarkup(item, state.stats, true)}</span> — ${cloze.english}`,
+      ),
+      infoRow(
+        cloze.answers.length > 1 ? 'Right answers' : 'Answer',
+        html`${join(
+            cloze.answers.map(answer => jp(answer)),
+            ' · ',
+          )} <span class="muted">${item.romaji}</span>`,
+      ),
+      others.length > 0 &&
+        infoRow(
+          'More examples',
+          html`<ul class="grammar-examples">
+              ${others.map(example)}
+            </ul>
+            <button type="button" class="ghost small" data-drill-row="${item.rowId}">Drill this point</button>`,
+        ),
+      infoRow('Type', `Grammar · ${point.label} · ${GROUP_LABEL[item.group]}`),
+      infoRow('Your record', recordText(item, state, now)),
+    ]}
+  </dl>`;
+}
+
 export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html {
+  if (item.cloze) return grammarInfo(item, state, now);
   const rows: Html[] = [];
-  const add = (label: string, value: Html | string) =>
-    rows.push(
-      html`<dt>${label}</dt>
-        <dd>${value}</dd>`,
-    );
+  const add = (label: string, value: Html | string) => rows.push(infoRow(label, value));
   const alternatives = item.accepted.slice(1);
 
   if (item.readings) {

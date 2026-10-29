@@ -142,6 +142,17 @@
             </div>
           </aside>
 
+          <aside id="catch-up-note" class="backup-note" aria-labelledby="catch-up-title" hidden>
+            <div>
+              <p id="catch-up-title" class="backup-note-title"></p>
+              <p id="catch-up-detail" class="muted small"></p>
+            </div>
+            <div class="backup-note-actions">
+              <button type="button" id="catch-up-spread" class="primary"></button>
+              <button type="button" id="catch-up-later" class="ghost">Not now</button>
+            </div>
+          </aside>
+
           <section id="tracks" class="home-section" aria-labelledby="tracks-h">
             <div class="section-head">
               <h2 id="tracks-h">Your tracks</h2>
@@ -192,6 +203,9 @@
                   <button data-value="write" title="See the reading or meaning, write the kana or kanji">
                     Write ✎
                   </button>
+                  <button data-value="cloze" title="Fill the gap in a sentence with the right particle or form">
+                    Fill in <span class="jp">雨＿降る</span>
+                  </button>
                 </div>
               </div>
               <div class="mode-group">
@@ -199,7 +213,7 @@
                 <div class="mode-chips">
                   <button
                     data-value="mixed"
-                    title="Reviews from every direction you practise, new characters by reading"
+                    title="Reviews from every direction you practise, new characters by reading and grammar by filling in"
                   >
                     Mixed ⇄
                   </button>
@@ -350,6 +364,7 @@
             <button data-value="listen">Listen</button>
             <button data-value="meaning">Meaning</button>
             <button data-value="write">Write</button>
+            <button data-value="cloze">Fill in</button>
           </div>
         </div>
         <div class="stat-cards" id="overall"></div>
@@ -486,6 +501,20 @@
             <button data-value="25">25</button>
             <button data-value="50">50</button>
           </div>
+        </div>
+        <div class="row-group">
+          <div class="row-group-head" id="reviews-label">Reviews per day</div>
+          <div class="segmented small" id="reviews-per-day" aria-labelledby="reviews-label">
+            <button data-value="0" title="Every review that is due">No limit</button>
+            <button data-value="50">50</button>
+            <button data-value="100">100</button>
+            <button data-value="200">200</button>
+            <button data-value="400">400</button>
+          </div>
+          <p class="muted small">
+            Reviews past the limit wait for tomorrow, the longest overdue first. Cards you are still learning don’t
+            count.
+          </p>
         </div>
         <div class="row-group">
           <div class="row-group-head" id="goal-label">Session goal (cards)</div>

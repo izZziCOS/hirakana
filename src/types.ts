@@ -1,8 +1,11 @@
+import type { Segment } from './furigana.ts';
+
 export type KanaScript = 'hiragana' | 'katakana';
 export type Script = KanaScript | 'kanji';
 export type ScriptSetting = 'hiragana' | 'katakana' | 'both';
 export type Mode = 'type' | 'choose';
-export type Direction = 'read' | 'recall' | 'match' | 'listen' | 'meaning' | 'write';
+// Cloze: fill the gap in a sentence; the only direction grammar cards have.
+export type Direction = 'read' | 'recall' | 'match' | 'listen' | 'meaning' | 'write' | 'cloze';
 // What is practised: one direction, or due cards from every direction in use.
 export type PracticeDirection = Direction | 'mixed';
 export type Theme = 'system' | 'light' | 'dark';
@@ -20,9 +23,11 @@ export type GroupId =
   | 'n2'
   | 'n1'
   | KanjiGroupId
+  | GrammarGroupId
   // Imported decks.
   | 'custom';
 export type KanjiGroupId = 'k5' | 'k4' | 'k3' | 'k2' | 'k1';
+export type GrammarGroupId = 'g5' | 'g4';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
 export type CardKind = 'new' | 'review' | 'ahead' | 'drill' | 'contrast';
 export type Level = 'new' | 'weak' | 'learning' | 'mastered';
@@ -35,7 +40,7 @@ export interface Group {
 
 // The home screen groups the character sets into three tracks.
 export interface Track {
-  id: 'kana' | 'vocabulary' | 'kanji' | 'decks';
+  id: 'kana' | 'vocabulary' | 'kanji' | 'grammar' | 'decks';
   label: string;
   glyph: string;
   summary: string;
@@ -95,12 +100,42 @@ export interface KanaItem {
   readings?: KanjiReadings;
   strokes?: number;
   parts?: KanjiPart[];
+  cloze?: Cloze;
 }
 
 // A part a kanji is built from: its shape there (氵) and the kanji it comes from (水), which are often the same.
 export interface KanjiPart {
   shape: string;
   kanji: string;
+}
+
+// A grammar point, practised through sentences with a gap where the point goes.
+export interface GrammarPoint {
+  // Saved with the progress on its sentences, so it never changes.
+  id: string;
+  level: 4 | 5;
+  // Short, for the row chip and the card: "は (topic)".
+  label: string;
+  pattern: string;
+  meaning: string;
+  note: string;
+  // Wrong answers for multiple choice, besides the other sentences' answers.
+  options: string[];
+  // The gap is written [が], or [から/ので] when either is right. Sentences are saved by position, so new ones go at
+  // the end.
+  sentences: [markup: string, english: string][];
+}
+
+// A sentence of a grammar point with a gap to fill in.
+export interface Cloze {
+  point: GrammarPoint;
+  before: Segment[];
+  after: Segment[];
+  // Every right answer, in kana; the first is the one shown.
+  answers: string[];
+  english: string;
+  // The whole sentence in kana, gap filled, as it is read aloud.
+  reading: string;
 }
 
 export interface KanjiReadings {
@@ -145,6 +180,8 @@ export interface Stat {
   last: number;
   avgMs?: number;
   kanjiOnly?: boolean;
+  // When catch-up last moved its review to a later day, so syncing passes the move on.
+  moved?: number;
 }
 
 export interface Mistake {
@@ -158,6 +195,8 @@ export interface Mistake {
 export interface DayLog {
   answers: number;
   learned: number;
+  // Answers to cards due for review a day or more after the last one, which the daily review limit counts.
+  reviews: number;
   scored: number;
   correct: number;
 }
@@ -168,6 +207,8 @@ export interface Settings {
   mode: Mode;
   direction: PracticeDirection;
   newPerDay: number;
+  // 0: no limit.
+  reviewsPerDay: number;
   goal: number;
   speedCheck: SpeedCheck;
   theme: Theme;
@@ -232,6 +273,7 @@ export interface Session {
   streak: number;
   extra: boolean;
   bonusNew: number;
+  bonusReviews: number;
   drill: Drill | null;
   card: Card | null;
   undo: UndoPoint | null;

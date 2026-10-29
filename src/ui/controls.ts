@@ -17,6 +17,7 @@ export function createControls(data: Store<State>): Controls {
   onSegmented('#script-select', value => set({ script: value as ScriptSetting }));
   onSegmented('#mode-select', value => set({ mode: value as Mode }));
   onSegmented('#new-per-day', value => set({ newPerDay: Number(value) }));
+  onSegmented('#reviews-per-day', value => set({ reviewsPerDay: Number(value) }));
   onSegmented('#goal-select', value => set({ goal: Number(value) }));
   onSegmented('#speed-select', value => set({ speedCheck: value as SpeedCheck }));
   onSegmented('#introduce-select', value => set({ introduce: value === 'on' }));
@@ -28,6 +29,7 @@ export function createControls(data: Store<State>): Controls {
       press('#script-select', settings.script);
       press('#mode-select', settings.mode);
       press('#new-per-day', settings.newPerDay);
+      press('#reviews-per-day', settings.reviewsPerDay);
       press('#goal-select', settings.goal);
       press('#speed-select', settings.speedCheck);
       press('#introduce-select', settings.introduce ? 'on' : 'off');

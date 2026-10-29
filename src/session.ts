@@ -2,10 +2,11 @@ import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
 import { deckRowId } from './decks.ts';
 import { formatSeconds } from './format.ts';
-import { DIRECTIONS, inScript, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
+import { DIRECTIONS, inScript, isGrammar, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
 import { mixUpOf } from './mistakes.ts';
 import {
   isDue,
+  isDueReview,
   isSeen,
   MAX_TIMED_MS,
   outcomeFor,
@@ -13,6 +14,7 @@ import {
   pickEntry,
   slowThreshold,
   type Stats,
+  spreadReviews,
   weightedPick,
 } from './schedule.ts';
 import { combinedDays, recordAnswer } from './state.ts';
@@ -34,6 +36,7 @@ import type { Random } from './util.ts';
 
 export const ADVANCE_DELAY: Partial<Record<Outcome, number>> = { correct: 900, slow: 2200 };
 export const NEW_BATCH = 5;
+export const REVIEW_BATCH = 25;
 export const DRILL_SIZE = 12;
 export const MAX_FOLLOW_UPS = 4;
 
@@ -43,6 +46,7 @@ export const newSession = (): Session => ({
   streak: 0,
   extra: false,
   bonusNew: 0,
+  bonusReviews: 0,
   drill: null,
   card: null,
   undo: null,
@@ -53,9 +57,13 @@ export const startDrill = (session: Session, drill: Drill): Session => ({ ...ses
 export const endDrill = (session: Session): Session => (session.drill ? { ...session, drill: null } : session);
 export const resetCard = (session: Session): Session => (session.card ? { ...session, card: null } : session);
 export const learnMore = (session: Session): Session => ({ ...session, bonusNew: session.bonusNew + NEW_BATCH });
+export const reviewMore = (session: Session): Session => ({
+  ...session,
+  bonusReviews: session.bonusReviews + REVIEW_BATCH,
+});
 export const practiseExtra = (session: Session): Session => ({ ...session, extra: true });
 
-const PRACTICE_SETTINGS = ['script', 'mode', 'direction', 'newPerDay'] as const;
+const PRACTICE_SETTINGS = ['script', 'mode', 'direction', 'newPerDay', 'reviewsPerDay'] as const;
 
 export const affectsPractice = (before: Settings, after: Settings): boolean =>
   PRACTICE_SETTINGS.some(key => before[key] !== after[key]) || before.rows.join() !== after.rows.join();
@@ -67,6 +75,13 @@ export const effectiveMode = (settings: Settings, direction: PracticeDirection =
 export const singleDirection = (direction: PracticeDirection): Direction =>
   direction === 'mixed' ? 'read' : direction;
 
+// Grammar cards are only filled in, so a drill of nothing but grammar is filled in whatever else is practised.
+export const drillDirection = (settings: Settings, drill: Drill): Direction =>
+  drill.items.length > 0 && drill.items.every(isGrammar) ? 'cloze' : singleDirection(settings.direction);
+
+// Where a card starts in mixed practice: reading, or filling in for grammar, which has no other direction.
+const isFirstDirection = (direction: Direction): boolean => direction === 'read' || direction === 'cloze';
+
 // Kanji and imported decks are practised whichever script is picked.
 export const rowsPool = (settings: Settings): KanaItem[] =>
   KANA.filter(item => inScript(item, settings.script) && settings.rows.includes(item.rowId));
@@ -76,11 +91,11 @@ export const activePool = (
   direction: Direction = singleDirection(settings.direction),
 ): KanaItem[] => rowsPool(settings).filter(item => supportsDirection(item, direction));
 
-// Mixed practice covers reading and every other direction already practised (listening only with a voice).
+// Mixed practice covers reading, filling in, and every other direction already practised (listening only with a voice).
 export function mixedDirections(stats: Stats, voice = true): Direction[] {
   const used = new Set(Object.keys(stats).map(key => parseStatKey(key).direction));
   return DIRECTIONS.filter(
-    direction => (direction === 'read' || used.has(direction)) && (voice || direction !== 'listen'),
+    direction => (isFirstDirection(direction) || used.has(direction)) && (voice || direction !== 'listen'),
   );
 }
 
@@ -108,29 +123,62 @@ const canRead = (stats: Stats, item: KanaItem): boolean => (stats[statKey(item, 
 
 // In mixed practice a character is learned by reading it first; the other directions open up once it can be read.
 const introducible = (state: State) => (entry: Entry) =>
-  state.settings.direction !== 'mixed' || entry.direction === 'read' || canRead(state.stats, entry.item);
+  state.settings.direction !== 'mixed' || isFirstDirection(entry.direction) || canRead(state.stats, entry.item);
 
 export const neverSeen = (stats: Stats, item: KanaItem): boolean =>
   DIRECTIONS.every(direction => !isSeen(stats, statKey(item, direction)));
+
+// A grammar point is introduced with its first sentence; the others are new examples of something already met.
+const needsIntro = (stats: Stats, item: KanaItem): boolean =>
+  isGrammar(item) ? KANA.every(other => other.rowId !== item.rowId || neverSeen(stats, other)) : neverSeen(stats, item);
 
 export const learnedToday = (state: State, now: number): number => combinedDays(state)[dayKey(now)]?.learned ?? 0;
 
 export const newLimit = (state: State, session: Session): number => state.settings.newPerDay + session.bonusNew;
 
+export const reviewedToday = (state: State, now: number): number => combinedDays(state)[dayKey(now)]?.reviews ?? 0;
+
+// How many reviews today may still bring, the extra ones asked for on the "Done for today" screen included.
+export function reviewsLeft(state: State, session: Session, now: number): number {
+  const limit = state.settings.reviewsPerDay;
+  return limit ? Math.max(0, limit + session.bonusReviews - reviewedToday(state, now)) : Infinity;
+}
+
 export interface TodaySummary {
   due: number;
   newLeft: number;
+  // Reviews due now that the daily review limit holds back until tomorrow.
+  held: number;
 }
 
 // What "Continue" will bring up: reviews due now and new cards still allowed today, in the picked rows.
 export function todaySummary(state: State, session: Session, now: number): TodaySummary {
   const keys = practiceKeys(state);
   const unseen = keys.filter(key => !isSeen(state.stats, key)).length;
+  const due = keys.filter(key => isDue(state.stats, key, now));
+  const reviews = due.filter(key => isDueReview(state.stats, key, now)).length;
+  const allowed = Math.min(reviews, reviewsLeft(state, session, now));
   return {
-    due: keys.filter(key => isDue(state.stats, key, now)).length,
+    due: due.length - reviews + allowed,
     newLeft: Math.min(unseen, Math.max(0, newLimit(state, session) - learnedToday(state, now))),
+    held: reviews - allowed,
   };
 }
+
+// Past this many reviews due (or past the daily review limit, if there is one), the home screen offers to catch up.
+export const CATCH_UP_AT = 100;
+
+// How many reviews are due, if that is enough of a backlog to spread out.
+export function backlog(state: State, now: number): number {
+  const due = practiceKeys(state).filter(key => isDueReview(state.stats, key, now)).length;
+  return due > (state.settings.reviewsPerDay || CATCH_UP_AT) ? due : 0;
+}
+
+// Spreads the reviews due now over the next few days, no more a day than the daily review limit.
+export const catchUp = (state: State, now: number): State => ({
+  ...state,
+  stats: spreadReviews(state.stats, practiceKeys(state), now, { perDay: state.settings.reviewsPerDay }),
+});
 
 export function emptyMessage(settings: Settings, drill: Drill | null): string {
   if (drill) return 'None of the drilled characters can be practised in this direction.';
@@ -140,9 +188,10 @@ export function emptyMessage(settings: Settings, drill: Drill | null): string {
     return 'Matching needs characters that exist in both scripts. Words and loanword katakana can only be read.';
   }
   if (settings.direction === 'meaning') return 'Meaning mode is for kanji and words. Choose some of those rows above.';
+  if (settings.direction === 'cloze') return 'Fill in is for grammar. Choose some grammar rows above.';
   if (settings.direction === 'write')
     return 'Writing works with single kana and kanji. Choose some of those rows above.';
-  return 'Kanji can be practised in Read or Meaning mode, and words in every mode but Match and Write. Choose more rows above.';
+  return 'Kanji can be practised in Read or Meaning mode, words in every mode but Match and Write, and grammar in Fill in. Choose more rows above.';
 }
 
 export type NextStep =
@@ -165,23 +214,28 @@ export function chooseNext(
   const { settings, stats } = state;
   const currentItem = session.card?.item ?? null;
   const entries = practiceEntries(state, voice);
-  const drillDirection = singleDirection(settings.direction);
-  const drillItems = session.drill?.items.filter(item => supportsDirection(item, drillDirection)) ?? [];
+  const drilled = session.drill ? drillDirection(settings, session.drill) : singleDirection(settings.direction);
+  const drillItems = session.drill?.items.filter(item => supportsDirection(item, drilled)) ?? [];
   const followUp = session.drill ? undefined : session.followUps.find(entry => entry.item !== currentItem);
 
   let pick: { item: KanaItem; kind: CardKind; direction: Direction } | null;
   if (session.drill) {
-    const item = weightedPick(drillItems, stats, currentItem, { direction: drillDirection, random });
-    pick = item ? { item, kind: 'drill', direction: drillDirection } : null;
+    const item = weightedPick(drillItems, stats, currentItem, { direction: drilled, random });
+    pick = item ? { item, kind: 'drill', direction: drilled } : null;
   } else if (followUp) {
     pick = { ...followUp, kind: 'contrast' };
   } else {
     const allowNew = learnedToday(state, now) < newLimit(state, session);
     const canIntroduce = introducible(state);
-    pick = pickEntry({ entries, stats, currentItem, now, allowNew, canIntroduce, random });
+    const reviews = reviewsLeft(state, session, now) > 0;
+    pick = pickEntry({ entries, stats, currentItem, now, allowNew, canIntroduce, reviewsLeft: reviews, random });
   }
 
-  if (!pick) return { status: 'empty', message: emptyMessage(settings, session.drill) };
+  if (!pick) {
+    // Everything left is reviews the daily limit holds back.
+    if (!session.drill && entries.length) return { status: 'done' };
+    return { status: 'empty', message: emptyMessage(settings, session.drill) };
+  }
 
   const struggling = entries.some(entry => stats[statKey(entry.item, entry.direction)]?.box === 1);
   if (pick.kind === 'ahead' && !session.extra && !struggling) return { status: 'done' };
@@ -191,7 +245,7 @@ export function chooseNext(
     effectiveMode(settings, direction) === 'choose' && direction !== 'write'
       ? buildChoices(pick.item, { direction, pool: activePool(settings, direction), drillItems, random })
       : [];
-  const intro = settings.introduce && pick.kind === 'new' && neverSeen(stats, pick.item);
+  const intro = settings.introduce && pick.kind === 'new' && needsIntro(stats, pick.item);
   return { status: 'card', ...pick, choices, intro };
 }
 

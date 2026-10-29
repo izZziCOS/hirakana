@@ -3,7 +3,8 @@ import { dayStreak } from '../days.ts';
 import { deckChanges, deckNameOf, newDeckId, parseDeck } from '../decks.ts';
 import { inScript, isKanjiGroup, KANA, kanjiLoaded, ROW_INFO, toKatakana } from '../kana.ts';
 import { groupRecall } from '../milestones.ts';
-import { singleDirection, todaySummary, type TodaySummary } from '../session.ts';
+import { backlog, catchUp, resetCard, singleDirection, todaySummary, type TodaySummary } from '../session.ts';
+import { catchUpPlan } from '../schedule.ts';
 import {
   addDeck,
   backupDue,
@@ -11,6 +12,7 @@ import {
   combinedDays,
   deckProgress,
   deleteDeck,
+  directionOfGroup,
   type DeckProgress,
   type GroupProgress,
   updateDeck,
@@ -37,10 +39,28 @@ const percent = (part: number, total: number): number => (total ? Math.round((pa
 const plural = (count: number, word: string): string =>
   `${count.toLocaleString('en')} ${word}${count === 1 ? '' : 's'}`;
 
-export function heroCopy({ due, newLeft }: TodaySummary): { title: string; action: string } {
+export function heroCopy({ due, newLeft }: Pick<TodaySummary, 'due' | 'newLeft'>): { title: string; action: string } {
   if (!due && !newLeft) return { title: 'All caught up for now', action: 'Practise anyway' };
   const parts = [due ? `${plural(due, 'review')} due` : '', newLeft ? `${newLeft} new to learn` : ''];
   return { title: parts.filter(Boolean).join(', '), action: 'Continue' };
+}
+
+export interface CatchUpCopy {
+  title: string;
+  detail: string;
+  action: string;
+}
+
+// The offer to spread a backlog of reviews over the next few days.
+export function catchUpCopy(count: number, perDay: number): CatchUpCopy {
+  const { daily, days } = catchUpPlan(count, perDay);
+  return {
+    title: `${plural(count, 'review')} due`,
+    detail:
+      `That’s a lot for one day. Catch up over ${days} days instead: about ${daily} a day, the cards you know least ` +
+      'first, while the rest wait for their day. New cards keep their daily limit.',
+    action: `Spread over ${days} days`,
+  };
 }
 
 export const heroDetail = (state: State): string =>
@@ -112,7 +132,12 @@ function progressBar(size: string, { mastered, learning, total }: GroupProgress)
 function groupStatus(state: State, groupId: GroupId, { mastered, learning, total }: GroupProgress): string {
   if (isKanjiGroup(groupId) && !kanjiLoaded()) return 'Loading…';
   if (!total) return `Not in ${DIRECTION_LABEL[state.settings.direction]}`;
-  const recall = groupRecall(state.stats, groupId, singleDirection(state.settings.direction), state.settings.script);
+  const recall = groupRecall(
+    state.stats,
+    groupId,
+    directionOfGroup(state.settings.direction, groupId),
+    state.settings.script,
+  );
   const remembered = recall === null ? '' : ` · ${recall}% remembered`;
   if (mastered === total) return `Mastered${remembered}`;
   if (mastered) return `${percent(mastered, total)}% mastered${remembered}`;
@@ -250,6 +275,10 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     streak: $('#streak'),
     backup: $('#backup-note'),
     backupDetail: $('#backup-note-detail'),
+    catchUp: $('#catch-up-note'),
+    catchUpTitle: $('#catch-up-title'),
+    catchUpDetail: $('#catch-up-detail'),
+    catchUpSpread: $('#catch-up-spread', HTMLButtonElement),
   };
   const openTracks = new Set<string>();
   const openLevels = new Set<string>();
@@ -257,6 +286,8 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
   let deckStatus = '';
   // "Not now" hides the backup reminder until the next visit.
   let backupSnoozed = false;
+  // Likewise the offer to catch up.
+  let catchUpSnoozed = false;
 
   function render(): void {
     const state = data.get();
@@ -271,6 +302,14 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     els.detail.textContent = heroDetail(state);
     els.backup.hidden = backupSnoozed || !backupDue(state, now);
     els.backupDetail.textContent = `${backupStatus(state, now)} This browser can clear saved data, so keep a copy.`;
+    const overdue = catchUpSnoozed ? 0 : backlog(state, now);
+    els.catchUp.hidden = !overdue;
+    if (overdue) {
+      const catchUpText = catchUpCopy(overdue, state.settings.reviewsPerDay);
+      els.catchUpTitle.textContent = catchUpText.title;
+      els.catchUpDetail.textContent = catchUpText.detail;
+      els.catchUpSpread.textContent = catchUpText.action;
+    }
     setHtml(
       els.tracks,
       TRACKS.map(track => trackCard(track, state, openTracks.has(track.id), openLevels, deckStatus)),
@@ -364,6 +403,15 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
   });
 
   $('#backup-export').addEventListener('click', onExport);
+  els.catchUpSpread.addEventListener('click', () => {
+    // The card on screen may be one of the reviews that just moved.
+    session.update(resetCard);
+    data.update(state => catchUp(state, Date.now()));
+  });
+  $('#catch-up-later').addEventListener('click', () => {
+    catchUpSnoozed = true;
+    render();
+  });
   $('#backup-later').addEventListener('click', () => {
     backupSnoozed = true;
     render();

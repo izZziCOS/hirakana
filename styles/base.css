@@ -35,7 +35,8 @@ button:disabled {
 }
 
 .jp,
-.kana {
+.kana,
+.cloze-sentence {
   font-family: 'Klee One', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
 }
 

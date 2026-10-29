@@ -114,5 +114,5 @@ test('only the most recently active devices are kept', () => {
 });
 
 function defaultDay() {
-  return { answers: 1, learned: 0, scored: 1, correct: 1 };
+  return { answers: 1, learned: 0, reviews: 0, scored: 1, correct: 1 };
 }

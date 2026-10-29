@@ -7,6 +7,7 @@ import type { AppStores } from '../store.ts';
 import type { KanaItem, Mistake, Script } from '../types.ts';
 import type { KanaDialog } from './dialog.ts';
 import { $, jp, onDelegate, onSegmented, press, sizeClass } from './dom.ts';
+import { clozeMarkup, shortLabel } from './grammar.ts';
 import { html, setHtml, type Html } from './html.ts';
 import { DIRECTION_LABEL, SCRIPT_LABEL } from './labels.ts';
 
@@ -33,6 +34,14 @@ function picked(given: string): Html {
 }
 
 function mistakeLine(mistake: Mistake, item: KanaItem): Html {
+  if (mistake.direction === 'cloze') {
+    return html`${clozeMarkup(item, null, true)} ·
+    ${
+      mistake.given
+        ? html`you answered <span class="given">${jp(mistake.given)}</span>`
+        : html`<span class="muted">skipped</span>`
+    }`;
+  }
   if (!mistake.given) {
     const prompt = mistake.direction !== 'recall' ? jp(item.kana) : isWord(item) ? `“${item.meaning}”` : item.romaji;
     return html`${prompt} · <span class="muted">skipped</span>`;
@@ -76,8 +85,8 @@ function historyItems(mistakes: Mistake[]): Html[] {
     const time = new Date(mistake.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     return html`${header}
       <li class="mistake">
-        <button class="mistake-kana jp ${sizeClass(item.kana)}" data-open="${item.id}" title="Show info">
-          ${item.kana}
+        <button class="mistake-kana jp ${sizeClass(shortLabel(item))}" data-open="${item.id}" title="Show info">
+          ${shortLabel(item)}
         </button>
         <div class="mistake-text">
           <div>${mistakeLine(mistake, item)}</div>
@@ -142,7 +151,8 @@ export function createMistakes(
         ? top.map(
             ({ item, count }) =>
               html`<button class="missed-chip" data-open="${item.id}">
-                ${jp(item.kana)}<span class="missed-romaji">${item.romaji}</span><span class="count">×${count}</span>
+                ${jp(shortLabel(item))}<span class="missed-romaji">${item.romaji}</span
+                ><span class="count">×${count}</span>
               </button>`,
           )
         : html`<p class="empty">${day ? 'No mistakes on this day.' : 'No mistakes yet. Go practise!'}</p>`,

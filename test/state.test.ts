@@ -81,8 +81,8 @@ test('migrateState upgrades version 1 data all the way', () => {
   assert.equal(state.stats['ア'].due, NOW);
   assert.deepEqual(state.mistakes, [{ kana: 'イ', given: 'ri', at: NOW, direction: 'read' }]);
   assert.deepEqual(state.days, {
-    [dayKey(daysAgo(3))]: { answers: 1, learned: 0, scored: 0, correct: 0 },
-    [dayKey(daysAgo(1))]: { answers: 2, learned: 0, scored: 0, correct: 0 },
+    [dayKey(daysAgo(3))]: { answers: 1, learned: 0, reviews: 0, scored: 0, correct: 0 },
+    [dayKey(daysAgo(1))]: { answers: 2, learned: 0, reviews: 0, scored: 0, correct: 0 },
   });
   assert.equal(state.bestStreak, 7);
 });
@@ -157,18 +157,18 @@ test('recordAnswer updates stats, the day log, mistakes and the best run', () =>
   const start = defaultState();
   const afterCorrect = answer(start, 'あ', 'correct', 4);
   assert.equal(afterCorrect.stats['あ']?.box, 2);
-  assert.deepEqual(afterCorrect.days[dayKey(NOW)], { answers: 1, learned: 1, scored: 1, correct: 1 });
+  assert.deepEqual(afterCorrect.days[dayKey(NOW)], { answers: 1, learned: 1, reviews: 0, scored: 1, correct: 1 });
   assert.equal(afterCorrect.bestStreak, 4);
   assert.equal(afterCorrect.mistakes, start.mistakes);
   assert.equal(start.stats['あ'], undefined, 'the previous state is not mutated');
 
   const afterWrong = answer(afterCorrect, 'あ', 'wrong');
   assert.equal(afterWrong.mistakes.length, 1);
-  assert.deepEqual(afterWrong.days[dayKey(NOW)], { answers: 2, learned: 1, scored: 2, correct: 1 });
+  assert.deepEqual(afterWrong.days[dayKey(NOW)], { answers: 2, learned: 1, reviews: 0, scored: 2, correct: 1 });
 
   const afterPeek = answer(afterWrong, 'い', 'peeked');
   assert.equal(afterPeek.stats['い']?.due, NOW + intervalFor(1));
-  assert.deepEqual(afterPeek.days[dayKey(NOW)], { answers: 3, learned: 2, scored: 2, correct: 1 });
+  assert.deepEqual(afterPeek.days[dayKey(NOW)], { answers: 3, learned: 2, reviews: 0, scored: 2, correct: 1 });
   assert.equal(afterPeek.settings, start.settings, 'answers never replace the settings object');
 });
 
@@ -283,9 +283,15 @@ test('createAppStores loads saved progress and saves changes after a short delay
 test('backupDue waits a week before the first backup, then asks every month', () => {
   const fresh = defaultState();
   assert.equal(backupDue(fresh, NOW), false);
-  const sixDays = { ...fresh, days: { [dayKey(daysAgo(6))]: { answers: 1, learned: 1, scored: 1, correct: 1 } } };
+  const sixDays = {
+    ...fresh,
+    days: { [dayKey(daysAgo(6))]: { answers: 1, learned: 1, reviews: 0, scored: 1, correct: 1 } },
+  };
   assert.equal(backupDue(sixDays, NOW), false);
-  const sevenDays = { ...fresh, days: { [dayKey(daysAgo(7))]: { answers: 1, learned: 1, scored: 1, correct: 1 } } };
+  const sevenDays = {
+    ...fresh,
+    days: { [dayKey(daysAgo(7))]: { answers: 1, learned: 1, reviews: 0, scored: 1, correct: 1 } },
+  };
   assert.equal(backupDue(sevenDays, NOW), true);
   assert.equal(backupDue(markBackedUp(sevenDays, NOW - BACKUP_EVERY + 1), NOW), false);
   assert.equal(backupDue(markBackedUp(sevenDays, NOW - BACKUP_EVERY), NOW), true);

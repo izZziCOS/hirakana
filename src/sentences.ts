@@ -1,7 +1,10 @@
+import { parseSentence, plainText, type Segment } from './furigana.ts';
 import { findKana, isKanji, statKey } from './kana.ts';
 import { canReadKana, KNOWN_BOX } from './reading.ts';
 import type { Stats } from './schedule.ts';
 import { codePoints } from './util.ts';
+
+export { parseSentence, type Segment };
 
 // Short sentences to read, easiest first. Kanji are written with their reading as {漢字|かんじ}; sentences in kana only
 // put spaces between words, as children's books do.
@@ -135,12 +138,6 @@ export const SENTENCES: [markup: string, english: string][] = [
   ['{環境|かんきょう}を{守|まも}ることは{大切|たいせつ}です。', 'Protecting the environment is important.'],
 ];
 
-// A run of text, with its reading when it is written in kanji.
-export interface Segment {
-  text: string;
-  reading?: string;
-}
-
 export interface Sentence {
   segments: Segment[];
   english: string;
@@ -151,22 +148,9 @@ export interface Sentence {
 
 const HAN = /\p{Script=Han}/u;
 
-export function parseSentence(markup: string): Segment[] {
-  const segments: Segment[] = [];
-  const pattern = /\{([^|}]+)\|([^}]+)\}/g;
-  let last = 0;
-  for (const match of markup.matchAll(pattern)) {
-    if (match.index > last) segments.push({ text: markup.slice(last, match.index) });
-    segments.push({ text: match[1] ?? '', reading: match[2] ?? '' });
-    last = match.index + match[0].length;
-  }
-  if (last < markup.length) segments.push({ text: markup.slice(last) });
-  return segments;
-}
-
 export const sentences: Sentence[] = SENTENCES.map(([markup, english]) => {
   const segments = parseSentence(markup);
-  const text = segments.map(segment => segment.text).join('');
+  const text = plainText(segments);
   return { segments, english, text, kanji: [...new Set(codePoints(text).filter(char => HAN.test(char)))] };
 });
 

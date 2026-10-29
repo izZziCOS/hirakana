@@ -74,7 +74,7 @@ test('chooseNext is done for today once nothing is due and the new limit is used
   const learned: State = {
     ...vowelsOnly({ newPerDay: 5 }),
     stats: Object.fromEntries(VOWELS.map(kana => [kana, stat(2, NOW + 600_000)])),
-    days: { [dayKey(NOW)]: { answers: 5, learned: 5, scored: 5, correct: 5 } },
+    days: { [dayKey(NOW)]: { answers: 5, learned: 5, reviews: 0, scored: 5, correct: 5 } },
   };
   assert.equal(chooseNext(learned, newSession(), { now: NOW }).status, 'done');
   assert.equal(chooseNext(learned, practiseExtra(newSession()), { now: NOW }).status, 'card');
@@ -92,7 +92,7 @@ test('learnMore raises the daily new limit for the session', () => {
   const state: State = {
     ...withSettings({ rows: ['basic:Vowels', 'basic:K-row'], newPerDay: 5 }),
     stats: Object.fromEntries(VOWELS.map(kana => [kana, stat(2, NOW + 600_000)])),
-    days: { [dayKey(NOW)]: { answers: 5, learned: 5, scored: 5, correct: 5 } },
+    days: { [dayKey(NOW)]: { answers: 5, learned: 5, reviews: 0, scored: 5, correct: 5 } },
   };
   assert.equal(chooseNext(state, newSession(), { now: NOW }).status, 'done');
   const more = learnMore(newSession());

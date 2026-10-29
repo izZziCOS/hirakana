@@ -82,6 +82,16 @@ export const GROUPS: Group[] = [
     hint: '氏',
   },
   {
+    id: 'g5',
+    label: 'JLPT N5 grammar',
+    hint: 'は・が',
+  },
+  {
+    id: 'g4',
+    label: 'JLPT N4 grammar',
+    hint: '～たら',
+  },
+  {
     id: 'custom',
     label: 'Imported words',
     hint: '',
@@ -111,6 +121,13 @@ export const TRACKS: Track[] = [
     glyph: '水',
     summary: 'JLPT N5–N1',
     groups: ['k5', 'k4', 'k3', 'k2', 'k1'],
+  },
+  {
+    id: 'grammar',
+    label: 'Grammar',
+    glyph: '文',
+    summary: 'JLPT N5–N4 patterns, in sentences',
+    groups: ['g5', 'g4'],
   },
   {
     id: 'decks',

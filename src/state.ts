@@ -15,13 +15,14 @@ import {
   findKana,
   hasReadingStage,
   inScript,
+  isGrammarGroup,
   KANA,
   parseStatKey,
   ROW_INFO,
   statKey,
   supportsDirection,
 } from './kana.ts';
-import { applyAnswer, applyKanjiStage, DAY, isDue, levelOf, MAX_BOX } from './schedule.ts';
+import { applyAnswer, applyKanjiStage, DAY, isDue, isReview, levelOf, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
   Deck,
@@ -32,6 +33,7 @@ import type {
   Mistake,
   Mode,
   Outcome,
+  PracticeDirection,
   ScriptSetting,
   Settings,
   SpeedCheck,
@@ -41,11 +43,13 @@ import type {
 } from './types.ts';
 import { isObject, nonNegative, unique } from './util.ts';
 
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
 export const DEFAULT_NEW_PER_DAY = 15;
 export const NEW_PER_DAY_OPTIONS = [5, 10, 15, 25, 50];
+// 0: no limit.
+export const REVIEWS_PER_DAY_OPTIONS = [0, 50, 100, 200, 400];
 export const GOAL_OPTIONS = [0, 10, 25, 50, 100];
 const SCRIPT_SETTINGS: ScriptSetting[] = ['hiragana', 'katakana', 'both'];
 const MODES: Mode[] = ['type', 'choose'];
@@ -67,6 +71,7 @@ export const defaultState = (): State => ({
     mode: 'type',
     direction: 'read',
     newPerDay: DEFAULT_NEW_PER_DAY,
+    reviewsPerDay: 0,
     goal: 0,
     speedCheck: 'adaptive',
     theme: 'system',
@@ -119,6 +124,8 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   5: data => ({ ...data, version: 6 }),
   // Imported decks; the sanitising below fills them in.
   6: data => ({ ...data, version: 7 }),
+  // The daily review limit, and reviews counted in the day log; the sanitising below fills them in.
+  7: data => ({ ...data, version: 8 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -133,6 +140,8 @@ function sanitizeStat(stat: RawData): Stat {
   const avgMs = nonNegative(stat.avgMs);
   if (avgMs) clean.avgMs = Math.round(avgMs);
   if (stat.kanjiOnly === true) clean.kanjiOnly = true;
+  const moved = nonNegative(stat.moved);
+  if (moved) clean.moved = moved;
   return clean;
 }
 
@@ -185,6 +194,10 @@ function sanitizeSettings(raw: unknown, decks: Deck[]): Settings {
       typeof settings.newPerDay === 'number' && NEW_PER_DAY_OPTIONS.includes(settings.newPerDay)
         ? settings.newPerDay
         : fresh.newPerDay,
+    reviewsPerDay:
+      typeof settings.reviewsPerDay === 'number' && REVIEWS_PER_DAY_OPTIONS.includes(settings.reviewsPerDay)
+        ? settings.reviewsPerDay
+        : fresh.reviewsPerDay,
     goal: typeof settings.goal === 'number' && GOAL_OPTIONS.includes(settings.goal) ? settings.goal : fresh.goal,
     speedCheck: includes(SPEED_CHECKS, settings.speedCheck) ? settings.speedCheck : fresh.speedCheck,
     theme: includes(THEMES, settings.theme) ? settings.theme : fresh.theme,
@@ -220,6 +233,7 @@ function sanitizeDays(raw: unknown): Record<string, DayLog> {
         {
           answers: nonNegative(day.answers),
           learned: nonNegative(day.learned),
+          reviews: nonNegative(day.reviews),
           scored: nonNegative(day.scored),
           correct: nonNegative(day.correct),
         },
@@ -340,6 +354,8 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
     days: logDay(state.days, now, {
       answers: 1,
       learned: previous?.box ? 0 : 1,
+      // A review answered early, as extra practice, isn't one of the day's reviews.
+      reviews: isReview(previous) && (previous?.due ?? now) <= now ? 1 : 0,
       scored: outcome === 'peeked' ? 0 : 1,
       correct: right ? 1 : 0,
     }),
@@ -384,9 +400,13 @@ export interface GroupProgress {
   total: number;
 }
 
+// The direction a set is shown in: the one practised, or when practice is mixed the one its cards start in.
+export const directionOfGroup = (direction: PracticeDirection, groupId: GroupId): Direction =>
+  direction !== 'mixed' ? direction : isGrammarGroup(groupId) ? 'cloze' : 'read';
+
 // How far along a set is in the current direction and script, for the track cards.
 export function groupProgress(state: State, groupId: GroupId): GroupProgress {
-  const direction = state.settings.direction === 'mixed' ? 'read' : state.settings.direction;
+  const direction = directionOfGroup(state.settings.direction, groupId);
   const progress = { mastered: 0, learning: 0, total: 0 };
   for (const item of KANA) {
     if (item.group !== groupId || !supportsDirection(item, direction) || !inScript(item, state.settings.script))

@@ -16,6 +16,7 @@ function newestDays(a: Days = {}, b: Days = {}): Days {
           ? {
               answers: Math.max(x.answers, y.answers),
               learned: Math.max(x.learned, y.learned),
+              reviews: Math.max(x.reviews, y.reviews),
               scored: Math.max(x.scored, y.scored),
               correct: Math.max(x.correct, y.correct),
             }
@@ -42,11 +43,14 @@ function sinceReset(state: State, resetAt: number): State {
   };
 }
 
+// A card last changed when it was answered, or when catch-up moved its review.
+const changedAt = (stat: Stat): number => Math.max(stat.last, stat.moved ?? 0);
+
 function mergeStats(a: Record<string, Stat>, b: Record<string, Stat>): Record<string, Stat> {
   const stats = { ...a };
   for (const [key, stat] of Object.entries(b)) {
     const mine = stats[key];
-    if (!mine || stat.last > mine.last) stats[key] = stat;
+    if (!mine || changedAt(stat) > changedAt(mine)) stats[key] = stat;
   }
   return stats;
 }

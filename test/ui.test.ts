@@ -68,16 +68,16 @@ test('the session bar shows due cards, the daily limit and the goal', () => {
 test('the done screen offers more new characters only while some are left', () => {
   const state: State = {
     ...updateSettings(defaultState(), { rows: ['basic:Vowels', 'basic:K-row'] }),
-    days: { [dayKey(NOW)]: { answers: 12, learned: 5, scored: 12, correct: 10 } },
+    days: { [dayKey(NOW)]: { answers: 12, learned: 5, reviews: 0, scored: 12, correct: 10 } },
   };
-  const screen = text(toMarkup(doneScreen(state, NOW)));
+  const screen = text(toMarkup(doneScreen(state, newSession(), NOW)));
   assert.match(screen, /You answered 12 cards today and learned 5 new ones/);
   assert.match(screen, /Learn 5 more/);
   const allSeen: State = {
     ...updateSettings(defaultState(), { rows: ['basic:N'] }),
     stats: { ん: { correct: 1, wrong: 0, streak: 1, box: 3, due: NOW + 1000, last: NOW } },
   };
-  assert.doesNotMatch(text(toMarkup(doneScreen(allSeen, NOW))), /Learn/);
+  assert.doesNotMatch(text(toMarkup(doneScreen(allSeen, newSession(), NOW))), /Learn/);
 });
 
 test('the info panel shows the details for a character', () => {

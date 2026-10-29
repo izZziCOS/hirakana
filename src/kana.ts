@@ -1,6 +1,10 @@
 import { ALT_KANA, ALT_ROMAJI, CHARACTER_ROWS, KANJI_LEVELS, LOOKALIKES, WORD_ROWS } from './data.ts';
+import { parseSentence, plainText, readingOf } from './furigana.ts';
+import { GRAMMAR_POINTS } from './grammar-data.ts';
 import type {
   Direction,
+  GrammarGroupId,
+  GrammarPoint,
   GroupId,
   KanaItem,
   KanaScript,
@@ -16,7 +20,7 @@ import type {
 import { codePoints, unique } from './util.ts';
 
 export const SCRIPTS: KanaScript[] = ['hiragana', 'katakana'];
-export const DIRECTIONS: Direction[] = ['read', 'recall', 'match', 'listen', 'meaning', 'write'];
+export const DIRECTIONS: Direction[] = ['read', 'recall', 'match', 'listen', 'meaning', 'write', 'cloze'];
 const WORD_GROUPS: GroupId[] = ['sokuon', 'words', 'n5', 'n4', 'n3', 'n2', 'n1', 'custom'];
 const LONG_VOWELS: Record<string, string[]> = { ā: ['aa'], ī: ['ii'], ū: ['uu'], ē: ['ee'], ō: ['oo'] };
 const MACRONS: Record<string, string> = { a: 'ā', i: 'ī', u: 'ū', e: 'ē', o: 'ō' };
@@ -215,8 +219,53 @@ function kanjiItem([kanji, , strokes, on, kun, meanings]: KanjiEntry, row: Kanji
   };
 }
 
+// Particles are read differently from how they are written: は wa, へ e, を o. Either spelling is accepted.
+const PARTICLE_KANA: Record<string, string> = { は: 'わ', へ: 'え', を: 'お' };
+
+// The ways to type a grammar answer in romaji, the one that follows how it is read first: dewa, then deha.
+function clozeRomaji(answer: string): string[] {
+  const spoken = answer.replace(/[はへを]/g, particle => PARTICLE_KANA[particle] ?? particle);
+  return unique(
+    [spoken, answer].flatMap(kana => {
+      const { romaji, alternatives } = wordRomaji(kana);
+      return [romaji, ...alternatives].flatMap(spelling => longVowelSpellings(spelling, 'hiragana'));
+    }),
+  );
+}
+
+export const grammarGroupOf = (point: Pick<GrammarPoint, 'level'>): GrammarGroupId => `g${point.level}`;
+export const grammarRowOf = (point: GrammarPoint) => ({ label: point.label, group: grammarGroupOf(point) });
+
+// A sentence such as "{雨|あめ}[が]{降|ふ}っています。": the gap holds every right answer, separated by slashes.
+export function grammarItem(point: GrammarPoint, [markup, english]: [string, string], index: number): KanaItem {
+  const [, beforeMarkup = '', gap = '', afterMarkup = ''] = /^(.*?)\[([^\]]+)\](.*)$/.exec(markup) ?? [];
+  const answers = gap.split('/');
+  const answer = answers[0] ?? '';
+  const before = parseSentence(beforeMarkup);
+  const after = parseSentence(afterMarkup);
+  const romaji = answers.flatMap(clozeRomaji);
+  const row = grammarRowOf(point);
+  return {
+    // Not a character, and no ":" (see statKey); the number is the sentence's position in its point.
+    id: `~${point.id}/${index + 1}`,
+    kana: plainText(before) + answer + plainText(after),
+    script: 'hiragana',
+    romaji: romaji[0] ?? '',
+    row: row.label,
+    rowId: rowIdOf(row),
+    group: row.group,
+    accepted: unique([...answers, ...romaji]),
+    meaning: english,
+    cloze: { point, before, after, answers, english, reading: readingOf(before) + answer + readingOf(after) },
+  };
+}
+
+const grammarItems: KanaItem[] = GRAMMAR_POINTS.flatMap(point =>
+  point.sentences.map((sentence, i) => grammarItem(point, sentence, i)),
+);
+
 // Kanji are added by registerKanji once src/kanji.ts has loaded (see src/kanji-loader.ts).
-export const KANA: KanaItem[] = [...characterItems, ...wordItems];
+export const KANA: KanaItem[] = [...characterItems, ...wordItems, ...grammarItems];
 const kanaIndex = new Map(KANA.map(item => [item.id, item]));
 
 // Looks an item up by its id, which for every single character is the character itself.
@@ -245,6 +294,16 @@ export const ROW_INFO: RowInfo[] = [
     group: row.group,
     preview: { [row.script]: row.mark ?? row.label },
   })),
+  // Grammar is practised whichever script is picked.
+  ...GRAMMAR_POINTS.map(point => {
+    const row = grammarRowOf(point);
+    return {
+      id: rowIdOf(row),
+      label: row.label,
+      group: row.group,
+      preview: { hiragana: row.label, katakana: row.label },
+    };
+  }),
 ];
 
 let kanjiRegistered = false;
@@ -345,9 +404,15 @@ export function registerVocabulary(data: VocabEntry[]): void {
 
 export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
 
-// Whether a card is practised with this script picked. Kanji and imported decks are practised whichever it is.
+export const isGrammar = (item: KanaItem): boolean => item.cloze !== undefined;
+export const isGrammarGroup = (group: GroupId): boolean => group === 'g5' || group === 'g4';
+
+// What is read aloud for a card: a grammar card's whole sentence, in kana so the voice can't misread its kanji.
+export const spokenText = (item: KanaItem): string => item.cloze?.reading ?? item.kana;
+
+// Whether a card is practised with this script picked. Kanji, grammar and imported decks are practised whichever it is.
 export const inScript = (item: KanaItem, script: ScriptSetting): boolean =>
-  script === 'both' || item.script === script || isKanji(item) || item.group === 'custom';
+  script === 'both' || item.script === script || isKanji(item) || isGrammar(item) || item.group === 'custom';
 
 // Other kanji built with one of this kanji's parts, or with this kanji as a part, most common first.
 export function kanjiSharingParts(item: KanaItem, limit: number): KanaItem[] {
@@ -389,7 +454,8 @@ function indexAnswers(item: KanaItem): void {
     if (!answerIndex.has(key)) answerIndex.set(key, item);
   });
 }
-KANA.filter(item => !isKanji(item)).forEach(indexAnswers);
+// Grammar answers are particles and endings, not characters someone might have meant.
+KANA.filter(item => !isKanji(item) && !isGrammar(item)).forEach(indexAnswers);
 
 export const kanaForAnswer = (given: string | null, script: Script): KanaItem | null =>
   given ? (answerIndex.get(`${script}:${given}`) ?? null) : null;
@@ -399,6 +465,9 @@ export const normalizeAnswer = (raw: string): string => raw.normalize('NFKC').tr
 export const isWord = (item: KanaItem): boolean => WORD_GROUPS.includes(item.group);
 
 export function supportsDirection(item: KanaItem, direction: Direction): boolean {
+  // Grammar is practised by filling in the gap in a sentence, and nothing else is.
+  if (isGrammar(item)) return direction === 'cloze';
+  if (direction === 'cloze') return false;
   if (direction === 'write') return !isWord(item) && codePoints(item.kana).length === 1;
   if (isKanji(item)) return direction === 'read' || direction === 'meaning';
   // Words are given their meaning (Meaning) and recalled from it (Recall); single kana have no meaning.

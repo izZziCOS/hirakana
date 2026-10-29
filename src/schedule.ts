@@ -36,6 +36,13 @@ export function isDue(stats: Stats, key: string, now: number): boolean {
 
 export const intervalFor = (box: number): number => INTERVALS[box] ?? 0;
 
+// A card whose last gap was a day or more is a review. The shorter steps before it, and a card just missed, are still
+// being learned: the daily review limit and catch-up leave them alone, or the day's learning would be lost.
+export const REVIEW_BOX = 4;
+export const isReview = (stat: Stat | undefined): boolean => (stat?.box ?? 0) >= REVIEW_BOX;
+export const isDueReview = (stats: Stats, key: string, now: number): boolean =>
+  isReview(stats[key]) && isDue(stats, key, now);
+
 export function levelOf(stat: Stat | undefined): Level {
   if (!stat?.box) return 'new';
   if (stat.box >= MASTERED_BOX) return 'mastered';
@@ -47,8 +54,10 @@ export const PACE_SAMPLE_SIZE = 8;
 
 export function baseThreshold(item: KanaItem, mode: Mode, direction: Direction = 'read'): number {
   if (direction === 'write') return Infinity;
-  const typed = direction === 'recall' || direction === 'listen' ? 8000 : 6000;
+  const typed = direction === 'recall' || direction === 'listen' || direction === 'cloze' ? 8000 : 6000;
   const base = (mode === 'choose' ? 4000 : typed) + (direction === 'listen' ? 1000 : 0);
+  // A gap in a sentence takes the whole sentence to read.
+  if (direction === 'cloze') return base * 2;
   return isWord(item) || direction === 'meaning' ? base * 1.5 : base;
 }
 
@@ -92,6 +101,7 @@ export function outcomeFor({ isCorrect, revealed, ms, threshold }: OutcomeInput)
 
 export function applyAnswer(previous: Stat | undefined, outcome: Outcome, now: number, ms: number | null = null): Stat {
   const stat: Stat = { correct: 0, wrong: 0, streak: 0, box: 0, due: now, ...previous, last: now };
+  delete stat.moved;
   const scheduled = stat.box <= 1 || stat.due <= now;
 
   if (outcome === 'correct' || outcome === 'slow') {
@@ -188,6 +198,8 @@ interface PickEntryOptions extends Omit<PickNextOptions, 'pool' | 'direction'> {
   entries: Entry[];
   // Which unseen entries may be introduced now; mixed practice holds other directions back until a card can be read.
   canIntroduce?: (entry: Entry) => boolean;
+  // Whether reviews may still be shown today; once the daily limit is reached, due reviews wait for tomorrow.
+  reviewsLeft?: boolean;
 }
 
 // Reviews that are due come first, then new cards (up to the daily limit, and not while too many are struggling),
@@ -199,14 +211,17 @@ export function pickEntry({
   now = Date.now(),
   allowNew = true,
   canIntroduce = () => true,
+  reviewsLeft = true,
   random = Math.random,
 }: PickEntryOptions): (Pick & Entry) | null {
-  if (!entries.length) return null;
   const key = (entry: Entry) => statKey(entry.item, entry.direction);
+  // Reviews held back by the daily limit aren't shown at all today, not even as extra practice.
+  const shown = reviewsLeft ? entries : entries.filter(entry => !isDueReview(stats, key(entry), now));
+  if (!shown.length) return null;
   const others =
-    currentItem && entries.some(entry => entry.item !== currentItem)
-      ? entries.filter(entry => entry.item !== currentItem)
-      : entries;
+    currentItem && shown.some(entry => entry.item !== currentItem)
+      ? shown.filter(entry => entry.item !== currentItem)
+      : shown;
   const dueAt = (entry: Entry) => stats[key(entry)]?.due ?? 0;
   const byDue = (a: Entry, b: Entry) => dueAt(a) - dueAt(b);
 
@@ -237,6 +252,49 @@ export function pickEntry({
   );
   if (ahead) return { ...ahead, kind: 'ahead' };
 
+  // With reviews held back for today there is nothing else to show; new cards keep to their own limit.
+  if (shown.length < entries.length) return null;
   const fallback = unseen ?? others[0];
   return fallback ? { ...fallback, kind: 'new' } : null;
+}
+
+export const CATCH_UP_DAYS = 5;
+
+// How many of `count` reviews catch-up leaves for each day, and over how many days that spreads them.
+export function catchUpPlan(count: number, perDay = 0, days = CATCH_UP_DAYS): { daily: number; days: number } {
+  const share = Math.ceil(count / days);
+  const daily = perDay > 0 ? Math.min(perDay, share) : share;
+  return { daily, days: daily ? Math.ceil(count / daily) : 0 };
+}
+
+// Catch-up after a break: the reviews due now are shared out over the next few days instead of all at once. The
+// weakest cards, and of those the longest overdue, stay due today; the rest move to the start of a later day. With
+// `perDay` (the daily review limit) no day gets more than that, which can take more days.
+export function spreadReviews(
+  stats: Stats,
+  keys: string[],
+  now: number,
+  { days = CATCH_UP_DAYS, perDay = 0 }: { days?: number; perDay?: number } = {},
+): Stats {
+  const due = keys
+    .filter(key => isDueReview(stats, key, now))
+    .sort((a, b) => {
+      const x = stats[a];
+      const y = stats[b];
+      return x && y ? x.box - y.box || x.due - y.due : 0;
+    });
+  const { daily } = catchUpPlan(due.length, perDay, days);
+  if (!daily || due.length <= daily) return stats;
+  const startOfDayAfter = (offset: number): number => {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    return date.setDate(date.getDate() + offset);
+  };
+  const moved = { ...stats };
+  due.forEach((key, i) => {
+    const day = Math.floor(i / daily);
+    const stat = stats[key];
+    if (day && stat) moved[key] = { ...stat, due: startOfDayAfter(day), moved: now };
+  });
+  return moved;
 }

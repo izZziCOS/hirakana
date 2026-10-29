@@ -16,6 +16,7 @@ export function wordVariants(romaji: string): string[] {
 }
 
 export function answerOf(item: KanaItem, direction: Direction): string {
+  if (direction === 'cloze') return item.cloze?.answers[0] ?? '';
   if (direction === 'recall' || direction === 'listen' || direction === 'write') return item.kana;
   if (direction === 'match') return item.counterpart ?? '';
   if (direction === 'meaning') return item.meanings?.[0] ?? '';
@@ -43,6 +44,8 @@ export function isCorrectAnswer(item: KanaItem, direction: Direction, given: str
     return written !== null && writingPassed(written.mistakes, written.strokes);
   }
   const typed = normalizeAnswer(given);
+  // A gap is filled in kana or romaji, with any of its right answers.
+  if (direction === 'cloze') return item.accepted.includes(typed);
   // A word recalled from its meaning can be typed in kana or in romaji.
   if (direction === 'recall' && isWord(item) && item.accepted.includes(typed)) return true;
   return typed === answerOf(item, direction);
@@ -121,12 +124,31 @@ function meaningChoices(item: KanaItem, pool: KanaItem[], drillItems: KanaItem[]
   return shuffle([answerOf(item, 'meaning'), ...unique(candidates).slice(0, 3)], random);
 }
 
+// Wrong answers come from the point's own options, then the answers of its other sentences and of other points.
+function clozeChoices(item: KanaItem, random: Random): string[] {
+  const { cloze } = item;
+  if (!cloze) return [];
+  const answersOf = (items: KanaItem[]) =>
+    shuffle(
+      items.flatMap(other => other.cloze?.answers.slice(0, 1) ?? []),
+      random,
+    );
+  const candidates = [
+    ...shuffle(cloze.point.options, random),
+    ...answersOf(KANA.filter(other => other.rowId === item.rowId)),
+    ...answersOf(KANA.filter(other => other.group === item.group && other.rowId !== item.rowId)),
+  ];
+  const distractors = unique(candidates).filter(answer => !cloze.answers.includes(answer));
+  return shuffle([answerOf(item, 'cloze'), ...distractors.slice(0, 3)], random);
+}
+
 export function buildChoices(
   item: KanaItem,
   { direction = 'read', pool = [], drillItems = [], random = Math.random }: ChoiceOptions = {},
 ): string[] {
   if (direction === 'read') return readChoices(item, pool, drillItems, random);
   if (direction === 'meaning') return meaningChoices(item, pool, drillItems, random);
+  if (direction === 'cloze') return clozeChoices(item, random);
 
   const sameScript = direction !== 'match';
   const answer = sameScript ? item : findKana(item.counterpart);

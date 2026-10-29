@@ -50,7 +50,13 @@ const daysAgo = (n: number) => new Date(2026, 0, 10 - n, 12).getTime();
 const firstChoice = () => 0;
 const vowels = () => ['あ', 'い', 'う', 'え', 'お'].map(getKana);
 const stat = (box: number, due: number) => ({ correct: 0, wrong: 0, streak: 0, box, due, last: 0 });
-const day = (answers: number, scored = 0, correct = 0): DayLog => ({ answers, learned: 0, scored, correct });
+const day = (answers: number, scored = 0, correct = 0): DayLog => ({
+  answers,
+  learned: 0,
+  reviews: 0,
+  scored,
+  correct,
+});
 const mistake = (kana: string, given: string, direction: Mistake['direction'] = 'read'): Mistake => ({
   kana,
   given,
@@ -199,9 +205,9 @@ test('levelOf maps boxes to mastery levels', () => {
 });
 
 test('logDay accumulates per local day', () => {
-  let days = logDay({}, NOW, { answers: 1, learned: 1, scored: 1, correct: 1 });
+  let days = logDay({}, NOW, { answers: 1, learned: 1, reviews: 0, scored: 1, correct: 1 });
   days = logDay(days, NOW + HOUR, { answers: 1, scored: 1 });
-  assert.deepEqual(days, { [dayKey(NOW)]: { answers: 2, learned: 1, scored: 2, correct: 1 } });
+  assert.deepEqual(days, { [dayKey(NOW)]: { answers: 2, learned: 1, reviews: 0, scored: 2, correct: 1 } });
 });
 
 test('logDay keeps a bounded history', () => {

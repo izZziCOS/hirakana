@@ -1,7 +1,16 @@
 import { dayKey, dayStreak, forecast } from '../../days.ts';
 import { formatWait } from '../../format.ts';
-import { isDue, isSeen } from '../../schedule.ts';
-import { goalProgress, learnedToday, NEW_BATCH, newLimit, practiceKeys } from '../../session.ts';
+import { isSeen } from '../../schedule.ts';
+import {
+  goalProgress,
+  learnedToday,
+  NEW_BATCH,
+  newLimit,
+  practiceKeys,
+  REVIEW_BATCH,
+  reviewedToday,
+  todaySummary,
+} from '../../session.ts';
 import { readableWords } from '../../reading.ts';
 import { combinedDays } from '../../state.ts';
 import type { Session, State } from '../../types.ts';
@@ -24,8 +33,10 @@ const nextDue = (state: State, keys: string[]): number | undefined =>
     .map(key => state.stats[key]?.due ?? Infinity)
     .sort((a, b) => a - b)[0];
 
-export function doneScreen(state: State, now: number): Html {
+export function doneScreen(state: State, session: Session, now: number): Html {
   const keys = poolKeys(state);
+  const { held } = todaySummary(state, session, now);
+  const limit = state.settings.reviewsPerDay + session.bonusReviews;
   const today = combinedDays(state)[dayKey(now)];
   const upcoming = nextDue(state, keys);
   const tomorrow = forecast(state.stats, keys, now, 2)[1] ?? 0;
@@ -45,8 +56,19 @@ export function doneScreen(state: State, now: number): Html {
       <strong>${today?.learned ?? 0}</strong> new ones.
     </p>
     ${later && html`<p class="muted">${later}</p>`}
+    ${
+      held > 0 &&
+      html`<p class="muted">
+        ${held} more review${held === 1 ? ' is' : 's are'} due, waiting for tomorrow: you reached your limit of ${limit}
+        today.
+      </p>`
+    }
     ${readableLine(state) && html`<p class="readable-line">${readableLine(state)}</p>`}
     <div class="done-actions">
+      ${
+        held > 0 &&
+        html`<button class="primary" data-done="reviews">Review ${Math.min(REVIEW_BATCH, held)} more</button>`
+      }
       ${unseen > 0 && html`<button class="primary" data-done="more">Learn ${Math.min(NEW_BATCH, unseen)} more</button>`}
       <button class="ghost" data-done="extra">Extra practice</button>
     </div>
@@ -57,10 +79,14 @@ export function sessionBar(state: State, session: Session, now: number): Html {
   const parts: Html[] = [];
   if (!session.drill) {
     const keys = poolKeys(state);
-    const due = keys.filter(key => isDue(state.stats, key, now)).length;
+    const { due } = todaySummary(state, session, now);
     const upcoming = nextDue(state, keys);
     parts.push(html`<span>Due <strong>${due}</strong></span>`);
     parts.push(html`<span>New today <strong>${learnedToday(state, now)}/${newLimit(state, session)}</strong></span>`);
+    if (state.settings.reviewsPerDay) {
+      const limit = state.settings.reviewsPerDay + session.bonusReviews;
+      parts.push(html`<span>Reviews today <strong>${reviewedToday(state, now)}/${limit}</strong></span>`);
+    }
     if (!due && upcoming) parts.push(html`<span>Next review <strong>${formatWait(upcoming - now)}</strong></span>`);
   }
   const accuracy = session.answered ? ` (${Math.round((session.correct / session.answered) * 100)}%)` : '';

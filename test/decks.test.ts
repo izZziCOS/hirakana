@@ -25,6 +25,7 @@ import {
   migrateState,
   recordAnswer,
   resetProgress,
+  STATE_VERSION,
   updateDeck,
   updateSettings,
 } from '../src/state.ts';
@@ -220,7 +221,7 @@ test('decks and their progress survive a save and reload, and broken decks are d
 
 test('old saves gain an empty list of decks', () => {
   const state = migrateState({ version: 6, settings: { rows: ['basic:Vowels'] } });
-  assert.equal(state.version, 7);
+  assert.equal(state.version, STATE_VERSION);
   assert.deepEqual(state.decks, []);
   assert.deepEqual(state.deletedDecks, {});
 });
