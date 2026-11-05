@@ -5,6 +5,11 @@
   color: light-dark(#7a4f12, #e7c48c);
 }
 
+.track-forms {
+  background: light-dark(#e4f0ea, #1c322a);
+  color: light-dark(#23604a, #8fd0b4);
+}
+
 .kana.is-sentence {
   display: flex;
   flex-direction: column;

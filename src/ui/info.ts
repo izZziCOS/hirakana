@@ -1,4 +1,5 @@
 import { EXAMPLES, NOTES } from '../data.ts';
+import { examplesOf } from '../examples.ts';
 import { formatSeconds, formatWait } from '../format.ts';
 import {
   DIRECTIONS,
@@ -22,7 +23,7 @@ import { isKnown, isSuspended } from '../state.ts';
 import type { KanaItem, State } from '../types.ts';
 import { codePoints } from '../util.ts';
 import { bigJp, jp } from './dom.ts';
-import { clozeMarkup, pointItems } from './grammar.ts';
+import { clozeMarkup, pointItems, segmentsMarkup } from './grammar.ts';
 import { html, type Html } from './html.ts';
 import { DIRECTION_LABEL, GROUP_LABEL, LEVEL_LABEL, SCRIPT_LABEL } from './labels.ts';
 
@@ -136,12 +137,16 @@ function cardActions(item: KanaItem, state: State): Html {
   );
 }
 
+const MORE_EXAMPLES = 6;
+
 // A grammar card explains its point and shows the point's other sentences.
 function grammarInfo(item: KanaItem, state: State, now: number): Html {
   const { cloze } = item;
   if (!cloze) return html``;
   const { point } = cloze;
-  const others = pointItems(item).filter(other => other !== item);
+  const others = pointItems(item)
+    .filter(other => other !== item)
+    .slice(0, MORE_EXAMPLES);
   const example = (other: KanaItem) =>
     html`<li>
       <span class="jp">${clozeMarkup(other, state.stats, true)}</span>
@@ -227,6 +232,21 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
         )}`,
       );
     }
+  }
+  const sentences = examplesOf(item);
+  if (sentences.length) {
+    add(
+      'In a sentence',
+      html`<ul class="grammar-examples">
+        ${sentences.map(
+          sentence =>
+            html`<li>
+              <span class="jp" lang="ja">${segmentsMarkup(sentence.segments, state.stats)}</span>
+              <span class="muted">${sentence.english}</span>
+            </li>`,
+        )}
+      </ul>`,
+    );
   }
   const usedIn = isKanji(item) ? wordsWithKanji(item) : [];
   if (usedIn.length) {

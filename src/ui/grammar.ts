@@ -7,7 +7,7 @@ import { codePoints } from '../util.ts';
 import { html, type Html } from './html.ts';
 
 // Readings go over the kanji the learner hasn't learned yet; without stats, over none.
-function segmentsMarkup(segments: Segment[], stats: Stats | null): (Html | string)[] {
+export function segmentsMarkup(segments: Segment[], stats: Stats | null): (Html | string)[] {
   return segments.map(segment => {
     if (!segment.reading || !stats) return segment.text;
     const known = codePoints(segment.text).every(char => !/\p{Script=Han}/u.test(char) || knowsKanji(stats, char));

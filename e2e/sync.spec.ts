@@ -94,6 +94,54 @@ test('switching tabs doesn’t upload progress that hasn’t changed', async ({ 
   expect(requests.filter(method => method === 'PUT')).toEqual([]);
 });
 
+test('sync failures show outside Settings from the second one on, and clear once it works', async ({
+  page,
+  context,
+}) => {
+  const store = memoryStore();
+  await serveSync(context, store);
+  await start(page);
+  await answer(page, 'a');
+  await expect(feedback(page)).toContainText('Correct!');
+  await page.locator('#settings-btn').click();
+  await page.getByRole('button', { name: 'Turn on sync' }).click();
+  await expect(page.locator('#sync-status')).toHaveText('Synced just now.');
+
+  await context.unroute(`${SYNC_SERVER}/**`);
+  await context.route(`${SYNC_SERVER}/**`, route => route.fulfill({ status: 503 }));
+  const banner = page.locator('#sync-note');
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(page.locator('#sync-status')).toHaveText('The sync server answered 503.');
+  await expect(banner).toBeHidden();
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText('Your progress isn’t syncing. The sync server answered 503.');
+  await page.locator('#settings-close').click();
+
+  await context.unroute(`${SYNC_SERVER}/**`);
+  await serveSync(context, store);
+  await banner.getByRole('button', { name: 'Try again' }).click();
+  await expect(banner).toBeHidden();
+});
+
+test('being offline doesn’t count as a sync failure on the page', async ({ page, context }) => {
+  const store = memoryStore();
+  await serveSync(context, store);
+  await start(page);
+  await page.locator('#settings-btn').click();
+  await page.getByRole('button', { name: 'Turn on sync' }).click();
+  await expect(page.locator('#sync-status')).toHaveText('Synced just now.');
+  await context.unroute(`${SYNC_SERVER}/**`);
+  await context.route(`${SYNC_SERVER}/**`, route => route.abort('internetdisconnected'));
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(page.locator('#sync-status')).toContainText('Couldn’t reach');
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(page.locator('#sync-status')).toContainText('Couldn’t reach');
+  await expect(page.locator('#sync-note')).toBeHidden();
+  await context.setOffline(false);
+});
+
 test('a mistyped sync code is explained', async ({ page }) => {
   await page.goto('/');
   await page.locator('#settings-btn').click();

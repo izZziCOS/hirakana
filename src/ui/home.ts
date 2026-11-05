@@ -1,7 +1,7 @@
 import { GROUPS, TRACKS } from '../data.ts';
 import { dayStreak } from '../days.ts';
 import { deckChanges, deckNameOf, newDeckId, parseDeck } from '../decks.ts';
-import { inScript, isKanjiGroup, KANA, kanjiLoaded, ROW_INFO, toKatakana } from '../kana.ts';
+import { inScript, isGrammarGroup, isKanjiGroup, KANA, kanjiLoaded, ROW_INFO, toKatakana } from '../kana.ts';
 import { groupRecall } from '../milestones.ts';
 import { backlog, catchUp, resetCard, singleDirection, todaySummary, type TodaySummary } from '../session.ts';
 import { catchUpPlan } from '../schedule.ts';
@@ -130,7 +130,9 @@ function progressBar(size: string, { mastered, learning, total }: GroupProgress)
 }
 
 function groupStatus(state: State, groupId: GroupId, { mastered, learning, total }: GroupProgress): string {
-  if (isKanjiGroup(groupId) && !kanjiLoaded()) return 'Loading…';
+  // Grammar past N4 and the conjugation forms load with the kanji.
+  const onDemand = isKanjiGroup(groupId) || (isGrammarGroup(groupId) && groupId !== 'g5' && groupId !== 'g4');
+  if (onDemand && !kanjiLoaded()) return 'Loading…';
   if (!total) return `Not in ${DIRECTION_LABEL[state.settings.direction]}`;
   const recall = groupRecall(
     state.stats,

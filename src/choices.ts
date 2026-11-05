@@ -134,6 +134,8 @@ function clozeChoices(item: KanaItem, random: Random): string[] {
       random,
     );
   const candidates = [
+    // Conjugation cards bring their own: other forms of the same word, the likeliest mistakes first.
+    ...(cloze.distractors ?? []),
     ...shuffle(cloze.point.options, random),
     ...answersOf(KANA.filter(other => other.rowId === item.rowId)),
     ...answersOf(KANA.filter(other => other.group === item.group && other.rowId !== item.rowId)),

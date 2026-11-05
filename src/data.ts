@@ -107,6 +107,16 @@ export const GROUPS: Group[] = [
     hint: '～をよそに',
   },
   {
+    id: 'cv',
+    label: 'Verb forms',
+    hint: '書く → 書いて',
+  },
+  {
+    id: 'ca',
+    label: 'Adjective forms',
+    hint: '高い → 高くない',
+  },
+  {
     id: 'custom',
     label: 'Imported words',
     hint: '',
@@ -143,6 +153,13 @@ export const TRACKS: Track[] = [
     glyph: '文',
     summary: 'JLPT N5–N1 patterns, in sentences',
     groups: ['g5', 'g4', 'g3', 'g2', 'g1'],
+  },
+  {
+    id: 'forms',
+    label: 'Conjugation',
+    glyph: '活',
+    summary: 'Verb and adjective forms, words you know first',
+    groups: ['cv', 'ca'],
   },
   {
     id: 'decks',

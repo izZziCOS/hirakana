@@ -131,6 +131,11 @@
       <button type="button" id="unreadable-discard" class="link-btn">Delete it</button>
     </div>
 
+    <div id="sync-note" class="update-note" role="status" hidden>
+      <span id="sync-note-text"></span>
+      <button type="button" id="sync-note-retry" class="link-btn">Try again</button>
+    </div>
+
     <div id="update-note" class="update-note" role="status" hidden>
       <span id="update-text"></span>
       <button type="button" id="update-reload" class="link-btn">Reload</button>
@@ -367,9 +372,13 @@
         <div class="section-head">
           <h2>Read</h2>
         </div>
+        <div class="segmented small reader-mode" id="reader-mode" aria-label="What to read">
+          <button data-value="sentences">Sentences</button>
+          <button data-value="passages">Passages</button>
+        </div>
         <p id="reader-summary" class="muted"></p>
         <div class="reader-controls">
-          <div class="reader-control">
+          <div class="reader-control" id="reader-show-control">
             <span id="reader-show-label" class="muted small">Show</span>
             <div class="segmented small" id="reader-show" aria-labelledby="reader-show-label">
               <button data-value="readable">Ones I can read</button>
@@ -387,6 +396,7 @@
         </div>
         <p class="muted small">Select a word written in kanji to show or hide its reading.</p>
         <ol id="sentence-list" class="sentence-list"></ol>
+        <div id="passage-view" hidden></div>
       </section>
       <section id="view-progress" class="view" role="tabpanel" aria-labelledby="tab-progress" hidden>
         <div class="section-head">
@@ -402,6 +412,11 @@
           </div>
         </div>
         <div class="stat-cards" id="overall"></div>
+
+        <section class="chart-card readiness" aria-labelledby="readiness-h">
+          <h3 id="readiness-h">JLPT readiness</h3>
+          <div id="readiness-body"></div>
+        </section>
 
         <div class="section-head">
           <h3>Reviews coming up</h3>
@@ -539,6 +554,17 @@
         </div>
       </div>
       <div id="dialog-body"></div>
+    </dialog>
+
+    <dialog id="mock-dialog" class="mock-dialog" aria-labelledby="mock-title">
+      <div class="dialog-head">
+        <h2 id="mock-title">Mock test</h2>
+        <div>
+          <span id="mock-clock" class="mock-clock" role="timer" hidden></span>
+          <button id="mock-close" class="icon-btn" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div id="mock-body" class="mock-body"></div>
     </dialog>
 
     <dialog id="search-dialog" class="search-dialog" aria-labelledby="search-title">

@@ -210,6 +210,12 @@ export function knowsKanjiOf(word: KanaItem, stats: Stats): boolean {
   return kanji.length > 0 && kanji.every(item => (stats[statKey(item, 'read')]?.box ?? 0) >= 2);
 }
 
+// A conjugation card comes first once the word it conjugates is past its first step, read or understood.
+export function knowsBaseWord(item: KanaItem, stats: Stats): boolean {
+  const base = item.cloze?.baseId;
+  return base !== undefined && Math.max(stats[base]?.box ?? 0, stats[`meaning:${base}`]?.box ?? 0) >= 2;
+}
+
 export function pickNext({ pool, direction = 'read', ...options }: PickNextOptions): Pick | null {
   const pick = pickEntry({ ...options, entries: pool.map(item => ({ item, direction })) });
   return pick && { item: pick.item, kind: pick.kind };
@@ -261,7 +267,11 @@ export function pickEntry({
   const first = unseenEntries[0];
   const inDeck = (entry: Entry) => entry.item.group === DECK_GROUP;
   const unseen =
-    unseenEntries.find(entry => inDeck(entry) === (first && inDeck(first)) && knowsKanjiOf(entry.item, stats)) ?? first;
+    unseenEntries.find(
+      entry =>
+        inDeck(entry) === (first && inDeck(first)) &&
+        (knowsKanjiOf(entry.item, stats) || knowsBaseWord(entry.item, stats)),
+    ) ?? first;
   if (unseen && allowNew && struggling < LEARNING_LIMIT) return { ...unseen, kind: 'new' };
 
   const ahead = randomFrom(

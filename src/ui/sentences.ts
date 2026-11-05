@@ -6,7 +6,7 @@ import { html, type Html } from './html.ts';
 // Readings over kanji: only over kanji not learned yet, over all of them, or none (a word can still be selected).
 export type Furigana = 'new' | 'all' | 'none';
 
-function segmentMarkup(segment: Segment, stats: Stats, furigana: Furigana): Html | string {
+export function segmentMarkup(segment: Segment, stats: Stats, furigana: Furigana): Html | string {
   if (!segment.reading) return segment.text;
   const known = codePoints(segment.text).every(char => !/\p{Script=Han}/u.test(char) || knowsKanji(stats, char));
   const shown = furigana === 'all' || (furigana === 'new' && !known);

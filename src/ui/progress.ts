@@ -3,6 +3,7 @@ import { bestDayStreak, dayStreak, forecast } from '../days.ts';
 import { formatSeconds, formatWait } from '../format.ts';
 import { isGrammar, isKanji, isWord, KANA, parseStatKey, statKey, supportsDirection } from '../kana.ts';
 import { recallRate } from '../milestones.ts';
+import type { JlptLevel } from '../readiness.ts';
 import { readableWords } from '../reading.ts';
 import { isDue, levelOf } from '../schedule.ts';
 import { singleDirection } from '../session.ts';
@@ -14,6 +15,7 @@ import type { KanaDialog } from './dialog.ts';
 import { $, onDelegate, onSegmented, press } from './dom.ts';
 import { shortLabel } from './grammar.ts';
 import { html, setHtml, type Html } from './html.ts';
+import { readinessMarkup } from './readiness.ts';
 import { LEVEL_LABEL } from './labels.ts';
 
 export interface ProgressView {
@@ -38,12 +40,17 @@ interface ProgressOptions {
   dialog: KanaDialog;
   isActive: () => boolean;
   onSelectDay: (day: string) => void;
+  onMockTest: (level: JlptLevel) => void;
 }
 
-export function createProgress({ data }: AppStores, { dialog, isActive, onSelectDay }: ProgressOptions): ProgressView {
+export function createProgress(
+  { data }: AppStores,
+  { dialog, isActive, onSelectDay, onMockTest }: ProgressOptions,
+): ProgressView {
   const els = {
     overall: $('#overall'),
     forecast: $('#forecast'),
+    readiness: $('#readiness-body'),
     activity: $('#activity'),
     trend: $('#trend'),
     grids: $('#progress-grids'),
@@ -191,6 +198,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
       ),
       statCard('Best run', state.bestStreak),
     ]);
+    setHtml(els.readiness, readinessMarkup(state));
     setHtml(els.forecast, forecastTiles(keys, state, now));
     renderReadable(state);
     renderCharts(state, now);
@@ -213,6 +221,7 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
     render();
   });
   onDelegate(els.grids, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
+  onDelegate(els.readiness, '[data-mock]', element => onMockTest(Number(element.dataset.mock) as JlptLevel));
   onDelegate(els.readableWords, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
   onDelegate(els.grids, '[data-expand]', element => {
     const group = element.dataset.expand ?? '';

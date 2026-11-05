@@ -1,8 +1,8 @@
 import { DAY_HISTORY, dayKey, type Days } from './days.ts';
 import { deckItems, deckOfItem, MAX_DECKS } from './decks.ts';
 import { parseStatKey } from './kana.ts';
-import { MAX_DELETED_DECKS, MAX_DEVICES, MAX_MISTAKES } from './state.ts';
-import type { DayLog, Deck, Mistake, State, Stat, Suspension } from './types.ts';
+import { MAX_DELETED_DECKS, MAX_DEVICES, MAX_MISTAKES, MAX_MOCK_TESTS } from './state.ts';
+import type { DayLog, Deck, Mistake, MockResult, PassageResult, State, Stat, Suspension } from './types.ts';
 
 // Each device only ever adds to its own day log, so of two copies of the same log the larger numbers are the newer.
 function newestDays(a: Days = {}, b: Days = {}): Days {
@@ -41,6 +41,8 @@ function sinceReset(state: State, resetAt: number): State {
     deviceDays: Object.fromEntries(Object.entries(state.deviceDays).map(([id, days]) => [id, afterReset(days)])),
     bestStreak: 0,
     suspensions: Object.fromEntries(Object.entries(state.suspensions).filter(([, entry]) => entry.at > resetAt)),
+    mockTests: state.mockTests.filter(result => result.at > resetAt),
+    passages: Object.fromEntries(Object.entries(state.passages).filter(([, result]) => result.at > resetAt)),
   };
 }
 
@@ -50,6 +52,23 @@ function mergeSuspensions(a: Record<string, Suspension>, b: Record<string, Suspe
   for (const [id, entry] of Object.entries(b)) {
     const mine = merged[id];
     if (!mine || entry.at > mine.at) merged[id] = entry;
+  }
+  return merged;
+}
+
+function mergeMockTests(a: MockResult[], b: MockResult[]): MockResult[] {
+  const byId = new Map([...a, ...b].map(result => [`${result.level}|${result.at}`, result]));
+  return [...byId.values()].sort((x, y) => y.at - x.at).slice(0, MAX_MOCK_TESTS);
+}
+
+function mergePassages(
+  a: Record<string, PassageResult>,
+  b: Record<string, PassageResult>,
+): Record<string, PassageResult> {
+  const merged = { ...a };
+  for (const [id, result] of Object.entries(b)) {
+    const mine = merged[id];
+    if (!mine || result.at > mine.at) merged[id] = result;
   }
   return merged;
 }
@@ -145,5 +164,7 @@ export function mergeStates(local: State, localDevice: string, remote: State, re
     suspensions: Object.fromEntries(
       Object.entries(mergeSuspensions(mine.suspensions, theirs.suspensions)).filter(([id]) => !gone(id)),
     ),
+    mockTests: mergeMockTests(mine.mockTests, theirs.mockTests),
+    passages: mergePassages(mine.passages, theirs.passages),
   };
 }

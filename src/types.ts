@@ -27,7 +27,8 @@ export type GroupId =
   // Imported decks.
   | 'custom';
 export type KanjiGroupId = 'k5' | 'k4' | 'k3' | 'k2' | 'k1';
-export type GrammarGroupId = 'g5' | 'g4' | 'g3' | 'g2' | 'g1';
+// Grammar, and verb and adjective forms, which are practised the same way.
+export type GrammarGroupId = 'g5' | 'g4' | 'g3' | 'g2' | 'g1' | 'cv' | 'ca';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
 export type CardKind = 'new' | 'review' | 'ahead' | 'drill' | 'contrast';
 export type Level = 'new' | 'weak' | 'learning' | 'mastered';
@@ -40,7 +41,7 @@ export interface Group {
 
 // The home screen groups the character sets into three tracks.
 export interface Track {
-  id: 'kana' | 'vocabulary' | 'kanji' | 'grammar' | 'decks';
+  id: 'kana' | 'vocabulary' | 'kanji' | 'grammar' | 'forms' | 'decks';
   label: string;
   glyph: string;
   summary: string;
@@ -136,6 +137,10 @@ export interface Cloze {
   english: string;
   // The whole sentence in kana, gap filled, as it is read aloud.
   reading: string;
+  // On a conjugation card: the id of the word it conjugates, if that word is in the lists.
+  baseId?: string;
+  // On a conjugation card: wrong answers made from the same word, the likeliest first.
+  distractors?: string[];
 }
 
 export interface KanjiReadings {
@@ -190,6 +195,20 @@ export interface Suspension {
   at: number;
 }
 
+export interface MockResult {
+  level: number;
+  correct: number;
+  total: number;
+  at: number;
+}
+
+// The last time a passage's questions were all answered.
+export interface PassageResult {
+  correct: number;
+  total: number;
+  at: number;
+}
+
 export interface Mistake {
   // The id of the item that was missed.
   kana: string;
@@ -241,6 +260,10 @@ export interface State {
   deletedDecks: Record<string, number>;
   // By item id; a suspended item is left out of practice in every direction.
   suspensions: Record<string, Suspension>;
+  // The most recent first.
+  mockTests: MockResult[];
+  // By passage id.
+  passages: Record<string, PassageResult>;
 }
 
 export interface Drill {

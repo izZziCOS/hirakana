@@ -27,6 +27,11 @@ const SYNC_DELAY_MS = 15_000;
 const LINK_PREFIX = '#sync=';
 // Returning to a tab checks for news from other devices, at most this often unless there is something to upload.
 const CHECK_EVERY_MS = 60_000;
+// After a failure it tries again by itself, waiting longer each time, and says so on the page from the second one on,
+// as one failure is often just a moment's trouble.
+const RETRY_MS = 60_000;
+const MAX_RETRY_MS = 30 * 60_000;
+const NOTE_AFTER_FAILURES = 2;
 
 export function createSync({ data, session }: AppStores, storage: KeyValueStorage | null, server: string): SyncView {
   const els = {
@@ -36,6 +41,8 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
     code: $('#sync-code'),
     input: $('#sync-code-input', HTMLInputElement),
     status: $('#sync-status'),
+    note: $('#sync-note'),
+    noteText: $('#sync-note-text'),
   };
   let config = loadSyncConfig(storage);
   let keys: { code: string; keys: Promise<SyncKeys> } | null = null;
@@ -49,8 +56,12 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
   let etag: string | null = null;
   let changed = true;
   let checkedAt = 0;
+  let failures = 0;
 
   function render(): void {
+    // Being offline isn't a failure: it syncs when the connection is back.
+    els.note.hidden = !config || !error || failures < NOTE_AFTER_FAILURES || !navigator.onLine;
+    els.noteText.textContent = `Your progress isn’t syncing. ${error ?? ''}`;
     els.section.hidden = false;
     els.off.hidden = Boolean(config);
     els.on.hidden = !config;
@@ -114,7 +125,9 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
       }
       setConfig({ ...current, lastSync: Date.now() });
       error = null;
+      failures = 0;
     } catch (failure) {
+      failures++;
       error = failure instanceof SyncError ? failure.message : 'Syncing failed. It will try again later.';
     }
   }
@@ -133,6 +146,9 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
       if (again) {
         again = false;
         void sync();
+      } else if (error && navigator.onLine) {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => void sync(), Math.min(RETRY_MS * 2 ** (failures - 1), MAX_RETRY_MS));
       }
     });
     render();
@@ -141,6 +157,7 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
 
   function connect(code: string): void {
     error = null;
+    failures = 0;
     etag = null;
     changed = true;
     setConfig({ code, lastSync: 0 });
@@ -187,7 +204,9 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
     }).then(confirmed => {
       if (!confirmed) return;
       setConfig(null);
+      window.clearTimeout(timer);
       error = null;
+      failures = 0;
       note = null;
       render();
     });
@@ -207,8 +226,10 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
       try {
         await deleteSynced({ server, keys: await keysFor(current.code) });
         setConfig(null);
+        window.clearTimeout(timer);
         etag = null;
         error = null;
+        failures = 0;
         note = 'The synced copy was deleted.';
       } catch (failure) {
         error = failure instanceof SyncError ? failure.message : 'The synced copy couldn’t be deleted.';
@@ -242,6 +263,8 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
     if (changed || (!document.hidden && Date.now() - checkedAt >= CHECK_EVERY_MS)) void sync();
   });
   window.addEventListener('online', () => void sync());
+  window.addEventListener('offline', render);
+  $('#sync-note-retry').addEventListener('click', () => void sync());
 
   render();
   void sync();

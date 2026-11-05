@@ -404,6 +404,20 @@ export function registerVocabulary(data: VocabEntry[]): void {
   }
 }
 
+// Adds a row of cards that are filled in, like those of a grammar point.
+export function addCardRow(row: { label: string; group: GroupId }, items: KanaItem[]): void {
+  items.forEach(item => {
+    KANA.push(item);
+    kanaIndex.set(item.id, item);
+  });
+  ROW_INFO.push({
+    id: rowIdOf(row),
+    label: row.label,
+    group: row.group,
+    preview: { hiragana: row.label, katakana: row.label },
+  });
+}
+
 let grammarRegistered = false;
 
 // Adds the grammar past N4 to KANA and ROW_INFO. It is loaded together with the kanji, for the same reason.
@@ -411,25 +425,17 @@ export function registerGrammar(points: GrammarPoint[]): void {
   if (grammarRegistered) return;
   grammarRegistered = true;
   for (const point of points) {
-    point.sentences.forEach((sentence, i) => {
-      const item = grammarItem(point, sentence, i);
-      KANA.push(item);
-      kanaIndex.set(item.id, item);
-    });
-    const row = grammarRowOf(point);
-    ROW_INFO.push({
-      id: rowIdOf(row),
-      label: row.label,
-      group: row.group,
-      preview: { hiragana: row.label, katakana: row.label },
-    });
+    addCardRow(
+      grammarRowOf(point),
+      point.sentences.map((sentence, i) => grammarItem(point, sentence, i)),
+    );
   }
 }
 
 export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
 
 export const isGrammar = (item: KanaItem): boolean => item.cloze !== undefined;
-const GRAMMAR_GROUPS = new Set<GroupId>(KANJI_LEVELS.map(level => `g${level}` as const));
+const GRAMMAR_GROUPS = new Set<GroupId>([...KANJI_LEVELS.map(level => `g${level}` as const), 'cv', 'ca']);
 export const isGrammarGroup = (group: GroupId): boolean => GRAMMAR_GROUPS.has(group);
 
 // What is read aloud for a card: a grammar card's whole sentence, in kana so the voice can't misread its kanji.

@@ -1,0 +1,217 @@
+/* JLPT readiness on the Progress tab, the mock test and graded passages. */
+
+.readiness {
+  margin-top: 16px;
+}
+
+.readiness-goal {
+  margin: 8px 0;
+}
+
+.readiness-legend {
+  margin-bottom: 8px;
+}
+
+.readiness-level {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.readiness-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.readiness-mock {
+  margin-left: auto;
+}
+
+.readiness-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 20px;
+}
+
+.readiness-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.readiness-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+/* Known and learning are stages of one thing, so they are one hue, dark and light. Every bar has its numbers too. */
+.readiness-known {
+  background: light-dark(#2d7a4d, #4aa572);
+}
+
+.readiness-learning {
+  background: light-dark(#6cc28e, #1c7043);
+}
+
+.mock-dialog {
+  width: min(560px, calc(100% - 32px));
+}
+
+.mock-dialog .dialog-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.mock-clock {
+  align-self: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.mock-body {
+  padding: 8px 22px 22px;
+}
+
+.mock-progress {
+  margin: 0;
+}
+
+.mock-prompt {
+  margin: 20px 0;
+  font-size: 2.6rem;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.mock-prompt.is-sentence {
+  font-size: 1.4rem;
+}
+
+.mock-kana-choices .choice {
+  font-size: 1.1rem;
+  padding: 14px 10px;
+}
+
+.mock-skip {
+  display: block;
+  margin: 12px auto 0;
+}
+
+.mock-score {
+  margin: 8px 0;
+  font-size: 2.6rem;
+  font-weight: 700;
+}
+
+.mock-score small {
+  color: var(--muted);
+  font-size: 1.2rem;
+  font-weight: 400;
+}
+
+.mock-sections {
+  margin: 8px 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.mock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.reader-mode {
+  margin-bottom: 8px;
+}
+
+.passage-level h3 {
+  margin: 16px 0 8px;
+}
+
+.passage-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.passage-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.passage-link:hover {
+  border-color: var(--accent);
+}
+
+.passage-link-title {
+  font-size: 1.15rem;
+}
+
+.passage-back {
+  margin: 12px 0 4px;
+}
+
+.passage-title {
+  margin: 8px 0 0;
+  font-size: 1.4rem;
+}
+
+.passage-question {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.passage-question legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.passage-options {
+  display: grid;
+  gap: 6px;
+}
+
+.passage-option {
+  font-size: 1rem;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.passage-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 2em;
+}
+
+@media (width <= 520px) {
+  .readiness-sections {
+    grid-template-columns: 1fr;
+  }
+}

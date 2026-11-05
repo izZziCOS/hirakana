@@ -31,6 +31,7 @@ import { createDialog, type StartDrill } from './ui/dialog.ts';
 import { createHome } from './ui/home.ts';
 import { $ } from './ui/dom.ts';
 import { createMistakes } from './ui/mistakes.ts';
+import { createMockTest } from './ui/mock-test.ts';
 import { createOfflineStrokes } from './ui/offline.ts';
 import { createPractice } from './ui/practice/index.ts';
 import { createProgress } from './ui/progress.ts';
@@ -96,6 +97,7 @@ function start(storage: KeyValueStorage | null): void {
 
   const startDrill: StartDrill = (label, items) => {
     search.close();
+    mockTest.close();
     showView('practice');
     showLearn('session');
     practice.drill(label, items);
@@ -132,6 +134,7 @@ function start(storage: KeyValueStorage | null): void {
   });
   const mistakes = createMistakes(stores, dialog, startDrill, isActive('mistakes'));
   const search = createSearch(dialog);
+  const mockTest = createMockTest(stores, dialog, startDrill, () => progress.render());
   const reader = createReader(stores, isActive('read'));
   const progress = createProgress(stores, {
     dialog,
@@ -140,6 +143,7 @@ function start(storage: KeyValueStorage | null): void {
       showView('mistakes');
       mistakes.showDay(day);
     },
+    onMockTest: level => mockTest.open(level),
   });
 
   function showView(view: View, focusTab = false): void {

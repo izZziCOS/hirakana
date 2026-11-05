@@ -1,3 +1,4 @@
+import { registerConjugation } from './conjugation.ts';
 import { GRAMMAR_ADVANCED } from './grammar-advanced-data.ts';
 import { registerGrammar, registerKanji, registerVocabulary } from './kana.ts';
 import { KANJI_DATA } from './kanji-data.ts';
@@ -7,3 +8,4 @@ import { VOCAB_DATA } from './vocab-data.ts';
 registerKanji(KANJI_DATA, KANJI_PARTS);
 registerVocabulary(VOCAB_DATA);
 registerGrammar(GRAMMAR_ADVANCED);
+registerConjugation();

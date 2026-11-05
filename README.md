@@ -16,6 +16,12 @@ loaded, and keeps progress in the browser with no backend.
   words, and the full JLPT vocabulary lists (~7,700 words: about 590 N5, 600 N4, 2,100 N3, 1,650 N2 and 2,650 N1,
   shown with their kanji). Each level starts with hand-picked themed rows, then the rest in rows of 30, words whose
   kanji are taught earliest first. Practise whole sets or individual rows.
+- **Conjugation:** a track of about 1,100 cards, one for each of 90 common verbs and 57 adjectives in each form: polite,
+  negative, past, て, potential, volitional, conditional, passive and causative for verbs, and negative, past, past
+  negative, linking and adverb for adjectives. Forms a verb doesn't have are left out. Words you already know come first.
+  It is practised in Fill in, typed in kana, romaji or with the word's kanji, or picked from wrong forms of the same
+  word, the likeliest mistakes first. A verb's class comes from `src/conjugation-data.ts`, as the word list doesn't record
+  it and spelling can't tell (帰る is godan, 食べる ichidan).
 - **Grammar:** 85 JLPT grammar points (19 N5, 14 N4, 21 N3, 18 N2 and 13 N1), from は and が to ～をよそに, one row each.
   Each point has an explanation and four or five sentences with a gap where it goes; a sentence is filled in by typing
   the missing part in kana or romaji (particles as they are read: wa, e, o) or by picking it from four options, with
@@ -30,6 +36,13 @@ loaded, and keeps progress in the browser with no backend.
 - **Reading:** the Read tab lists short sentences (kana-only ones first, up to about N3) that use only the kana and
   kanji you know, or all of them with readings over the kanji you haven't learned. Select a word to show or hide its
   reading; each sentence has its meaning and can be read aloud.
+- **Graded passages:** the Read tab also has 12 short passages from N5 to N1 written for the app, with readings on
+  demand, the meaning of each paragraph, listening and three comprehension questions each.
+- **JLPT readiness:** the Progress tab shows how much of each level's kanji, words and grammar you know, your next goal
+  and a timed mock test: 30 questions from all of a level in 15 minutes, scored per section, with what you missed ready to
+  drill. It doesn't change your reviews, and it is a practice check, not a prediction of an exam result.
+- **Example sentences:** a word's or kanji's info panel shows up to three of the app's own reading and grammar sentences
+  that use it, where there are any.
 - **Kanji:** all ~2,230 JLPT kanji (N5 80, N4 166, N3 373, N2 367, N1 1,244) in rows of 30, most frequent first. Read
   accepts any on or kun reading; the info panel lists the readings, meanings, stroke count, stroke order and the
   vocabulary words that use the kanji, which can be drilled together. It also shows the parts a kanji is built from
@@ -62,7 +75,7 @@ loaded, and keeps progress in the browser with no backend.
 - **Search:** the search button or `/` finds kana, words, kanji and grammar by how they are written, read or what they
   mean, and opens their info panel.
 - **Sync:** optional, end-to-end encrypted sync between devices with a sync code or link, through a small server you
-  deploy yourself (see [worker/README.md](worker/README.md)).
+  deploy yourself (see [worker/README.md](worker/README.md)). If syncing keeps failing while online, the page says so.
 - **Other:** session goal, light/dark/system theme, export and import of progress with a backup reminder, installable
   as an app, and a message when a new version is ready to reload.
 
@@ -112,6 +125,13 @@ src/
   furigana.ts            Parses {漢字|かんじ} readings, shared by the sentences and the grammar cards
   grammar-data.ts        JLPT N5–N4 grammar points and their sentences with a gap; ids are saved with progress
   grammar-advanced-data.ts  JLPT N3–N1 grammar points, loaded on demand with the kanji
+  conjugate.ts           Conjugates a verb or adjective from its dictionary form
+  conjugation-data.ts    Verbs and adjectives with their class, and what each form is for
+  conjugation.ts         Builds the conjugation cards; loaded on demand with the kanji
+  examples.ts            Finds the app's sentences that use a word or kanji
+  passages-data.ts       Graded passages and their questions; loaded when the Read tab first shows them
+  readiness.ts           How much of each JLPT level is known
+  mock-test.ts           Builds and scores a mock test
   search.ts              Finds items by how they are written, read or what they mean
   decks.ts               Imported word lists: parsing CSV and Anki exports, and their cards
   kanji.ts               Adds the kanji and the JLPT word list to the item lists; loaded on demand through kanji-loader.ts
@@ -163,7 +183,7 @@ progress** to back it up or move it, or turn on sync. An import can be merged wi
 replace it. With sync on, `kana-dojo-sync` holds the sync code and
 `kana-dojo-device` this device's id; neither is part of an export.
 
-The saved object carries a `version` (currently 9). When the shape changes:
+The saved object carries a `version` (currently 10). When the shape changes:
 
 1. bump `STATE_VERSION` in `src/state.ts`;
 2. add a step to `MIGRATIONS` that upgrades the previous version;

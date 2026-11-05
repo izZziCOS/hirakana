@@ -31,6 +31,7 @@ import type {
   GroupId,
   KanaItem,
   Mistake,
+  MockResult,
   Mode,
   Outcome,
   PracticeDirection,
@@ -43,7 +44,8 @@ import type {
 } from './types.ts';
 import { isObject, nonNegative, type Random, unique } from './util.ts';
 
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
+export const MAX_MOCK_TESTS = 50;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
 export const DEFAULT_NEW_PER_DAY = 15;
@@ -90,6 +92,8 @@ export const defaultState = (): State => ({
   decks: [],
   deletedDecks: {},
   suspensions: {},
+  mockTests: [],
+  passages: {},
 });
 
 const entriesOf = (value: unknown): [string, unknown][] => (isObject(value) ? Object.entries(value) : []);
@@ -129,6 +133,8 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   7: data => ({ ...data, version: 8 }),
   // Suspended cards; the sanitising below fills them in.
   8: data => ({ ...data, version: 9 }),
+  // Mock test results and passages read; the sanitising below fills them in.
+  9: data => ({ ...data, version: 10 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -285,6 +291,25 @@ function sanitizeState(data: RawData): State {
         .filter((entry): entry is [string, RawData] => find(entry[0]) !== undefined && isObject(entry[1]))
         .map(([id, suspension]) => [id, { on: suspension.on === true, at: nonNegative(suspension.at) }]),
     ),
+    mockTests: (Array.isArray(data.mockTests) ? data.mockTests : [])
+      .filter((result): result is RawData => isObject(result) && [1, 2, 3, 4, 5].includes(result.level as number))
+      .map(result => ({
+        level: result.level as number,
+        correct: nonNegative(result.correct),
+        total: nonNegative(result.total),
+        at: nonNegative(result.at),
+      }))
+      .sort((a, b) => b.at - a.at)
+      .slice(0, MAX_MOCK_TESTS),
+    // Passages load on demand, so their ids are only checked for their form.
+    passages: Object.fromEntries(
+      entriesOf(data.passages)
+        .filter((entry): entry is [string, RawData] => /^[a-z0-9-]+$/.test(entry[0]) && isObject(entry[1]))
+        .map(([id, result]) => [
+          id,
+          { correct: nonNegative(result.correct), total: nonNegative(result.total), at: nonNegative(result.at) },
+        ]),
+    ),
   };
 }
 
@@ -374,6 +399,16 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
     bestStreak: Math.max(state.bestStreak, run),
   };
 }
+
+export const recordMockTest = (state: State, result: MockResult): State => ({
+  ...state,
+  mockTests: [result, ...state.mockTests].slice(0, MAX_MOCK_TESTS),
+});
+
+export const recordPassage = (state: State, id: string, correct: number, total: number, now = Date.now()): State => ({
+  ...state,
+  passages: { ...state.passages, [id]: { correct, total, at: now } },
+});
 
 export const isSuspended = (state: State, id: string): boolean => state.suspensions[id]?.on === true;
 

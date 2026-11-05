@@ -55,6 +55,27 @@ test('grammar up to N1 appears once the kanji file has loaded, and can be practi
   await expect(page.locator('#feedback')).toContainText('Correct!');
 });
 
+test('verb forms are drilled from the Conjugation track, starting with an everyday verb', async ({ page, seed }) => {
+  await seed({ version: 9, settings: { rows: ['cv:て form'], direction: 'cloze', mode: 'type', introduce: false } });
+  await openApp(page);
+  const forms = page.locator('.track', { has: page.locator('#track-forms') });
+  await expect(forms.locator('[data-group="cv"]')).toContainText(/\d+ cards/);
+  await page.locator('#continue-btn').click();
+  await expect(page.locator('#kana')).toContainText('to eat · て form');
+  await page.locator('#answer-input').fill('たべて');
+  await page.locator('#answer-input').press('Enter');
+  await expect(page.locator('#feedback')).toContainText('Correct!');
+});
+
+test('a word’s sentences appear in its info panel', async ({ page }) => {
+  await openApp(page);
+  await page.locator('#search-btn').click();
+  await page.locator('#search-input').fill('水');
+  await page.locator('.search-result[data-open="水"]').click();
+  await expect(page.locator('#dialog-body')).toContainText('In a sentence');
+  await expect(page.locator('#dialog-body .grammar-examples')).toContainText('水');
+});
+
 test('a new grammar point is introduced once, then picked from four options', async ({ page, seed }) => {
   await seed({ version: 7, settings: { rows: [TOPIC], direction: 'cloze', mode: 'choose', introduce: true } });
   await openApp(page);

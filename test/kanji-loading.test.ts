@@ -53,7 +53,10 @@ test('the kanji and the full word list are added once they have loaded', async (
   await loading;
   assert.equal(kanjiLoaded(), true);
   const sentences = GRAMMAR_ADVANCED.flatMap(point => point.sentences).length;
-  assert.equal(KANA.length, kana + KANJI_DATA.length + VOCAB_DATA.length + sentences);
+  const added = kana + KANJI_DATA.length + VOCAB_DATA.length + sentences;
+  const forms = KANA.filter(item => item.group === 'cv' || item.group === 'ca').length;
+  assert.ok(forms > 900);
+  assert.equal(KANA.length, added + forms);
   assert.ok(ROW_INFO.length > rows);
   assert.equal(findKana('日')?.script, 'kanji');
   assert.equal(findKana('あそこ')?.group, 'n5');
@@ -64,5 +67,5 @@ test('the kanji and the full word list are added once they have loaded', async (
   registerKanji(KANJI_DATA);
   registerVocabulary(VOCAB_DATA);
   registerGrammar(GRAMMAR_ADVANCED);
-  assert.equal(KANA.length, kana + KANJI_DATA.length + VOCAB_DATA.length + sentences);
+  assert.equal(KANA.length, added + forms);
 });

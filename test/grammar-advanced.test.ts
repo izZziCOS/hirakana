@@ -46,7 +46,7 @@ test('every sentence has one gap and gives every kanji its reading', () => {
     assert.ok(item.cloze?.answers.every(isKanaText), item.id);
     assert.ok(isKanaText(item.cloze?.reading.replace(/[、。]/g, '') ?? ''), item.id);
   });
-  const sentences = KANA.filter(isGrammar).map(item => item.kana);
+  const sentences = KANA.filter(item => isGrammar(item) && !item.cloze?.distractors).map(item => item.kana);
   assert.equal(new Set(sentences).size, sentences.length);
 });
 
