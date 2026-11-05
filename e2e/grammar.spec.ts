@@ -40,6 +40,21 @@ test('a gap is filled in by typing, in romaji or kana', async ({ page, seed }) =
   await expect(feedback(page).locator('.cloze-answer')).toHaveText('は');
 });
 
+test('grammar up to N1 appears once the kanji file has loaded, and can be practised', async ({ page, seed }) => {
+  await seed({
+    version: 9,
+    settings: { rows: ['g1:～ならでは'], direction: 'cloze', mode: 'choose', introduce: false },
+  });
+  await openApp(page);
+  const grammar = page.locator('.track', { has: page.locator('#track-grammar') });
+  await expect(grammar.locator('[data-group="g3"]')).toContainText(/\d+ cards/);
+  await expect(grammar.locator('[data-group="g1"]')).toContainText(/\d+ cards/);
+  await page.locator('#continue-btn').click();
+  await expect(page.locator('#card-script')).toContainText('JLPT N1 grammar');
+  await page.locator('#choices').getByRole('button', { name: 'ならでは' }).click();
+  await expect(page.locator('#feedback')).toContainText('Correct!');
+});
+
 test('a new grammar point is introduced once, then picked from four options', async ({ page, seed }) => {
   await seed({ version: 7, settings: { rows: [TOPIC], direction: 'cloze', mode: 'choose', introduce: true } });
   await openApp(page);

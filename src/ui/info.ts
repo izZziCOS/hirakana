@@ -18,6 +18,7 @@ import {
 } from '../kana.ts';
 import { mixUpsFor } from '../mistakes.ts';
 import { levelOf } from '../schedule.ts';
+import { isKnown, isSuspended } from '../state.ts';
 import type { KanaItem, State } from '../types.ts';
 import { codePoints } from '../util.ts';
 import { bigJp, jp } from './dom.ts';
@@ -118,6 +119,23 @@ const infoRow = (label: string, value: Html | string): Html =>
   html`<dt>${label}</dt>
     <dd>${value}</dd>`;
 
+// What can be done with the card itself: rest it, or say it doesn't need practice.
+function cardActions(item: KanaItem, state: State): Html {
+  const suspended = isSuspended(state, item.id);
+  return infoRow(
+    'This card',
+    html`<div class="card-actions-row">
+      ${suspended && html`<span class="pill">Suspended: left out of practice</span>`}
+      <button type="button" class="ghost small" data-suspend="${item.id}">${suspended ? 'Resume' : 'Suspend'}</button>
+      ${
+        !suspended &&
+        !isKnown(state, item) &&
+        html`<button type="button" class="ghost small" data-known="${item.id}">I know this</button>`
+      }
+    </div>`,
+  );
+}
+
 // A grammar card explains its point and shows the point's other sentences.
 function grammarInfo(item: KanaItem, state: State, now: number): Html {
   const { cloze } = item;
@@ -155,6 +173,7 @@ function grammarInfo(item: KanaItem, state: State, now: number): Html {
         ),
       infoRow('Type', `Grammar · ${point.label} · ${GROUP_LABEL[item.group]}`),
       infoRow('Your record', recordText(item, state, now)),
+      cardActions(item, state),
     ]}
   </dl>`;
 }
@@ -290,5 +309,6 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
   }
 
   add('Your record', recordText(item, state, now));
+  rows.push(cardActions(item, state));
   return html`<dl class="info-list">${rows}</dl>`;
 }

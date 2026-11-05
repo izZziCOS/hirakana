@@ -1,10 +1,11 @@
 import { findKana, getKana, isWord, kanaForAnswer } from '../kana.ts';
 import { dateOf } from '../days.ts';
 import { parseWritingAnswer } from '../handwriting.ts';
-import { confusionPairs, mistakesOnDay, mostMissed, type MixUpPair } from '../mistakes.ts';
+import { confusionPairs, mistakesOnDay, mostMissed, problemCards, type MixUpPair } from '../mistakes.ts';
 import { DRILL_SIZE } from '../session.ts';
+import { isSuspended } from '../state.ts';
 import type { AppStores } from '../store.ts';
-import type { KanaItem, Mistake, Script } from '../types.ts';
+import type { KanaItem, Mistake, Script, State } from '../types.ts';
 import type { KanaDialog } from './dialog.ts';
 import { $, jp, onDelegate, onSegmented, press, sizeClass } from './dom.ts';
 import { clozeMarkup, shortLabel } from './grammar.ts';
@@ -113,12 +114,29 @@ const pairCard = ({ items: [a, b], count }: MixUpPair): Html =>
     <button class="ghost small" data-pair="${a.id}|${b.id}">Drill</button>
   </div>`;
 
+const suspendedItems = (state: State): KanaItem[] =>
+  Object.keys(state.suspensions)
+    .filter(id => isSuspended(state, id))
+    .flatMap(id => findKana(id) ?? []);
+
+const cardChip = (item: KanaItem, count?: number): Html =>
+  html`<button class="missed-chip" data-open="${item.id}">
+    ${jp(shortLabel(item))}<span class="missed-romaji">${item.romaji}</span
+    >${count !== undefined && html`<span class="count">×${count}</span>`}
+  </button>`;
+
 export function createMistakes(
   { data }: AppStores,
   dialog: KanaDialog,
   startDrill: (label: string, items: KanaItem[]) => void,
+  isActive: () => boolean,
 ): MistakesView {
   const els = {
+    problems: $('#problem-cards'),
+    problemsSection: $('#problem-section'),
+    problemDrill: $('#problem-drill', HTMLButtonElement),
+    suspended: $('#suspended-cards'),
+    suspendedSection: $('#suspended-section'),
     mostMissed: $('#most-missed'),
     pairs: $('#pairs'),
     list: $('#mistake-list'),
@@ -168,7 +186,30 @@ export function createMistakes(
     );
     els.count.textContent = mistakes.length ? `${mistakes.length} total` : '';
     setHtml(els.list, historyItems(mistakes));
+
+    const problems = problemCards(data.get());
+    els.problemsSection.hidden = !problems.length;
+    setHtml(
+      els.problems,
+      problems.map(({ item, wrong }) => cardChip(item, wrong)),
+    );
+    const suspended = suspendedItems(data.get());
+    els.suspendedSection.hidden = !suspended.length;
+    setHtml(
+      els.suspended,
+      suspended.map(item => cardChip(item)),
+    );
   }
+
+  els.problemDrill.addEventListener('click', () => {
+    const items = problemCards(data.get()).map(({ item }) => item);
+    if (items.length) startDrill('the cards you keep missing', items.slice(0, DRILL_SIZE));
+  });
+
+  // The cards listed here change when one is suspended or marked as known in the dialog over this tab.
+  data.subscribe((state, previous) => {
+    if (isActive() && (state.suspensions !== previous.suspensions || state.stats !== previous.stats)) render();
+  });
 
   onSegmented('#mistake-filter', value => {
     filter = value as Script | 'all';
@@ -184,7 +225,7 @@ export function createMistakes(
     );
   });
 
-  [els.mostMissed, els.pairs, els.list].forEach(container => {
+  [els.mostMissed, els.pairs, els.list, els.problems, els.suspended].forEach(container => {
     onDelegate(container, '[data-pair], [data-open]', element => {
       if (element.dataset.pair) {
         const items = element.dataset.pair.split('|').map(getKana);

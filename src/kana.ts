@@ -221,10 +221,12 @@ function kanjiItem([kanji, , strokes, on, kun, meanings]: KanjiEntry, row: Kanji
 
 // Particles are read differently from how they are written: は wa, へ e, を o. Either spelling is accepted.
 const PARTICLE_KANA: Record<string, string> = { は: 'わ', へ: 'え', を: 'お' };
+// は inside はず and はじめ is part of the word, not a particle.
+const PARTICLES = /は(?![ずじ])|[へを]/g;
 
 // The ways to type a grammar answer in romaji, the one that follows how it is read first: dewa, then deha.
 function clozeRomaji(answer: string): string[] {
-  const spoken = answer.replace(/[はへを]/g, particle => PARTICLE_KANA[particle] ?? particle);
+  const spoken = answer.replace(PARTICLES, particle => PARTICLE_KANA[particle] ?? particle);
   return unique(
     [spoken, answer].flatMap(kana => {
       const { romaji, alternatives } = wordRomaji(kana);
@@ -402,10 +404,33 @@ export function registerVocabulary(data: VocabEntry[]): void {
   }
 }
 
+let grammarRegistered = false;
+
+// Adds the grammar past N4 to KANA and ROW_INFO. It is loaded together with the kanji, for the same reason.
+export function registerGrammar(points: GrammarPoint[]): void {
+  if (grammarRegistered) return;
+  grammarRegistered = true;
+  for (const point of points) {
+    point.sentences.forEach((sentence, i) => {
+      const item = grammarItem(point, sentence, i);
+      KANA.push(item);
+      kanaIndex.set(item.id, item);
+    });
+    const row = grammarRowOf(point);
+    ROW_INFO.push({
+      id: rowIdOf(row),
+      label: row.label,
+      group: row.group,
+      preview: { hiragana: row.label, katakana: row.label },
+    });
+  }
+}
+
 export const isKanji = (item: KanaItem): boolean => item.script === 'kanji';
 
 export const isGrammar = (item: KanaItem): boolean => item.cloze !== undefined;
-export const isGrammarGroup = (group: GroupId): boolean => group === 'g5' || group === 'g4';
+const GRAMMAR_GROUPS = new Set<GroupId>(KANJI_LEVELS.map(level => `g${level}` as const));
+export const isGrammarGroup = (group: GroupId): boolean => GRAMMAR_GROUPS.has(group);
 
 // What is read aloud for a card: a grammar card's whole sentence, in kana so the voice can't misread its kanji.
 export const spokenText = (item: KanaItem): string => item.cloze?.reading ?? item.kana;

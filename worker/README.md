@@ -11,13 +11,28 @@ a D1 database and never sees the code or the progress itself.
 - Each sync downloads the blob, merges it with the local progress (`src/merge.ts`) and uploads the result. Uploads
   carry the version they were based on (`If-Match`). If another device uploaded in between, the server answers 412 and
   the browser starts again.
-- Progress that no device has synced for 400 days is deleted by a daily cron job.
+- A sync with nothing new sends `If-None-Match` and uploads nothing, so opening a tab costs one small request.
+- Progress that no device has synced for 400 days is deleted by a daily cron job, and **Delete synced copy** in Settings
+  removes it straight away.
 
-| Request                | Response                                                             |
-| ---------------------- | -------------------------------------------------------------------- |
-| `GET /v1/progress/:id` | 200 with the blob and its `ETag`, or 404                             |
-| `PUT /v1/progress/:id` | 204 with the new `ETag`; needs `If-Match: "n"` or `If-None-Match: *` |
-|                        | 412 if the blob changed, 413 over 1.9 MB, 428 without a precondition |
+| Request                   | Response                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `GET /v1/progress/:id`    | 200 with the blob and its `ETag`, 304 for a matching `If-None-Match`, or 404   |
+| `PUT /v1/progress/:id`    | 204 with the new `ETag`; needs `If-Match: "n"` or `If-None-Match: *`           |
+|                           | 412 if the blob changed, 413 over 1.9 MB, 428 without a precondition, 507 full |
+| `DELETE /v1/progress/:id` | 204; removes the blob                                                          |
+
+Any request can also get 403 (an origin that isn't allowed) or 429 (too many requests).
+
+## Limits
+
+The server takes writes from anyone who can reach it, since it can't tell one encrypted blob from another:
+
+- `ALLOWED_ORIGIN` turns away requests from other sites. Scripts can claim any origin, so this only stops browsers.
+- Rate limits per IP address (`wrangler.toml`): 120 requests and 5 new sync codes a minute. Both are optional bindings;
+  without them the server runs unlimited.
+- At most 1,000 sync codes (`MAX_BLOBS` in `sync.ts`), which at 1.9 MB each bounds the database at about 1.9 GB. New
+  codes get 507 past that, while existing ones keep working.
 
 ## Deploying
 
@@ -31,8 +46,8 @@ npx wrangler d1 execute kana-dojo-sync --remote --file schema.sql
 npx wrangler deploy                        # prints the URL, e.g. https://kana-dojo-sync.you.workers.dev
 ```
 
-Set `ALLOWED_ORIGIN` in `wrangler.toml` to your site's origin (for example `https://you.github.io`) to stop other sites
-from using your server.
+Set `ALLOWED_ORIGIN` in `wrangler.toml` to your site's origin (for example `https://you.github.io`) so that browsers on
+other sites can't use your server. See [Limits](#limits) for what stops scripts.
 
 Then build the site with the server's URL. The **Sync between devices** section in Settings only appears when it is
 set, and the build adds the server to the page's Content-Security-Policy.

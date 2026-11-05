@@ -55,6 +55,45 @@ test('progress reaches another device through a sync link', async ({ page, conte
   await laptop.close();
 });
 
+test('the synced copy can be deleted from the server', async ({ page, context }) => {
+  const store = memoryStore();
+  await serveSync(context, store);
+  await start(page);
+  await answer(page, 'a');
+  await expect(feedback(page)).toContainText('Correct!');
+  await page.locator('#settings-btn').click();
+  await page.getByRole('button', { name: 'Turn on sync' }).click();
+  await expect(page.locator('#sync-status')).toHaveText('Synced just now.');
+  expect(await store.count()).toBe(1);
+
+  await page.getByRole('button', { name: 'Delete synced copy' }).click();
+  await confirmDialog(page, 'Delete');
+  await expect(page.locator('#sync-status')).toHaveText('The synced copy was deleted.');
+  await expect(page.getByRole('button', { name: 'Turn on sync' })).toBeVisible();
+  expect(await store.count()).toBe(0);
+  await expect.poll(() => savedStatKeys(page)).toEqual(['あ']);
+});
+
+test('switching tabs doesn’t upload progress that hasn’t changed', async ({ page, context }) => {
+  const store = memoryStore();
+  const requests: string[] = [];
+  context.on('request', request => {
+    if (request.url().startsWith(SYNC_SERVER)) requests.push(request.method());
+  });
+  await serveSync(context, store);
+  await start(page);
+  await answer(page, 'a');
+  await expect(feedback(page)).toContainText('Correct!');
+  await page.locator('#settings-btn').click();
+  await page.getByRole('button', { name: 'Turn on sync' }).click();
+  await expect(page.locator('#sync-status')).toHaveText('Synced just now.');
+  requests.length = 0;
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.locator('#sync-now').click();
+  await expect(page.locator('#sync-status')).toHaveText('Synced just now.');
+  expect(requests.filter(method => method === 'PUT')).toEqual([]);
+});
+
 test('a mistyped sync code is explained', async ({ page }) => {
   await page.goto('/');
   await page.locator('#settings-btn').click();

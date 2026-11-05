@@ -3,7 +3,7 @@ main = "sync.ts"
 compatibility_date = "2026-10-01"
 
 [vars]
-# The site's origin, e.g. "https://you.github.io". "*" also works: the data is encrypted and there are no cookies.
+# The site's origin, e.g. "https://you.github.io"; requests from other sites are refused. "*" allows any.
 ALLOWED_ORIGIN = "https://izzzicos.github.io"
 
 [[d1_databases]]
@@ -11,6 +11,18 @@ binding = "DB"
 database_name = "kana-dojo-sync"
 # Fill in from the output of `npx wrangler d1 create kana-dojo-sync`.
 database_id = "ff705337-7068-47ed-abf2-332a5a612c5b"
+
+# Per caller (by IP address), per minute. Together with the limit on sync codes in sync.ts, these keep a script from
+# filling the database or using up the plan's requests. A normal device makes a few requests a minute at most.
+[[ratelimits]]
+name = "REQUEST_LIMIT"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "CREATE_LIMIT"
+namespace_id = "1002"
+simple = { limit = 5, period = 60 }
 
 [triggers]
 crons = ["17 3 * * *"]

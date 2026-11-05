@@ -1,12 +1,12 @@
 import { GROUPS } from '../data.ts';
 import { bestDayStreak, dayStreak, forecast } from '../days.ts';
 import { formatSeconds, formatWait } from '../format.ts';
-import { isGrammar, isKanji, isWord, KANA, statKey, supportsDirection } from '../kana.ts';
+import { isGrammar, isKanji, isWord, KANA, parseStatKey, statKey, supportsDirection } from '../kana.ts';
 import { recallRate } from '../milestones.ts';
 import { readableWords } from '../reading.ts';
 import { isDue, levelOf } from '../schedule.ts';
 import { singleDirection } from '../session.ts';
-import { combinedDays } from '../state.ts';
+import { combinedDays, isSuspended } from '../state.ts';
 import type { AppStores } from '../store.ts';
 import type { Direction, Group, KanaItem, Script, State } from '../types.ts';
 import { renderAccuracyTrend, renderActivityHeatmap } from './charts.ts';
@@ -80,7 +80,12 @@ export function createProgress({ data }: AppStores, { dialog, isActive, onSelect
   }
 
   function forecastTiles(keys: string[], state: State, now: number): Html[] {
-    const counts = forecast(state.stats, keys, now, 7);
+    const counts = forecast(
+      state.stats,
+      keys.filter(key => !isSuspended(state, parseStatKey(key).kana)),
+      now,
+      7,
+    );
     const peak = Math.max(1, ...counts);
     return counts.map((count, i) => {
       const date = new Date(now);

@@ -1,6 +1,6 @@
 import type { GrammarPoint } from './types.ts';
 
-// JLPT N5 and N4 grammar, each point with sentences that leave a gap where it goes. The English says which answer is
+// JLPT N5 and N4 grammar (N3 to N1 are in grammar-advanced-data.ts), each point with sentences that leave a gap where it goes. The English says which answer is
 // meant where more than one would be grammatical, and the options are wrong in every sentence of their point.
 export const GRAMMAR_POINTS: GrammarPoint[] = [
   {

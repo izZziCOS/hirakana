@@ -22,7 +22,7 @@ import {
   statKey,
   supportsDirection,
 } from './kana.ts';
-import { applyAnswer, applyKanjiStage, DAY, isDue, isReview, levelOf, MAX_BOX } from './schedule.ts';
+import { applyAnswer, applyKanjiStage, DAY, fuzzedInterval, isDue, isReview, levelOf, MAX_BOX } from './schedule.ts';
 import type {
   DayLog,
   Deck,
@@ -41,9 +41,9 @@ import type {
   State,
   Theme,
 } from './types.ts';
-import { isObject, nonNegative, unique } from './util.ts';
+import { isObject, nonNegative, type Random, unique } from './util.ts';
 
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
 export const DEFAULT_NEW_PER_DAY = 15;
@@ -89,6 +89,7 @@ export const defaultState = (): State => ({
   mistakesClearedAt: 0,
   decks: [],
   deletedDecks: {},
+  suspensions: {},
 });
 
 const entriesOf = (value: unknown): [string, unknown][] => (isObject(value) ? Object.entries(value) : []);
@@ -126,6 +127,8 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   6: data => ({ ...data, version: 7 }),
   // The daily review limit, and reviews counted in the day log; the sanitising below fills them in.
   7: data => ({ ...data, version: 8 }),
+  // Suspended cards; the sanitising below fills them in.
+  8: data => ({ ...data, version: 9 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -277,6 +280,11 @@ function sanitizeState(data: RawData): State {
         .slice(0, MAX_DELETED_DECKS)
         .map(([id, at]) => [id, nonNegative(at)]),
     ),
+    suspensions: Object.fromEntries(
+      entriesOf(data.suspensions)
+        .filter((entry): entry is [string, RawData] => find(entry[0]) !== undefined && isObject(entry[1]))
+        .map(([id, suspension]) => [id, { on: suspension.on === true, at: nonNegative(suspension.at) }]),
+    ),
   };
 }
 
@@ -365,6 +373,52 @@ export function recordAnswer(state: State, { item, direction, outcome, given, ms
         : state.mistakes,
     bestStreak: Math.max(state.bestStreak, run),
   };
+}
+
+export const isSuspended = (state: State, id: string): boolean => state.suspensions[id]?.on === true;
+
+export const setSuspended = (state: State, id: string, on: boolean, now = Date.now()): State => ({
+  ...state,
+  suspensions: { ...state.suspensions, [id]: { on, at: now } },
+});
+
+// "I know this" leaves a card at the 3-week step, or wherever further along it already is.
+export const KNOWN_BOX = 7;
+
+// The directions "I know this" applies to: the one a card starts in, the one being practised and any already practised.
+// Others stay as they are, since a direction with progress is one mixed practice takes up.
+function knownDirections(state: State, item: KanaItem): Direction[] {
+  return DIRECTIONS.filter(
+    direction =>
+      supportsDirection(item, direction) &&
+      (direction === 'read' ||
+        direction === 'cloze' ||
+        direction === state.settings.direction ||
+        state.stats[statKey(item, direction)] !== undefined),
+  );
+}
+
+export const isKnown = (state: State, item: KanaItem): boolean =>
+  knownDirections(state, item).every(direction => (state.stats[statKey(item, direction)]?.box ?? 0) >= KNOWN_BOX);
+
+export function markKnown(state: State, item: KanaItem, now = Date.now(), random: Random = Math.random): State {
+  const stats = { ...state.stats };
+  for (const direction of knownDirections(state, item)) {
+    const key = statKey(item, direction);
+    const previous = stats[key];
+    if ((previous?.box ?? 0) >= KNOWN_BOX) continue;
+    stats[key] = {
+      correct: previous?.correct ?? 0,
+      wrong: previous?.wrong ?? 0,
+      streak: previous?.streak ?? 0,
+      ...(previous?.avgMs ? { avgMs: previous.avgMs } : {}),
+      box: KNOWN_BOX,
+      due: now + fuzzedInterval(KNOWN_BOX, random),
+      last: now,
+      ...(hasReadingStage(item) && direction !== 'write' && direction !== 'recall' ? { kanjiOnly: true } : {}),
+    };
+  }
+  return { ...state, stats };
 }
 
 export const updateSettings = (state: State, changes: Partial<Settings>, now = Date.now()): State => ({
@@ -531,6 +585,7 @@ export function updateDeck(state: State, deckId: string, words: DeckWord[], now 
     decks,
     stats: Object.fromEntries(Object.entries(state.stats).filter(([key]) => !gone(parseStatKey(key).kana))),
     mistakes: state.mistakes.filter(mistake => !gone(mistake.kana)),
+    suspensions: Object.fromEntries(Object.entries(state.suspensions).filter(([id]) => !gone(id))),
   };
 }
 
@@ -548,5 +603,6 @@ export function deleteDeck(state: State, deckId: string, now = Date.now()): Stat
     deletedDecks: { ...state.deletedDecks, [deckId]: now },
     stats: Object.fromEntries(Object.entries(state.stats).filter(([key]) => !inDeck(parseStatKey(key).kana))),
     mistakes: state.mistakes.filter(mistake => !inDeck(mistake.kana)),
+    suspensions: Object.fromEntries(Object.entries(state.suspensions).filter(([id]) => !inDeck(id))),
   };
 }

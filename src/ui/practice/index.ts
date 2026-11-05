@@ -24,11 +24,12 @@ import {
   submitAnswer,
   undoAnswer,
 } from '../../session.ts';
-import { rowsSummary, updateSettings } from '../../state.ts';
+import { isLeech } from '../../schedule.ts';
+import { isSuspended, rowsSummary, updateSettings } from '../../state.ts';
 import type { AppStores } from '../../store.ts';
 import type { Card, KanaItem, Session } from '../../types.ts';
 import { codePoints } from '../../util.ts';
-import { bindInfoLinks, type KanaDialog } from '../dialog.ts';
+import { bindCardActions, bindInfoLinks, type KanaDialog } from '../dialog.ts';
 import { $ } from '../dom.ts';
 import { clozePromptMarkup } from '../grammar.ts';
 import { html, setHtml } from '../html.ts';
@@ -232,6 +233,12 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
       mountWritingPad(els.writePad, card.item.kana, {
         quiz: true,
         onDone: (mistakes, strokes) => submit(writingAnswer(mistakes, strokes)),
+        // Without its strokes the card can't be answered, which isn't the same as not knowing it: it can be passed over.
+        onAvailable: available => {
+          if (session.get().card?.item !== card.item) return;
+          els.skip.hidden = !available;
+          els.nextButton.hidden = available;
+        },
       });
       return;
     }
@@ -292,7 +299,15 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
       html`${resultMessage(card.item, direction, result.isCorrect, given)}
         <div class="feedback-note">${note}</div>
         ${goalReached && html`<div class="goal-note">Session goal reached: ${state.settings.goal} cards. Nice work!</div>`}
-        ${milestones.map(milestone => html`<div class="goal-note milestone">${milestone}</div>`)}`,
+        ${milestones.map(milestone => html`<div class="goal-note milestone">${milestone}</div>`)}
+        ${
+          result.outcome === 'wrong' &&
+          isLeech(state.stats[statKey(card.item, direction)]) &&
+          html`<div class="leech-note">
+            You keep missing this one. Open the details below for a closer look, or rest it for now.
+            <button type="button" class="ghost small" data-suspend="${card.item.id}">Suspend</button>
+          </div>`
+        }`,
     );
 
     const answer = answerOf(card.item, direction);
@@ -484,6 +499,23 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
   }
 
   bindInfoLinks(els.infoBody, kana => dialog.open(kana), drill);
+
+  // Acting on the card on screen moves on to the next one; a card being drilled stays, as drills are chosen by hand.
+  const afterAction = (id: string) => {
+    const { card, drill: drilling } = session.get();
+    if (card?.item.id !== id) return;
+    if (drilling) setHtml(els.infoBody, renderInfo(card.item, data.get()));
+    else next();
+  };
+  bindCardActions(els.infoBody, data, afterAction);
+  bindCardActions(els.feedback, data, afterAction);
+
+  // A card can also be suspended from the dialog or on another device.
+  data.subscribe((state, previous) => {
+    if (state.suspensions === previous.suspensions) return;
+    const { card, drill: drilling } = session.get();
+    if (card && !drilling && isSuspended(state, card.item.id) && !isSuspended(previous, card.item.id)) next();
+  });
 
   return {
     next,

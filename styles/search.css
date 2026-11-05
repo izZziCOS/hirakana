@@ -1,0 +1,123 @@
+/* Search, and the actions on a card in its info panel. */
+
+.search-dialog {
+  width: min(600px, calc(100% - 32px));
+  max-height: min(720px, calc(100dvh - 48px));
+}
+
+.search-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-dialog h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+#search-form,
+#search-status {
+  margin: 0 22px;
+}
+
+#search-input {
+  width: 100%;
+  padding: 11px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 1.1rem;
+}
+
+#search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.search-results {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 12px 12px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.search-result {
+  display: grid;
+  grid-template-columns: minmax(3.5rem, auto) 1fr auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-result:hover,
+.search-result:focus-visible {
+  background: var(--accent-soft);
+}
+
+.search-title {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.search-title.is-word {
+  font-size: 1.15rem;
+}
+
+.search-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.search-meaning {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-group {
+  white-space: nowrap;
+}
+
+.card-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.leech-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+@media (width <= 520px) {
+  .search-group {
+    display: none;
+  }
+
+  .search-result {
+    grid-template-columns: minmax(3rem, auto) 1fr;
+  }
+}

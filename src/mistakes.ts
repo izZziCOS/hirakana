@@ -1,6 +1,19 @@
 import { dayKey } from './days.ts';
-import { findKana, kanaForAnswer } from './kana.ts';
-import type { KanaItem, Mistake } from './types.ts';
+import { findKana, kanaForAnswer, parseStatKey } from './kana.ts';
+import { isLeech } from './schedule.ts';
+import type { KanaItem, Mistake, State } from './types.ts';
+
+// Cards that keep being missed in some direction and aren't suspended, the most missed first.
+export function problemCards(state: State): { item: KanaItem; wrong: number }[] {
+  const found = new Map<KanaItem, number>();
+  for (const [key, stat] of Object.entries(state.stats)) {
+    const item = findKana(parseStatKey(key).kana);
+    if (item && isLeech(stat) && state.suspensions[item.id]?.on !== true) {
+      found.set(item, Math.max(found.get(item) ?? 0, stat.wrong));
+    }
+  }
+  return [...found].map(([item, wrong]) => ({ item, wrong })).sort((a, b) => b.wrong - a.wrong);
+}
 
 export interface MixUpPair {
   items: [KanaItem, KanaItem];

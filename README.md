@@ -16,7 +16,7 @@ loaded, and keeps progress in the browser with no backend.
   words, and the full JLPT vocabulary lists (~7,700 words: about 590 N5, 600 N4, 2,100 N3, 1,650 N2 and 2,650 N1,
   shown with their kanji). Each level starts with hand-picked themed rows, then the rest in rows of 30, words whose
   kanji are taught earliest first. Practise whole sets or individual rows.
-- **Grammar:** 33 JLPT N5 and N4 grammar points (19 and 14), from は and が to ～たら and ～かもしれない, one row each.
+- **Grammar:** 85 JLPT grammar points (19 N5, 14 N4, 21 N3, 18 N2 and 13 N1), from は and が to ～をよそに, one row each.
   Each point has an explanation and four or five sentences with a gap where it goes; a sentence is filled in by typing
   the missing part in kana or romaji (particles as they are read: wa, e, o) or by picking it from four options, with
   the English meaning to tell apart answers that would both be grammatical. A point is introduced with its first
@@ -39,9 +39,10 @@ loaded, and keeps progress in the browser with no backend.
 - **Learning new characters:** a character seen for the first time is introduced with its reading, sound, stroke order
   and example before it is tested, a minute later (can be turned off in Settings). After a mix-up, both characters
   come back within the next few cards to tell them apart.
-- **Spaced repetition** with 11 steps from 1 minute to 8 months. Slow answers don't advance a card; the time limit adapts
-  to your own pace and can be switched off. A miss moves a card back three steps (not to the start) and asks it again a
-  minute later; peeking moves it back two steps. A daily limit on new characters, and an
+- **Spaced repetition** with 11 steps from 1 minute to 8 months; gaps of a day or more vary by up to 10%, so cards
+  learned together spread out. Slow answers don't advance a card; the time limit adapts to your own pace and can be
+  switched off. A miss moves a card back three steps and a peek two, in both cases no further on than the 1-hour step, and
+  asks it again a minute later, so a long-known card builds up again from a day rather than from months. A daily limit on new characters, and an
   optional one on reviews (cards whose last gap was a day or more; cards still being learned don’t count), lead to a
   "Done for today" screen that can ask for a few more of either.
 - **Catching up after a break:** when more reviews are due than fit in a day (over the daily review limit, or over a
@@ -55,10 +56,15 @@ loaded, and keeps progress in the browser with no backend.
   accuracy chart, the share of answers remembered per set, and the words you can already read with the kana you know.
   Milestones mark a whole set mastered and new numbers of readable words.
 - **Mistakes:** history, most-missed characters and mixed-up pairs (シ ⇄ ツ), each of which can be drilled.
+- **Problem cards:** a card missed at least eight times, at least one answer in three, and not yet mastered is pointed out
+  when it is missed again and listed on the Mistakes tab. Any card can be suspended (left out of practice until resumed)
+  or marked "I know this" (moved to the 3-week step) from its info panel.
+- **Search:** the search button or `/` finds kana, words, kanji and grammar by how they are written, read or what they
+  mean, and opens their info panel.
 - **Sync:** optional, end-to-end encrypted sync between devices with a sync code or link, through a small server you
   deploy yourself (see [worker/README.md](worker/README.md)).
 - **Other:** session goal, light/dark/system theme, export and import of progress with a backup reminder, installable
-  as an app.
+  as an app, and a message when a new version is ready to reload.
 
 ## Getting started
 
@@ -75,18 +81,18 @@ straight from disk doesn't work.
 
 ## Scripts
 
-| Command                 | What it does                                                                     |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `npm run dev`           | Development build with live reload; no minification and no service worker        |
-| `npm start`             | Production build, then a static server on `PORT` (default 8000)                  |
-| `npm run build`         | Production build into `dist/`                                                    |
-| `npm test`              | Unit tests (`node:test`, no browser)                                             |
-| `npm run test:coverage` | Unit tests with coverage; fails below 95% lines, 90% branches, 95% functions     |
-| `npm run test:e2e`      | Playwright tests on desktop and mobile Chrome, including axe accessibility scans |
-| `npm run typecheck`     | `tsc` in strict mode, including `noUncheckedIndexedAccess`                       |
-| `npm run lint`          | ESLint (strict, type-aware) and stylelint                                        |
-| `npm run format`        | Prettier                                                                         |
-| `npm run check`         | Type check, lint, formatting check and unit tests with coverage                  |
+| Command                 | What it does                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `npm run dev`           | Development build with live reload; no minification and no service worker                            |
+| `npm start`             | Production build, then a static server on `PORT` (default 8000)                                      |
+| `npm run build`         | Production build into `dist/`                                                                        |
+| `npm test`              | Unit tests (`node:test`, no browser)                                                                 |
+| `npm run test:coverage` | Unit tests with coverage of `src/` and `worker/`; fails below 95% lines, 90% branches, 95% functions |
+| `npm run test:e2e`      | Playwright tests on desktop and mobile Chrome, including axe accessibility scans                     |
+| `npm run typecheck`     | `tsc` in strict mode, including `noUncheckedIndexedAccess`                                           |
+| `npm run lint`          | ESLint (strict, type-aware) and stylelint                                                            |
+| `npm run format`        | Prettier                                                                                             |
+| `npm run check`         | Type check, lint, formatting check and unit tests with coverage                                      |
 
 The first time you run the browser tests, install Chromium for Playwright with `npx playwright install chromium`.
 
@@ -105,6 +111,8 @@ src/
   sentences.ts           Reading sentences with their furigana, and which ones the learner can read
   furigana.ts            Parses {漢字|かんじ} readings, shared by the sentences and the grammar cards
   grammar-data.ts        JLPT N5–N4 grammar points and their sentences with a gap; ids are saved with progress
+  grammar-advanced-data.ts  JLPT N3–N1 grammar points, loaded on demand with the kanji
+  search.ts              Finds items by how they are written, read or what they mean
   decks.ts               Imported word lists: parsing CSV and Anki exports, and their cards
   kanji.ts               Adds the kanji and the JLPT word list to the item lists; loaded on demand through kanji-loader.ts
   reading.ts             Which words the learner can read with the characters they know
@@ -140,11 +148,13 @@ Everything outside `src/ui/` is pure and has no DOM access. State changes go thr
 
 - copies only the Klee One font subsets that cover characters the app actually shows;
 - copies the stroke data and the files in `public/`;
-- splits the JLPT kanji and the full JLPT word list (about 80% of the code) into a file of their own. People learning kana start without it and
+- splits the JLPT kanji, the full JLPT word list and the N3–N1 grammar (about 80% of the code) into a file of their own. People learning kana start without it and
   get it in the background; saved progress that involves kanji waits for it, because cleaning it up without the kanji
   would drop those cards. Tests that need kanji import `src/kanji.ts`;
 - writes `dist/index.html`, with a `modulepreload` link for the code `main.js` shares with the kanji file;
-- generates `sw.js`, which pre-caches every built file so the app works offline.
+- generates `sw.js`, which pre-caches the built files so the app works offline. Fonts (3.3 MB of the 4.9 MB) go in a
+  cache of their own that lasts until the font package changes, so an app update doesn't fetch them again. Kanji stroke
+  files are cached as each is opened, or all at once with **Download all kanji** in Settings (about 9 MB).
 
 ## Saved data
 
@@ -153,7 +163,7 @@ progress** to back it up or move it, or turn on sync. An import can be merged wi
 replace it. With sync on, `kana-dojo-sync` holds the sync code and
 `kana-dojo-device` this device's id; neither is part of an export.
 
-The saved object carries a `version` (currently 8). When the shape changes:
+The saved object carries a `version` (currently 9). When the shape changes:
 
 1. bump `STATE_VERSION` in `src/state.ts`;
 2. add a step to `MIGRATIONS` that upgrades the previous version;
@@ -162,6 +172,10 @@ The saved object carries a `version` (currently 8). When the shape changes:
 
 Older saves, and imported files, are upgraded step by step and then sanitised, so unknown or malformed data is dropped
 instead of breaking the app.
+
+Two kinds of save are never overwritten. Progress from a newer version stops the app with a message to reload, and a tab
+left open from before stops saving as soon as it notices one. Progress that can't be read at all is copied to
+`kana-dojo-unreadable`, and the page offers to download or delete the copy.
 
 ## Deployment
 

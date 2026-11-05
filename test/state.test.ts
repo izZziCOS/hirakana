@@ -27,12 +27,16 @@ import {
   createAppStores,
   createSaver,
   createStore,
+  discardUnreadableSave,
+  isNewerSave,
   type KeyValueStorage,
   loadState,
   parseSaved,
   SAVE_DELAY_MS,
   saveState,
   STORAGE_KEY,
+  UNREADABLE_KEY,
+  unreadableSave,
 } from '../src/store.ts';
 import type { State } from '../src/types.ts';
 
@@ -326,6 +330,101 @@ test('createSaver cancel drops a pending write', t => {
   t.mock.timers.tick(400);
   saver.flush();
   assert.equal(storage.data.size, 0);
+});
+
+test('progress saved by a newer version is recognised, and neither read nor saved over', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const newer = JSON.stringify({ version: STATE_VERSION + 1, bestStreak: 9, futureField: true });
+  assert.ok(isNewerSave(newer));
+  assert.ok(isNewerSave(JSON.stringify({ bestStreak: 9, version: STATE_VERSION + 1 })));
+  assert.ok(!isNewerSave(JSON.stringify({ version: STATE_VERSION })));
+  assert.ok(!isNewerSave(null));
+  assert.ok(!isNewerSave('{broken'));
+  assert.equal(parseSaved(newer, NOW), null);
+
+  const storage = memoryStorage({ [STORAGE_KEY]: newer });
+  const stores = createAppStores(storage);
+  assert.equal(stores.outdated.get(), true);
+  stores.data.update(state => ({ ...state, bestStreak: 1 }));
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  stores.saver.flush();
+  assert.equal(storage.getItem(STORAGE_KEY), newer);
+  assert.equal(storage.getItem(UNREADABLE_KEY), null);
+});
+
+test('a tab stops saving once a newer version has saved, however it finds out', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const newer = JSON.stringify({ version: STATE_VERSION + 1, bestStreak: 9 });
+
+  // Told by the browser that another tab saved.
+  const told = memoryStorage({ [STORAGE_KEY]: JSON.stringify(defaultState()) });
+  const toldStores = createAppStores(told);
+  toldStores.data.update(state => ({ ...state, bestStreak: 1 }));
+  told.setItem(STORAGE_KEY, newer);
+  toldStores.receive(newer, NOW);
+  assert.equal(toldStores.outdated.get(), true);
+  assert.equal(toldStores.data.get().bestStreak, 1);
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.equal(told.getItem(STORAGE_KEY), newer);
+
+  // Finding out only when it is about to save, such as after being frozen in the background.
+  const asleep = memoryStorage({ [STORAGE_KEY]: JSON.stringify(defaultState()) });
+  const asleepStores = createAppStores(asleep);
+  assert.equal(asleepStores.outdated.get(), false);
+  asleep.setItem(STORAGE_KEY, newer);
+  asleepStores.data.update(state => ({ ...state, bestStreak: 1 }));
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.equal(asleepStores.outdated.get(), true);
+  assert.equal(asleep.getItem(STORAGE_KEY), newer);
+});
+
+test('progress that can’t be read is kept aside rather than overwritten', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const broken = '{"version":9,"stats":';
+  const storage = memoryStorage({ [STORAGE_KEY]: broken });
+  const stores = createAppStores(storage);
+  assert.equal(stores.outdated.get(), false);
+  assert.deepEqual(stores.data.get().stats, {});
+  assert.equal(unreadableSave(storage), broken);
+
+  stores.data.update(state => ({ ...state, bestStreak: 1 }));
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.equal((JSON.parse(storage.getItem(STORAGE_KEY) ?? '{}') as State).bestStreak, 1);
+  assert.equal(unreadableSave(storage), broken);
+  discardUnreadableSave(storage);
+  assert.equal(unreadableSave(storage), null);
+
+  // Nothing is kept aside for a browser with nothing saved.
+  const empty = memoryStorage();
+  createAppStores(empty);
+  assert.equal(unreadableSave(empty), null);
+
+  // If no copy can be kept, the original stays where it is and the page says progress isn't being saved.
+  const full: KeyValueStorage = {
+    ...memoryStorage({ [STORAGE_KEY]: broken }),
+    setItem: () => {
+      throw new DOMException('Full', 'QuotaExceededError');
+    },
+  };
+  const fullStores = createAppStores(full);
+  assert.equal(fullStores.saveFailed.get(), true);
+  fullStores.data.update(state => ({ ...state, bestStreak: 1 }));
+  t.mock.timers.tick(SAVE_DELAY_MS);
+  assert.equal(fullStores.saveFailed.get(), true);
+  assert.equal(full.getItem(STORAGE_KEY), broken);
+
+  const blocked: KeyValueStorage = {
+    getItem: () => {
+      throw new Error('blocked');
+    },
+    setItem: () => undefined,
+    removeItem: () => {
+      throw new Error('blocked');
+    },
+  };
+  assert.equal(unreadableSave(blocked), null);
+  assert.doesNotThrow(() => discardUnreadableSave(blocked));
+  assert.equal(unreadableSave(null), null);
 });
 
 test('receive takes in another tab’s progress without writing it back or keeping a stale undo', t => {

@@ -24,6 +24,8 @@ export const MASTERED_BOX = 5;
 export const LEARNING_LIMIT = 5;
 export const PEEK_PENALTY = 2;
 export const MISS_PENALTY = 3;
+// The furthest a card is left after a miss or a peek: the 1-hour step, one below a review.
+export const LAPSE_BOX = 3;
 export const MAX_TIMED_MS = 60 * 1000;
 
 export type Stats = Record<string, Stat>;
@@ -99,7 +101,21 @@ export function outcomeFor({ isCorrect, revealed, ms, threshold }: OutcomeInput)
   return ms !== null && ms > threshold ? 'slow' : 'correct';
 }
 
-export function applyAnswer(previous: Stat | undefined, outcome: Outcome, now: number, ms: number | null = null): Stat {
+// Gaps of a day or more vary by up to this much, so cards learned together don't keep coming due together.
+export const INTERVAL_FUZZ = 0.1;
+
+export const fuzzedInterval = (box: number, random: Random = Math.random): number => {
+  const interval = intervalFor(box);
+  return interval < DAY ? interval : Math.round(interval * (1 + INTERVAL_FUZZ * (2 * random() - 1)));
+};
+
+export function applyAnswer(
+  previous: Stat | undefined,
+  outcome: Outcome,
+  now: number,
+  ms: number | null = null,
+  random: Random = Math.random,
+): Stat {
   const stat: Stat = { correct: 0, wrong: 0, streak: 0, box: 0, due: now, ...previous, last: now };
   delete stat.moved;
   const scheduled = stat.box <= 1 || stat.due <= now;
@@ -110,24 +126,29 @@ export function applyAnswer(previous: Stat | undefined, outcome: Outcome, now: n
     if (ms !== null) stat.avgMs = Math.round(stat.avgMs ? stat.avgMs * 0.7 + ms * 0.3 : ms);
     if (scheduled) {
       stat.box = outcome === 'correct' ? (stat.box ? Math.min(stat.box + 1, MAX_BOX) : 2) : Math.max(stat.box, 1);
-      stat.due = now + intervalFor(stat.box);
+      stat.due = now + fuzzedInterval(stat.box, random);
     }
     return stat;
   }
 
+  // A miss or a peek moves the card back a few steps rather than to the start, so a long-known card isn't relearned from
+  // scratch, but never leaves it past the 1-hour step: one right answer a minute later doesn't show it has been
+  // remembered, so the gaps build up again from a day. Either way it comes back a minute later to be answered.
   stat.streak = 0;
-  if (outcome === 'peeked') {
-    stat.box = Math.max(1, stat.box - PEEK_PENALTY);
-    stat.due = now + intervalFor(stat.box);
-    return stat;
-  }
-  // A miss moves the card back a few steps rather than to the start, so a long-known card isn't relearned from
-  // scratch, and brings it back a minute later to be answered right before the longer gaps resume.
-  stat.wrong++;
-  stat.box = Math.max(1, stat.box - MISS_PENALTY);
+  if (outcome === 'wrong') stat.wrong++;
+  const penalty = outcome === 'wrong' ? MISS_PENALTY : PEEK_PENALTY;
+  stat.box = Math.max(1, Math.min(stat.box - penalty, LAPSE_BOX));
   stat.due = now + intervalFor(1);
   return stat;
 }
+
+// A card that keeps being missed isn't helped by more of the same reviews: it needs a closer look, or a rest.
+export const LEECH_MISSES = 8;
+export const isLeech = (stat: Stat | undefined): boolean =>
+  stat !== undefined &&
+  stat.wrong >= LEECH_MISSES &&
+  stat.box < MASTERED_BOX &&
+  stat.wrong * 3 >= stat.correct + stat.wrong;
 
 export const KANJI_ONLY_BOX = 2;
 

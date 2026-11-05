@@ -23,14 +23,22 @@ const CACHE = `${CACHE_PREFIX}${__VERSION__}`;
 // Kanji stroke files only change with the KanjiVG release, so they keep their own cache across app updates.
 const STROKES = `${CACHE_PREFIX}strokes-${KANJIVG_VERSION}`;
 const STROKES_URL = new URL(`${KANJIVG_PATH}/`, worker.location.href).href;
+// Fonts rarely change and are most of the download, so an app update doesn't fetch them again.
+const FONTS = `${CACHE_PREFIX}fonts-${__FONTS_VERSION__}`;
+const FONTS_URL = new URL('fonts/', worker.location.href).href;
 const PAGE = 'index.html';
+
+async function precacheFonts(): Promise<void> {
+  const cache = await caches.open(FONTS);
+  const held = await Promise.all(__FONTS__.map(font => cache.match(font)));
+  await cache.addAll(__FONTS__.filter((_, i) => !held[i]));
+}
 
 worker.addEventListener('install', event => {
   event.waitUntil(
-    caches
-      .open(CACHE)
-      .then(cache => cache.addAll(__PRECACHE__))
-      .then(() => worker.skipWaiting()),
+    Promise.all([caches.open(CACHE).then(cache => cache.addAll(__PRECACHE__)), precacheFonts()]).then(() =>
+      worker.skipWaiting(),
+    ),
   );
 });
 
@@ -41,7 +49,7 @@ worker.addEventListener('activate', event => {
       .then(keys =>
         Promise.all(
           keys
-            .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE && key !== STROKES)
+            .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE && key !== STROKES && key !== FONTS)
             .map(key => caches.delete(key)),
         ),
       )
@@ -76,5 +84,6 @@ worker.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== worker.location.origin) return;
   if (request.mode === 'navigate') event.respondWith(fromNetworkFirst(request));
+  else if (request.url.startsWith(FONTS_URL)) event.respondWith(fromCacheFirst(request, FONTS));
   else event.respondWith(fromCacheFirst(request, request.url.startsWith(STROKES_URL) ? STROKES : CACHE));
 });

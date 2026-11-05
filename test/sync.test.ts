@@ -7,6 +7,7 @@ import { getKana } from '../src/kana.ts';
 import { defaultState, recordAnswer, STATE_VERSION } from '../src/state.ts';
 import type { KeyValueStorage } from '../src/store.ts';
 import {
+  deleteSynced,
   DEVICE_STORAGE_KEY,
   deriveKeys,
   deviceId,
@@ -91,10 +92,16 @@ test('sealed progress opens only with the right key', async () => {
 test('two devices end up with each other’s progress', async () => {
   const keys = await deriveKeys(CODE);
   const fetch = serverFetch();
-  const phone = await syncOnce({ server: SERVER, keys, device: 'phone', state: answer(defaultState(), 'あ'), fetch });
+  const { state: phone } = await syncOnce({
+    server: SERVER,
+    keys,
+    device: 'phone',
+    state: answer(defaultState(), 'あ'),
+    fetch,
+  });
   assert.deepEqual(Object.keys(phone.stats), ['あ']);
 
-  const laptop = await syncOnce({
+  const { state: laptop } = await syncOnce({
     server: `${SERVER}/`,
     keys,
     device: 'laptop',
@@ -104,7 +111,7 @@ test('two devices end up with each other’s progress', async () => {
   });
   assert.deepEqual(Object.keys(laptop.stats).sort(), ['あ', 'い']);
 
-  const phoneAgain = await syncOnce({ server: SERVER, keys, device: 'phone', state: phone, fetch });
+  const { state: phoneAgain } = await syncOnce({ server: SERVER, keys, device: 'phone', state: phone, fetch });
   assert.deepEqual(Object.keys(phoneAgain.stats).sort(), ['あ', 'い']);
   assert.equal(phoneAgain.deviceDays.laptop !== undefined, true);
 });
@@ -122,7 +129,7 @@ test('an upload that loses a race starts again from the newer copy', async () =>
     }
     return server(input, init);
   };
-  const phone = await syncOnce({
+  const { state: phone } = await syncOnce({
     server: SERVER,
     keys,
     device: 'phone',
@@ -139,10 +146,80 @@ test('an upload that loses a race starts again from the newer copy', async () =>
     return alwaysTaken(input, init);
   };
   await assert.rejects(
-    syncOnce({ server: SERVER, keys, device: 'phone', state: defaultState(), fetch: counting }),
+    syncOnce({ server: SERVER, keys, device: 'phone', state: answer(defaultState(), 'お'), fetch: counting }),
     /same time/,
   );
   assert.equal(calls, MAX_ATTEMPTS * 2);
+});
+
+test('a sync with nothing new uploads nothing, and one the server has seen downloads nothing', async () => {
+  const keys = await deriveKeys(CODE);
+  const server = serverFetch();
+  const requests: string[] = [];
+  const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await server(input, init);
+    requests.push(`${init?.method ?? 'GET'} ${response.status}`);
+    return response;
+  };
+  const options = { server: SERVER, keys, device: 'phone', fetch };
+  const first = await syncOnce({ ...options, state: answer(defaultState(), 'あ') });
+  assert.deepEqual(requests.splice(0), ['GET 404', 'PUT 204']);
+  assert.equal(first.etag, '"1"');
+
+  // Without its ETag this device downloads the copy, but finds it adds nothing to send back.
+  const again = await syncOnce({ ...options, state: first.state });
+  assert.deepEqual(requests.splice(0), ['GET 200']);
+  assert.equal(again.etag, '"1"');
+  assert.deepEqual(Object.keys(again.state.stats), ['あ']);
+
+  // With its ETag and no changes, the copy isn't even sent, and the progress is handed back as it was.
+  const quiet = await syncOnce({ ...options, state: first.state, etag: first.etag, changed: false });
+  assert.deepEqual(requests.splice(0), ['GET 304']);
+  assert.equal(quiet.state, first.state);
+  assert.equal(quiet.etag, '"1"');
+
+  // A change here goes up without downloading what this device already has.
+  const changedHere = answer(first.state, 'い');
+  const uploaded = await syncOnce({ ...options, state: changedHere, etag: first.etag, changed: true });
+  assert.deepEqual(requests.splice(0), ['GET 304', 'PUT 204']);
+  assert.equal(uploaded.etag, '"2"');
+
+  // Another device's upload arrives in full, although nothing changed here.
+  await syncOnce({ server: SERVER, keys, device: 'laptop', state: answer(defaultState(), 'う'), fetch: server });
+  const news = await syncOnce({ ...options, state: uploaded.state, etag: uploaded.etag, changed: false });
+  assert.deepEqual(requests.splice(0), ['GET 200']);
+  assert.deepEqual(Object.keys(news.state.stats).sort(), ['あ', 'い', 'う']);
+});
+
+test('two devices with the same progress don’t keep uploading to each other', async () => {
+  const keys = await deriveKeys(CODE);
+  const fetch = serverFetch();
+  const phone = await syncOnce({ server: SERVER, keys, device: 'phone', state: answer(defaultState(), 'あ'), fetch });
+  const laptop = await syncOnce({ server: SERVER, keys, device: 'laptop', state: defaultState(), fetch });
+  const puts: string[] = [];
+  const watching = (input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'PUT') puts.push('PUT');
+    return fetch(input, init);
+  };
+  await syncOnce({ server: SERVER, keys, device: 'phone', state: phone.state, fetch: watching });
+  await syncOnce({ server: SERVER, keys, device: 'laptop', state: laptop.state, fetch: watching });
+  assert.deepEqual(puts, []);
+});
+
+test('the synced copy can be deleted', async () => {
+  const keys = await deriveKeys(CODE);
+  const store = memoryStore();
+  const fetch = serverFetch(store);
+  await syncOnce({ server: SERVER, keys, device: 'phone', state: answer(defaultState(), 'あ'), fetch });
+  assert.ok(await store.get(keys.id));
+  await deleteSynced({ server: SERVER, keys, fetch });
+  assert.equal(await store.get(keys.id), null);
+  // Deleting it again changes nothing.
+  await deleteSynced({ server: SERVER, keys, fetch });
+  const offline = () => Promise.reject(new TypeError('Failed to fetch'));
+  await assert.rejects(deleteSynced({ server: SERVER, keys, fetch: offline }), /reach the sync server/);
+  const down = () => Promise.resolve(new Response(null, { status: 500 }));
+  await assert.rejects(deleteSynced({ server: SERVER, keys, fetch: down }), /answered 500/);
 });
 
 test('sync failures become readable messages', async () => {
@@ -152,9 +229,12 @@ test('sync failures become readable messages', async () => {
   await assert.rejects(syncOnce({ server: SERVER, keys, device: 'd', state, fetch: offline }), /reach the sync server/);
   const down = () => Promise.resolve(new Response(null, { status: 503 }));
   await assert.rejects(syncOnce({ server: SERVER, keys, device: 'd', state, fetch: down }), /answered 503/);
+  const answering = (status: number) => () => Promise.resolve(new Response(null, { status }));
+  await assert.rejects(syncOnce({ server: SERVER, keys, device: 'd', state, fetch: answering(429) }), /busy/);
   const putStatus = (status: number) => (_input: RequestInfo | URL, init?: RequestInit) =>
     Promise.resolve(new Response(null, { status: init?.method === 'PUT' ? status : 404 }));
   await assert.rejects(syncOnce({ server: SERVER, keys, device: 'd', state, fetch: putStatus(413) }), /too large/);
+  await assert.rejects(syncOnce({ server: SERVER, keys, device: 'd', state, fetch: putStatus(507) }), /full/);
   await assert.rejects(syncOnce({ server: SERVER, keys, device: 'd', state, fetch: putStatus(500) }), /answered 500/);
 });
 
@@ -216,12 +296,20 @@ test('the sync server stores one blob per id and refuses stale uploads', async (
   assert.equal(saved.headers.get('ETag'), '"2"');
   assert.equal(saved.headers.get('Cache-Control'), 'no-store');
   assert.equal(await saved.text(), 'two');
+
+  const unchanged = await fetch(url, { headers: { 'If-None-Match': '"2"' } });
+  assert.equal(unchanged.status, 304);
+  assert.equal(unchanged.headers.get('ETag'), '"2"');
+  assert.equal((await fetch(url, { headers: { 'If-None-Match': '"1"' } })).status, 200);
+
+  assert.equal((await fetch(url, { method: 'DELETE' })).status, 204);
+  assert.equal((await fetch(url)).status, 404);
 });
 
 test('the sync server checks paths, methods and sizes', async () => {
   const fetch = serverFetch(memoryStore(), { allowedOrigin: '*', maxBytes: 4 });
   assert.equal((await fetch(`${SERVER}/v1/progress/xyz`)).status, 404);
-  assert.equal((await fetch(url, { method: 'DELETE' })).status, 405);
+  assert.equal((await fetch(url, { method: 'POST', body: 'x' })).status, 405);
   const put = (body: string) => fetch(url, { method: 'PUT', body, headers: { 'If-None-Match': '*' } });
   assert.equal((await put('12345')).status, 413);
   assert.equal((await put('')).status, 400);
@@ -241,10 +329,52 @@ test('the sync server answers CORS requests from allowed origins only', async ()
   assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), 'https://b.test');
   assert.match(preflight.headers.get('Access-Control-Allow-Headers') ?? '', /If-Match/);
   assert.equal(preflight.headers.get('Access-Control-Expose-Headers'), 'ETag');
+  assert.match(preflight.headers.get('Access-Control-Allow-Methods') ?? '', /DELETE/);
   const other = await fetch(url, { headers: { Origin: 'https://evil.test' } });
+  assert.equal(other.status, 403);
   assert.equal(other.headers.get('Access-Control-Allow-Origin'), null);
+  const put = await fetch(url, {
+    method: 'PUT',
+    body: 'x',
+    headers: { Origin: 'https://evil.test', 'If-None-Match': '*' },
+  });
+  assert.equal(put.status, 403);
+  assert.equal((await fetch(url)).status, 403);
+  assert.equal((await fetch(url, { headers: { Origin: 'https://a.test' } })).status, 404);
   const any = await serverFetch()(url, { headers: { Origin: 'https://evil.test' } });
   assert.equal(any.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
+test('the sync server limits how much anyone can ask of it', async () => {
+  const create = (id: string) =>
+    new Request(`${SERVER}/v1/progress/${id.repeat(64)}`, {
+      method: 'PUT',
+      body: 'x',
+      headers: { 'If-None-Match': '*' },
+    });
+  const base = { allowedOrigin: '*', maxBytes: MAX_BYTES };
+
+  const noRequests = await handleRequest(new Request(url), memoryStore(), {
+    ...base,
+    allow: kind => Promise.resolve(kind !== 'request'),
+  });
+  assert.equal(noRequests.status, 429);
+  assert.equal(noRequests.headers.get('Retry-After'), '60');
+
+  // Only starting a new sync code counts against the second limit; a device that has one carries on.
+  const store = memoryStore();
+  assert.equal((await handleRequest(create('a'), store, base)).status, 204);
+  const noCreating = { ...base, allow: (kind: string) => Promise.resolve(kind !== 'create') };
+  assert.equal((await handleRequest(create('b'), store, noCreating)).status, 429);
+  const update = new Request(url, { method: 'PUT', body: 'y', headers: { 'If-Match': '"1"' } });
+  assert.equal((await handleRequest(update, store, noCreating)).status, 204);
+
+  // A full server turns new sync codes away, and existing ones keep working.
+  const full = { ...base, maxBlobs: 1 };
+  assert.equal((await handleRequest(create('b'), store, full)).status, 507);
+  assert.equal(await store.count(), 1);
+  const updateFull = new Request(url, { method: 'PUT', body: 'z', headers: { 'If-Match': '"2"' } });
+  assert.equal((await handleRequest(updateFull, store, full)).status, 204);
 });
 
 // Runs the D1 queries against SQLite, which D1 is built on.
@@ -281,5 +411,10 @@ for (const [name, makeStore] of [
     assert.equal(await store.get('b'.repeat(64)), null);
     assert.equal((await store.get(ID))?.version, 2);
     assert.ok(KEEP_UNUSED_MS > 365 * 24 * 3_600_000);
+
+    assert.equal(await store.count(), 1);
+    await store.delete(ID);
+    assert.equal(await store.get(ID), null);
+    assert.equal(await store.count(), 0);
   });
 }

@@ -1,14 +1,17 @@
 import { registerDecks } from './decks.ts';
 import { mergeStates } from './merge.ts';
 import { newSession } from './session.ts';
-import { defaultState, migrateState } from './state.ts';
+import { defaultState, migrateState, STATE_VERSION } from './state.ts';
 import { deviceId } from './sync.ts';
 import type { Session, State } from './types.ts';
-import { stableJson } from './util.ts';
+import { isObject, stableJson } from './util.ts';
 
 import { LEGACY_STORAGE_KEYS, STORAGE_KEY } from './storage-key.ts';
 
 export { STORAGE_KEY };
+
+// A copy of saved progress that couldn't be read, kept until the learner has downloaded or deleted it.
+export const UNREADABLE_KEY = 'kana-dojo-unreadable';
 
 export type KeyValueStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -39,9 +42,23 @@ export function createStore<T>(initial: T): Store<T> {
   };
 }
 
-// Reads a saved state string, or returns null if there is none or it can't be read.
+// Whether progress was saved by a newer version of the app. This one wouldn't know what its new fields mean, so it must
+// neither read the progress nor save over it. The version comes first in anything saved since version 2.
+export function isNewerSave(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const prefix = /^\s*\{\s*"version"\s*:\s*(\d+)/.exec(raw)?.[1];
+  if (prefix !== undefined) return Number(prefix) > STATE_VERSION;
+  try {
+    const saved: unknown = JSON.parse(raw);
+    return isObject(saved) && typeof saved.version === 'number' && saved.version > STATE_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+// Reads a saved state string, or returns null if there is none, it can't be read or it comes from a newer version.
 export function parseSaved(raw: string | null | undefined, now = Date.now()): State | null {
-  if (raw === null || raw === undefined) return null;
+  if (raw === null || raw === undefined || isNewerSave(raw)) return null;
   try {
     return migrateState(JSON.parse(raw), now);
   } catch {
@@ -84,6 +101,31 @@ export function browserStorage(): KeyValueStorage | null {
   }
 }
 
+export function unreadableSave(storage: KeyValueStorage | null): string | null {
+  try {
+    return storage?.getItem(UNREADABLE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function discardUnreadableSave(storage: KeyValueStorage | null): void {
+  try {
+    storage?.removeItem(UNREADABLE_KEY);
+  } catch {
+    return;
+  }
+}
+
+function keepUnreadableSave(storage: KeyValueStorage | null, raw: string): boolean {
+  try {
+    storage?.setItem(UNREADABLE_KEY, raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const SAVE_DELAY_MS = 400;
 
 export interface Saver {
@@ -96,12 +138,13 @@ export function createSaver(
   storage: KeyValueStorage | null,
   delay = SAVE_DELAY_MS,
   onSaved: (saved: boolean) => void = () => undefined,
+  canSave: () => boolean = () => true,
 ): Saver {
   let pending: State | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const flush = () => {
     clearTimeout(timer);
-    if (pending) onSaved(saveState(storage, pending));
+    if (pending && canSave()) onSaved(saveState(storage, pending));
     pending = null;
   };
   return {
@@ -124,15 +167,29 @@ export interface AppStores {
   saver: Saver;
   // Whether the last save failed, so the page can warn that progress isn't being kept.
   saveFailed: Store<boolean>;
+  // Whether a newer version of the app has saved progress since this tab opened. This tab then stops saving, so it
+  // can't overwrite that progress with an older copy, until it is reloaded.
+  outdated: Store<boolean>;
   // Merges in progress saved by another tab, so the tabs don't overwrite each other's answers.
   receive(raw: string | null, now?: number): void;
 }
 
 export function createAppStores(storage: KeyValueStorage | null): AppStores {
-  const data = createStore(loadState(storage));
+  const saved = savedText(storage);
+  const parsed = parseSaved(saved);
+  const outdated = createStore(isNewerSave(saved));
+  // Progress that can't be read must not be overwritten by the first answer. If no copy of it can be kept either, this
+  // tab doesn't save at all, and says so.
+  const unreadable = saved !== null && parsed === null && !outdated.get();
+  const nothingKept = unreadable && !keepUnreadableSave(storage, saved);
+  const data = createStore(parsed ?? defaultState());
   const session = createStore(newSession());
-  const saveFailed = createStore(false);
-  const saver = createSaver(storage, SAVE_DELAY_MS, saved => saveFailed.update(() => !saved));
+  const saveFailed = createStore(nothingKept);
+  const canSave = () => {
+    if (isNewerSave(savedText(storage))) outdated.update(() => true);
+    return !outdated.get() && !nothingKept;
+  };
+  const saver = createSaver(storage, SAVE_DELAY_MS, wasSaved => saveFailed.update(() => !wasSaved), canSave);
   let receiving = false;
   // The cards of imported decks follow the saved decks.
   registerDecks(data.get().decks);
@@ -142,6 +199,11 @@ export function createAppStores(storage: KeyValueStorage | null): AppStores {
   });
 
   function receive(raw: string | null, now = Date.now()): void {
+    if (isNewerSave(raw)) {
+      saver.cancel();
+      outdated.update(() => true);
+      return;
+    }
     const incoming = parseSaved(raw, now);
     if (!incoming) return;
     // Both tabs are this device, and answers this tab hasn't saved yet are merged in rather than lost.
@@ -160,5 +222,5 @@ export function createAppStores(storage: KeyValueStorage | null): AppStores {
     session.update(current => (current.undo ? { ...current, undo: null } : current));
   }
 
-  return { data, session, saver, saveFailed, receive };
+  return { data, session, saver, saveFailed, outdated, receive };
 }

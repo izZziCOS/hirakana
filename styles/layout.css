@@ -91,6 +91,29 @@ main {
   font-weight: 700;
 }
 
+.update-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  width: min(728px, calc(100% - 32px));
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.update-note[hidden] {
+  display: none;
+}
+
+.update-note .link-btn {
+  margin-left: auto;
+  font-weight: 700;
+}
+
 .theme-toggle {
   font-size: 16px;
 }

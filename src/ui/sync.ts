@@ -3,6 +3,7 @@ import { loadKanji } from '../kanji-loader.ts';
 import { mergeStates } from '../merge.ts';
 import type { AppStores, KeyValueStorage } from '../store.ts';
 import {
+  deleteSynced,
   deriveKeys,
   deviceId,
   loadSyncConfig,
@@ -24,6 +25,8 @@ export interface SyncView {
 // Changes are uploaded this long after the last answer, or straight away when the page is hidden.
 const SYNC_DELAY_MS = 15_000;
 const LINK_PREFIX = '#sync=';
+// Returning to a tab checks for news from other devices, at most this often unless there is something to upload.
+const CHECK_EVERY_MS = 60_000;
 
 export function createSync({ data, session }: AppStores, storage: KeyValueStorage | null, server: string): SyncView {
   const els = {
@@ -42,6 +45,10 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
   let timer: number | undefined;
   let error: string | null = null;
   let note: string | null = null;
+  // The copy on the server as this device last saw it, and whether progress has changed here since.
+  let etag: string | null = null;
+  let changed = true;
+  let checkedAt = 0;
 
   function render(): void {
     els.section.hidden = false;
@@ -76,16 +83,35 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
       // Created on the first sync, so nothing is stored for people who never turn sync on.
       const device = deviceId(storage);
       await loadKanji();
-      const merged = await syncOnce({ server, keys: await keysFor(current.code), device, state: data.get() });
+      const syncKeys = await keysFor(current.code);
+      const before = data.get();
+      // Answers given from here on count as changes for the next sync.
+      const hadChanges = changed;
+      changed = false;
+      checkedAt = Date.now();
+      const result = await syncOnce({
+        server,
+        keys: syncKeys,
+        device,
+        state: before,
+        etag,
+        changed: hadChanges,
+      }).catch((failure: unknown) => {
+        changed = true;
+        throw failure;
+      });
       if (config?.code !== current.code) return;
-      // Answers given while the sync was under way are merged in rather than lost.
-      applying = true;
-      try {
-        data.update(state => mergeStates(state, device, merged, device));
-      } finally {
-        applying = false;
+      etag = result.etag;
+      if (result.state !== before) {
+        // Answers given while the sync was under way are merged in rather than lost.
+        applying = true;
+        try {
+          data.update(state => mergeStates(state, device, result.state, device));
+        } finally {
+          applying = false;
+        }
+        session.update(s => (s.undo ? { ...s, undo: null } : s));
       }
-      session.update(s => (s.undo ? { ...s, undo: null } : s));
       setConfig({ ...current, lastSync: Date.now() });
       error = null;
     } catch (failure) {
@@ -115,6 +141,8 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
 
   function connect(code: string): void {
     error = null;
+    etag = null;
+    changed = true;
     setConfig({ code, lastSync: 0 });
     void sync();
   }
@@ -165,6 +193,30 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
     });
   });
 
+  $('#sync-delete').addEventListener('click', () => {
+    void confirmAction({
+      title: 'Delete the synced copy?',
+      message:
+        'The encrypted copy on the server is deleted and sync is turned off on this device. Progress on your devices stays. A device that still has sync on will upload its progress again.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }).then(async confirmed => {
+      if (!confirmed || !config) return;
+      const current = config;
+      await running;
+      try {
+        await deleteSynced({ server, keys: await keysFor(current.code) });
+        setConfig(null);
+        etag = null;
+        error = null;
+        note = 'The synced copy was deleted.';
+      } catch (failure) {
+        error = failure instanceof SyncError ? failure.message : 'The synced copy couldn’t be deleted.';
+      }
+      render();
+    });
+  });
+
   async function connectFromLink(): Promise<void> {
     if (!location.hash.startsWith(LINK_PREFIX)) return;
     const code = parseSyncCode(decodeURIComponent(location.hash.slice(LINK_PREFIX.length)));
@@ -182,10 +234,13 @@ export function createSync({ data, session }: AppStores, storage: KeyValueStorag
 
   data.subscribe(() => {
     if (applying || !config) return;
+    changed = true;
     window.clearTimeout(timer);
     timer = window.setTimeout(() => void sync(), SYNC_DELAY_MS);
   });
-  document.addEventListener('visibilitychange', () => void sync());
+  document.addEventListener('visibilitychange', () => {
+    if (changed || (!document.hidden && Date.now() - checkedAt >= CHECK_EVERY_MS)) void sync();
+  });
   window.addEventListener('online', () => void sync());
 
   render();

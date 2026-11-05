@@ -3,3 +3,6 @@ declare const __DEV__: boolean;
 declare const __SYNC_URL__: string;
 declare const __PRECACHE__: string[];
 declare const __VERSION__: string;
+// The font files, kept in a cache of their own that lasts until they change.
+declare const __FONTS__: string[];
+declare const __FONTS_VERSION__: string;

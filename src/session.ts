@@ -17,7 +17,7 @@ import {
   spreadReviews,
   weightedPick,
 } from './schedule.ts';
-import { combinedDays, recordAnswer } from './state.ts';
+import { combinedDays, isSuspended, recordAnswer } from './state.ts';
 import type {
   Card,
   CardKind,
@@ -105,7 +105,7 @@ function byDeck(state: State): (item: KanaItem) => number {
   return item => rank.get(item.rowId) ?? state.decks.length + 1;
 }
 
-export function practiceEntries(state: State, voice = true): Entry[] {
+function rowEntries(state: State, voice: boolean): Entry[] {
   const { settings, stats } = state;
   const directions = settings.direction === 'mixed' ? mixedDirections(stats, voice) : [settings.direction];
   const rank = byDeck(state);
@@ -115,6 +115,9 @@ export function practiceEntries(state: State, voice = true): Entry[] {
       directions.filter(direction => supportsDirection(item, direction)).map(direction => ({ item, direction })),
     );
 }
+
+export const practiceEntries = (state: State, voice = true): Entry[] =>
+  rowEntries(state, voice).filter(entry => !isSuspended(state, entry.item.id));
 
 export const practiceKeys = (state: State, voice = true): string[] =>
   practiceEntries(state, voice).map(entry => statKey(entry.item, entry.direction));
@@ -194,6 +197,9 @@ export function emptyMessage(settings: Settings, drill: Drill | null): string {
   return 'Kanji can be practised in Read or Meaning mode, words in every mode but Match and Write, and grammar in Fill in. Choose more rows above.';
 }
 
+const ALL_SUSPENDED_MESSAGE =
+  'Every card you picked is suspended. Resume some on the Mistakes tab, or choose more rows.';
+
 export type NextStep =
   | { status: 'card'; item: KanaItem; kind: CardKind; direction: Direction; choices: string[]; intro: boolean }
   | { status: 'done' }
@@ -216,7 +222,9 @@ export function chooseNext(
   const entries = practiceEntries(state, voice);
   const drilled = session.drill ? drillDirection(settings, session.drill) : singleDirection(settings.direction);
   const drillItems = session.drill?.items.filter(item => supportsDirection(item, drilled)) ?? [];
-  const followUp = session.drill ? undefined : session.followUps.find(entry => entry.item !== currentItem);
+  const followUp = session.drill
+    ? undefined
+    : session.followUps.find(entry => entry.item !== currentItem && !isSuspended(state, entry.item.id));
 
   let pick: { item: KanaItem; kind: CardKind; direction: Direction } | null;
   if (session.drill) {
@@ -234,6 +242,7 @@ export function chooseNext(
   if (!pick) {
     // Everything left is reviews the daily limit holds back.
     if (!session.drill && entries.length) return { status: 'done' };
+    if (!session.drill && rowEntries(state, voice).length) return { status: 'empty', message: ALL_SUSPENDED_MESSAGE };
     return { status: 'empty', message: emptyMessage(settings, session.drill) };
   }
 
@@ -444,7 +453,7 @@ export function feedbackNote(input: FeedbackNoteInput): string {
 
 function scheduleNote({ outcome, ms, wasNew, nextReview }: FeedbackNoteInput): string {
   const timing = ms === null ? '' : ` (${formatSeconds(ms)})`;
-  if (outcome === 'peeked') return 'You peeked, so it isn’t scored and will come back sooner.';
+  if (outcome === 'peeked') return 'You peeked, so it isn’t scored and will come back in a minute.';
   if (outcome === 'slow') {
     return wasNew
       ? `Right, but slow${timing}. Next review ${nextReview}.`

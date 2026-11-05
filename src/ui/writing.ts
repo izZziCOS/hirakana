@@ -62,12 +62,14 @@ interface WritingOptions {
   // In Write mode the character is the answer: no guide, no title naming it, and retries keep counting.
   quiz?: boolean;
   onDone?: (mistakes: number, strokes: number) => void;
+  // Called when the character's stroke data has loaded, or couldn't be loaded, such as offline.
+  onAvailable?: (available: boolean) => void;
 }
 
 export function mountWritingPad(
   container: HTMLElement,
   kana: string,
-  { quiz = false, onDone }: WritingOptions = {},
+  { quiz = false, onDone, onAvailable }: WritingOptions = {},
 ): void {
   const chars = codePoints(kana);
   let charIndex = 0;
@@ -92,6 +94,7 @@ export function mountWritingPad(
           Guide
         </button>
         <button type="button" class="ghost small" data-writing="clear">Start over</button>
+        <button type="button" class="primary small" data-writing="retry" hidden>Try again</button>
         <button type="button" class="primary small" data-writing="next" hidden>Next character</button>
       </div>`,
   );
@@ -103,7 +106,10 @@ export function mountWritingPad(
   const status = container.querySelector('.writing-status');
   const nextButton = container.querySelector<HTMLButtonElement>('[data-writing="next"]');
   const guideButton = container.querySelector<HTMLButtonElement>('[data-writing="guide"]');
+  const clearButton = container.querySelector<HTMLButtonElement>('[data-writing="clear"]');
+  const retryButton = container.querySelector<HTMLButtonElement>('[data-writing="retry"]');
   if (!canvas || !context || !title || !progress || !status || !nextButton || !guideButton) return;
+  if (!clearButton || !retryButton) return;
 
   function render(): void {
     if (!canvas || !context) return;
@@ -169,10 +175,31 @@ export function mountWritingPad(
     accepted = [];
     mistakes = 0;
     hint = null;
-    const strokes = await loadStrokes(chars[index] ?? '');
-    expected = samplePaths(strokes.paths);
+    expected = [];
+    try {
+      const strokes = await loadStrokes(chars[index] ?? '');
+      expected = samplePaths(strokes.paths);
+    } catch {
+      // The pad stays empty, with a way to try again; drawing does nothing without strokes to compare with.
+      showUnavailable();
+      return;
+    }
+    if (retryButton) retryButton.hidden = true;
+    if (clearButton) clearButton.hidden = false;
     updateLabels('Draw the first stroke.');
     render();
+    onAvailable?.(true);
+  }
+
+  function showUnavailable(): void {
+    if (!title || !progress || !status || !retryButton || !clearButton) return;
+    title.textContent = quiz ? 'Write it from memory' : `Write ${chars[charIndex] ?? ''}`;
+    progress.textContent = '';
+    status.textContent = 'The strokes of this character couldn’t be loaded. Check your connection and try again.';
+    retryButton.hidden = false;
+    clearButton.hidden = true;
+    render();
+    onAvailable?.(false);
   }
 
   const toUnits = (event: PointerEvent): Point => {
@@ -228,6 +255,8 @@ export function mountWritingPad(
       render();
     } else if (action === 'next') {
       void loadCharacter(charIndex + 1);
+    } else if (action === 'retry') {
+      void loadCharacter(charIndex);
     }
   });
 

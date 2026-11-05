@@ -13,7 +13,16 @@ import {
 import { kanjiLoaded } from './kana.ts';
 import { loadKanji, needsKanji } from './kanji-loader.ts';
 import { mergeStates } from './merge.ts';
-import { browserStorage, createAppStores, type KeyValueStorage, savedText, STORAGE_KEY } from './store.ts';
+import {
+  browserStorage,
+  createAppStores,
+  discardUnreadableSave,
+  isNewerSave,
+  type KeyValueStorage,
+  savedText,
+  STORAGE_KEY,
+  unreadableSave,
+} from './store.ts';
 import { deviceId } from './sync.ts';
 import type { Theme } from './types.ts';
 import { chooseAction, confirmAction } from './ui/confirm.ts';
@@ -22,10 +31,13 @@ import { createDialog, type StartDrill } from './ui/dialog.ts';
 import { createHome } from './ui/home.ts';
 import { $ } from './ui/dom.ts';
 import { createMistakes } from './ui/mistakes.ts';
+import { createOfflineStrokes } from './ui/offline.ts';
 import { createPractice } from './ui/practice/index.ts';
 import { createProgress } from './ui/progress.ts';
 import { createReader } from './ui/reader.ts';
+import { createSearch } from './ui/search.ts';
 import { createSync } from './ui/sync.ts';
+import { createUpdateNote, watchForUpdates } from './ui/update.ts';
 
 type View = 'practice' | 'read' | 'progress' | 'mistakes';
 
@@ -55,9 +67,12 @@ function applyTheme(theme: Theme): void {
   $('#theme-icon').textContent = THEME_ICON[theme];
 }
 
-function registerServiceWorker(): void {
-  if (__DEV__ || !('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('sw.js').catch(() => undefined);
+function download(name: string, text: string, type: string): void {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([text], { type }));
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 // Asks the browser not to clear saved progress under storage pressure. Some browsers ask the user, so this waits until
@@ -80,6 +95,7 @@ function start(storage: KeyValueStorage | null): void {
   const tabs = [...document.querySelectorAll<HTMLButtonElement>('.tab')];
 
   const startDrill: StartDrill = (label, items) => {
+    search.close();
     showView('practice');
     showLearn('session');
     practice.drill(label, items);
@@ -114,7 +130,8 @@ function start(storage: KeyValueStorage | null): void {
   settingsDialog.addEventListener('click', event => {
     if (event.target === settingsDialog) settingsDialog.close();
   });
-  const mistakes = createMistakes(stores, dialog, startDrill);
+  const mistakes = createMistakes(stores, dialog, startDrill, isActive('mistakes'));
+  const search = createSearch(dialog);
   const reader = createReader(stores, isActive('read'));
   const progress = createProgress(stores, {
     dialog,
@@ -189,6 +206,22 @@ function start(storage: KeyValueStorage | null): void {
   });
   $('#save-error-export').addEventListener('click', () => exportProgress());
 
+  const updateNote = createUpdateNote();
+  stores.outdated.subscribe(outdated => {
+    if (outdated) updateNote.show('A newer version of Kana Dojo saved your progress, so this tab has stopped saving.');
+  });
+
+  // Saved progress that couldn't be read is kept until the learner has decided what to do with it.
+  const unreadableNote = $('#unreadable-note');
+  unreadableNote.hidden = unreadableSave(storage) === null;
+  $('#unreadable-download').addEventListener('click', () => {
+    download('kana-dojo-unreadable-progress.txt', unreadableSave(storage) ?? '', 'text/plain');
+  });
+  $('#unreadable-discard').addEventListener('click', () => {
+    discardUnreadableSave(storage);
+    unreadableNote.hidden = true;
+  });
+
   window.addEventListener('pagehide', () => saver.flush());
   // Another tab's progress may include kanji, which this tab can only read once they have loaded.
   window.addEventListener('storage', event => {
@@ -219,12 +252,7 @@ function start(storage: KeyValueStorage | null): void {
     data.update(state => markBackedUp(state, now));
     saver.flush();
     const payload = exportPayload(data.get(), now, deviceId(storage));
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `kana-dojo-progress-${dayKey(now)}.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    download(`kana-dojo-progress-${dayKey(now)}.json`, JSON.stringify(payload, null, 2), 'application/json');
     transferStatus.textContent = 'Progress downloaded.';
   }
 
@@ -306,7 +334,8 @@ function start(storage: KeyValueStorage | null): void {
   controls.render();
   practice.next();
   home.render();
-  registerServiceWorker();
+  watchForUpdates(updateNote);
+  createOfflineStrokes();
   const syncView = __SYNC_URL__ ? createSync(stores, storage, __SYNC_URL__) : null;
 
   if (!kanjiLoaded()) {
@@ -324,6 +353,10 @@ function start(storage: KeyValueStorage | null): void {
 // uses them waits for them, and if they can't be loaded the app stops with an error rather than drop those cards.
 async function boot(): Promise<void> {
   const storage = browserStorage();
+  // This version can't read that progress, and starting would save over it. A reload gets the newer version.
+  if (isNewerSave(savedText(storage))) {
+    throw new Error('Your progress was saved by a newer version of Kana Dojo. Reload to update this one.');
+  }
   if (needsKanji(savedText(storage))) await loadKanji();
   start(storage);
 }

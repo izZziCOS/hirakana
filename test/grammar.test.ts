@@ -62,7 +62,7 @@ test('every grammar sentence has one gap with answers in kana and readings in ka
 });
 
 test('grammar has a track with an N5 and an N4 set, and a row for every point', () => {
-  assert.deepEqual(TRACKS.find(track => track.id === 'grammar')?.groups, ['g5', 'g4']);
+  assert.deepEqual(TRACKS.find(track => track.id === 'grammar')?.groups, ['g5', 'g4', 'g3', 'g2', 'g1']);
   assert.ok(GROUPS.some(group => group.id === 'g5') && GROUPS.some(group => group.id === 'g4'));
   const rows = ROW_INFO.filter(row => row.group === 'g5' || row.group === 'g4');
   assert.equal(rows.length, GRAMMAR_POINTS.length);

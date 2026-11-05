@@ -2,7 +2,7 @@ import { DAY_HISTORY, dayKey, type Days } from './days.ts';
 import { deckItems, deckOfItem, MAX_DECKS } from './decks.ts';
 import { parseStatKey } from './kana.ts';
 import { MAX_DELETED_DECKS, MAX_DEVICES, MAX_MISTAKES } from './state.ts';
-import type { DayLog, Deck, Mistake, State, Stat } from './types.ts';
+import type { DayLog, Deck, Mistake, State, Stat, Suspension } from './types.ts';
 
 // Each device only ever adds to its own day log, so of two copies of the same log the larger numbers are the newer.
 function newestDays(a: Days = {}, b: Days = {}): Days {
@@ -40,7 +40,18 @@ function sinceReset(state: State, resetAt: number): State {
     days: afterReset(state.days),
     deviceDays: Object.fromEntries(Object.entries(state.deviceDays).map(([id, days]) => [id, afterReset(days)])),
     bestStreak: 0,
+    suspensions: Object.fromEntries(Object.entries(state.suspensions).filter(([, entry]) => entry.at > resetAt)),
   };
+}
+
+// The latest choice for each card wins, whichever device made it.
+function mergeSuspensions(a: Record<string, Suspension>, b: Record<string, Suspension>): Record<string, Suspension> {
+  const merged = { ...a };
+  for (const [id, entry] of Object.entries(b)) {
+    const mine = merged[id];
+    if (!mine || entry.at > mine.at) merged[id] = entry;
+  }
+  return merged;
 }
 
 // A card last changed when it was answered, or when catch-up moved its review.
@@ -131,5 +142,8 @@ export function mergeStates(local: State, localDevice: string, remote: State, re
     resetAt,
     decks,
     deletedDecks,
+    suspensions: Object.fromEntries(
+      Object.entries(mergeSuspensions(mine.suspensions, theirs.suspensions)).filter(([id]) => !gone(id)),
+    ),
   };
 }

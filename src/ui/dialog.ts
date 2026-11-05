@@ -1,4 +1,5 @@
 import { findKana, KANA, spokenText, wordsWithKanji } from '../kana.ts';
+import { isSuspended, markKnown, setSuspended } from '../state.ts';
 import type { Store } from '../store.ts';
 import type { KanaItem, State } from '../types.ts';
 import { codePoints } from '../util.ts';
@@ -26,6 +27,21 @@ export function bindInfoLinks(container: HTMLElement, open: (id: string) => void
     const items = KANA.filter(item => item.rowId === element.dataset.drillRow);
     const [first] = items;
     if (first) drill(first.row, items);
+  });
+}
+
+// The buttons in an info panel, or next to a card missed again and again, that act on the card itself.
+export function bindCardActions(container: HTMLElement, data: Store<State>, done: (id: string) => void): void {
+  onDelegate(container, '[data-suspend]', element => {
+    const id = element.dataset.suspend ?? '';
+    data.update(state => setSuspended(state, id, !isSuspended(state, id)));
+    done(id);
+  });
+  onDelegate(container, '[data-known]', element => {
+    const item = findKana(element.dataset.known);
+    if (!item) return;
+    data.update(state => markKnown(state, item));
+    done(item.id);
   });
 }
 
@@ -61,6 +77,7 @@ export function createDialog(data: Store<State>, drill: StartDrill): KanaDialog 
     dialog.close();
     drill(label, items);
   });
+  bindCardActions(body, data, open);
 
   return { open };
 }

@@ -27,7 +27,7 @@ export type GroupId =
   // Imported decks.
   | 'custom';
 export type KanjiGroupId = 'k5' | 'k4' | 'k3' | 'k2' | 'k1';
-export type GrammarGroupId = 'g5' | 'g4';
+export type GrammarGroupId = 'g5' | 'g4' | 'g3' | 'g2' | 'g1';
 export type Outcome = 'correct' | 'slow' | 'wrong' | 'peeked';
 export type CardKind = 'new' | 'review' | 'ahead' | 'drill' | 'contrast';
 export type Level = 'new' | 'weak' | 'learning' | 'mastered';
@@ -113,7 +113,7 @@ export interface KanjiPart {
 export interface GrammarPoint {
   // Saved with the progress on its sentences, so it never changes.
   id: string;
-  level: 4 | 5;
+  level: 1 | 2 | 3 | 4 | 5;
   // Short, for the row chip and the card: "は (topic)".
   label: string;
   pattern: string;
@@ -184,6 +184,12 @@ export interface Stat {
   moved?: number;
 }
 
+// Whether a card is kept out of practice. A card that is resumed keeps its entry, so syncing doesn't suspend it again.
+export interface Suspension {
+  on: boolean;
+  at: number;
+}
+
 export interface Mistake {
   // The id of the item that was missed.
   kana: string;
@@ -233,6 +239,8 @@ export interface State {
   decks: Deck[];
   // When each deleted deck was deleted, so syncing doesn't bring it back from a device that still has it.
   deletedDecks: Record<string, number>;
+  // By item id; a suspended item is left out of practice in every direction.
+  suspensions: Record<string, Suspension>;
 }
 
 export interface Drill {

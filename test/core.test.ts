@@ -27,7 +27,11 @@ import { confusionPairs, mixUpOf, mixUpsFor, mostMissed } from '../src/mistakes.
 import {
   applyAnswer,
   DAY,
+  fuzzedInterval,
   HOUR,
+  isLeech,
+  LAPSE_BOX,
+  LEECH_MISSES,
   intervalFor,
   LEARNING_LIMIT,
   levelOf,
@@ -145,7 +149,7 @@ test('a new kana answered correctly jumps to box 2', () => {
 });
 
 test('a due kana answered correctly moves up one box', () => {
-  const result = applyAnswer({ ...stat(4, NOW - 1), correct: 3, streak: 3 }, 'correct', NOW);
+  const result = applyAnswer({ ...stat(4, NOW - 1), correct: 3, streak: 3 }, 'correct', NOW, null, () => 0.5);
   assert.equal(result.box, 5);
   assert.equal(result.due, NOW + intervalFor(5));
 });
@@ -181,17 +185,64 @@ test('a wrong answer moves the kana back three boxes and brings it back a minute
   assert.equal(applyAnswer(undefined, 'wrong', NOW).box, 1);
 });
 
-test('a missed card answered right a minute later resumes one step above where it fell to', () => {
+test('a long-known card that is missed builds up again from a day, not from where its gaps had reached', () => {
   const missed = applyAnswer(stat(MAX_BOX, NOW), 'wrong', NOW);
-  const relearned = applyAnswer(missed, 'correct', NOW + MINUTE);
-  assert.equal(relearned.box, MAX_BOX - MISS_PENALTY + 1);
-  assert.equal(relearned.due, NOW + MINUTE + intervalFor(relearned.box));
+  assert.equal(missed.box, LAPSE_BOX);
+  assert.equal(missed.due, NOW + MINUTE);
+  const relearned = applyAnswer(missed, 'correct', NOW + MINUTE, null, () => 0.5);
+  assert.equal(relearned.box, LAPSE_BOX + 1);
+  assert.equal(relearned.due, NOW + MINUTE + DAY);
+  // A card that was missed before it got that far just moves back its three steps.
+  assert.equal(applyAnswer(stat(5, NOW), 'wrong', NOW).box, 5 - MISS_PENALTY);
 });
 
-test('peeking moves the kana back two boxes without counting as wrong', () => {
-  const result = applyAnswer({ ...stat(6, NOW), correct: 6, streak: 6 }, 'peeked', NOW);
-  assert.equal(result.box, 6 - PEEK_PENALTY);
-  assert.equal(result.due, NOW + intervalFor(result.box));
+test('intervals of a day or more vary a little, shorter ones not at all', () => {
+  assert.equal(
+    fuzzedInterval(MAX_BOX, () => 0),
+    216 * DAY,
+  );
+  assert.equal(
+    fuzzedInterval(MAX_BOX, () => 1),
+    264 * DAY,
+  );
+  assert.equal(
+    fuzzedInterval(MAX_BOX, () => 0.5),
+    240 * DAY,
+  );
+  assert.equal(
+    fuzzedInterval(4, () => 0),
+    0.9 * DAY,
+  );
+  assert.equal(
+    fuzzedInterval(3, () => 0),
+    HOUR,
+  );
+  assert.equal(
+    fuzzedInterval(1, () => 1),
+    MINUTE,
+  );
+  const due = (random: () => number) => applyAnswer(stat(7, NOW), 'correct', NOW, null, random).due;
+  assert.notEqual(
+    due(() => 0),
+    due(() => 1),
+  );
+});
+
+test('a card is a leech once it keeps being missed and isn’t sticking', () => {
+  const leech = { ...stat(1, NOW), wrong: LEECH_MISSES, correct: 4 };
+  assert.ok(isLeech(leech));
+  assert.ok(!isLeech(undefined));
+  assert.ok(!isLeech({ ...leech, wrong: LEECH_MISSES - 1 }));
+  // Mastered since, or missed now and then among many right answers.
+  assert.ok(!isLeech({ ...leech, box: 5 }));
+  assert.ok(!isLeech({ ...leech, correct: 100 }));
+});
+
+test('peeking moves the kana back two boxes and asks it again a minute later, without counting as wrong', () => {
+  const result = applyAnswer({ ...stat(5, NOW), correct: 6, streak: 6 }, 'peeked', NOW);
+  assert.equal(result.box, 5 - PEEK_PENALTY);
+  assert.equal(result.due, NOW + MINUTE);
+  assert.equal(applyAnswer(stat(MAX_BOX, NOW), 'peeked', NOW).box, LAPSE_BOX);
   assert.equal(result.wrong, 0);
   assert.equal(result.correct, 6);
   assert.equal(applyAnswer(undefined, 'peeked', NOW).box, 1);
@@ -439,5 +490,5 @@ test('reviews space out to about eight months at the last step', () => {
   assert.equal(intervalFor(MAX_BOX - 2), 60 * DAY);
   assert.equal(intervalFor(MAX_BOX), 240 * DAY);
   const due = { correct: 9, wrong: 0, streak: 9, box: MAX_BOX - 1, due: NOW, last: NOW - 120 * DAY };
-  assert.equal(applyAnswer(due, 'correct', NOW).due, NOW + 240 * DAY);
+  assert.equal(applyAnswer(due, 'correct', NOW, null, () => 0.5).due, NOW + 240 * DAY);
 });

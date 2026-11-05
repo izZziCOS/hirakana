@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 // Unlike the other test files, this one doesn't import src/kanji.ts: it checks what happens before the kanji load.
-import { findKana, KANA, kanjiLoaded, registerKanji, registerVocabulary, ROW_INFO } from '../src/kana.ts';
+import { GRAMMAR_ADVANCED } from '../src/grammar-advanced-data.ts';
+import {
+  findKana,
+  KANA,
+  kanjiLoaded,
+  registerGrammar,
+  registerKanji,
+  registerVocabulary,
+  ROW_INFO,
+} from '../src/kana.ts';
 import { KANJI_DATA } from '../src/kanji-data.ts';
 import { loadKanji, needsKanji } from '../src/kanji-loader.ts';
 import { migrateState } from '../src/state.ts';
@@ -20,6 +29,10 @@ test('saved progress that involves kanji or the full word list is recognised bef
   // Words of the full list are written in kana only, so they are found by their ids and rows.
   assert.equal(needsKanji(JSON.stringify({ stats: { あそこ: {} } })), true);
   assert.equal(needsKanji(JSON.stringify({ mistakes: [{ kana: 'あそこ' }] })), true);
+  assert.equal(needsKanji(JSON.stringify({ suspensions: { あそこ: { on: true, at: 1 } } })), true);
+  // So is the grammar past N4.
+  assert.equal(needsKanji(JSON.stringify({ stats: { 'cloze:~hazu/1': {} } })), true);
+  assert.equal(needsKanji(JSON.stringify({ settings: { rows: ['g3:～はず'] } })), true);
   assert.equal(needsKanji(JSON.stringify({ settings: { rows: ['n5:N5 · 1–30'] } })), true);
   // Imported decks come with the progress and don't need the file.
   assert.equal(needsKanji(JSON.stringify({ stats: { '@abc/ねこ': {} }, settings: { rows: ['custom:abc'] } })), false);
@@ -39,7 +52,8 @@ test('the kanji and the full word list are added once they have loaded', async (
   assert.equal(loadKanji(), loading);
   await loading;
   assert.equal(kanjiLoaded(), true);
-  assert.equal(KANA.length, kana + KANJI_DATA.length + VOCAB_DATA.length);
+  const sentences = GRAMMAR_ADVANCED.flatMap(point => point.sentences).length;
+  assert.equal(KANA.length, kana + KANJI_DATA.length + VOCAB_DATA.length + sentences);
   assert.ok(ROW_INFO.length > rows);
   assert.equal(findKana('日')?.script, 'kanji');
   assert.equal(findKana('あそこ')?.group, 'n5');
@@ -49,5 +63,6 @@ test('the kanji and the full word list are added once they have loaded', async (
 
   registerKanji(KANJI_DATA);
   registerVocabulary(VOCAB_DATA);
-  assert.equal(KANA.length, kana + KANJI_DATA.length + VOCAB_DATA.length);
+  registerGrammar(GRAMMAR_ADVANCED);
+  assert.equal(KANA.length, kana + KANJI_DATA.length + VOCAB_DATA.length + sentences);
 });

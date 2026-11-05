@@ -2,7 +2,7 @@ import { mergeStates } from './merge.ts';
 import { migrateState, STATE_VERSION } from './state.ts';
 import type { KeyValueStorage } from './store.ts';
 import type { State } from './types.ts';
-import { isObject } from './util.ts';
+import { isObject, stableJson } from './util.ts';
 
 // Progress is synced through a small server that only ever sees encrypted data. A sync code, shared between devices,
 // gives both the place the data is kept (a hash of the code) and the key it is encrypted with.
@@ -162,20 +162,48 @@ interface SyncOptions {
   keys: SyncKeys;
   device: string;
   state: State;
+  // The ETag of the synced copy this device last saw, and whether its progress has changed since. The server can then
+  // say that nothing is new without sending the whole copy.
+  etag?: string | null;
+  changed?: boolean;
   fetch?: typeof fetch;
   now?: number;
 }
 
-// Downloads the synced copy, merges it with this device's progress and uploads the result. If another device uploads
-// in between, the server turns the upload down and it starts again.
+export interface SyncResult {
+  state: State;
+  etag: string | null;
+}
+
+// The day logs of every device, with `state.days` filed under the device that saved it, so copies saved by different
+// devices can be compared.
+const comparable = (state: State, device: string): string =>
+  stableJson({
+    ...state,
+    days: null,
+    deviceDays: Object.fromEntries(
+      Object.entries({ ...state.deviceDays, [device]: state.days }).filter(([, days]) => Object.keys(days).length),
+    ),
+  });
+
+function serverError(status: number): SyncError {
+  if (status === 429) return new SyncError('The sync server is busy. It will try again later.');
+  if (status === 507) return new SyncError('The sync server is full and can’t take new sync codes.');
+  return new SyncError(`The sync server answered ${status}.`);
+}
+
+// Downloads the synced copy, merges it with this device's progress and uploads the result if that adds anything. If
+// another device uploads in between, the server turns the upload down and it starts again.
 export async function syncOnce({
   server,
   keys,
   device,
   state,
+  etag: lastSeen = null,
+  changed = true,
   fetch: request = fetch,
   now = Date.now(),
-}: SyncOptions): Promise<State> {
+}: SyncOptions): Promise<SyncResult> {
   const url = `${server.replace(/\/$/, '')}/v1/progress/${keys.id}`;
   const send = async (init?: RequestInit): Promise<Response> => {
     try {
@@ -185,12 +213,19 @@ export async function syncOnce({
     }
   };
 
+  let known = lastSeen;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const current = await send();
-    if (!current.ok && current.status !== 404) throw new SyncError(`The sync server answered ${current.status}.`);
-    const etag = current.ok ? current.headers.get('ETag') : null;
+    const current = await send(known ? { headers: { 'If-None-Match': known } } : undefined);
+    const unchanged = current.status === 304;
+    if (!current.ok && !unchanged && current.status !== 404) throw serverError(current.status);
+    const etag = unchanged ? known : current.ok ? current.headers.get('ETag') : null;
+    if (unchanged && !changed) return { state, etag };
+    // This device merged in the copy it last saw, so a copy that hasn't moved has nothing to add to its progress.
     const remote = current.ok ? await open(new Uint8Array(await current.arrayBuffer()), keys, now) : null;
     const merged = remote ? mergeStates(state, device, remote.state, remote.device) : state;
+    if (remote && comparable(merged, device) === comparable(remote.state, remote.device)) {
+      return { state: merged, etag };
+    }
 
     const body = await seal({ device, state: merged }, keys);
     const saved = await send({
@@ -201,11 +236,27 @@ export async function syncOnce({
       },
       body,
     });
-    if (saved.ok) return merged;
+    if (saved.ok) return { state: merged, etag: saved.headers.get('ETag') };
     if (saved.status === 413) throw new SyncError('Your progress is too large for the sync server.');
-    if (saved.status !== 412) throw new SyncError(`The sync server answered ${saved.status}.`);
+    if (saved.status !== 412) throw serverError(saved.status);
+    known = null;
   }
   throw new SyncError('Another device kept syncing at the same time. Try again in a moment.');
+}
+
+// Removes the synced copy from the server. Progress on the devices themselves stays.
+export async function deleteSynced({
+  server,
+  keys,
+  fetch: request = fetch,
+}: Pick<SyncOptions, 'server' | 'keys' | 'fetch'>): Promise<void> {
+  let response: Response;
+  try {
+    response = await request(`${server.replace(/\/$/, '')}/v1/progress/${keys.id}`, { method: 'DELETE' });
+  } catch {
+    throw new SyncError('Couldn’t reach the sync server. Check your connection.');
+  }
+  if (!response.ok) throw serverError(response.status);
 }
 
 export function loadSyncConfig(storage: KeyValueStorage | null): SyncConfig | null {
