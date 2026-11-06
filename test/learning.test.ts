@@ -1,21 +1,27 @@
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
+import { recordingOf } from '../src/audio.ts';
+import { RECORDINGS } from '../src/audio-data.ts';
 import '../src/kanji.ts';
 import { findKana, getKana, isWord, KANA, kanjiSharingParts, statKey } from '../src/kana.ts';
 import { milestonesOf, READABLE_STEPS, recallRate } from '../src/milestones.ts';
 import { canReadKana, readableWords } from '../src/reading.ts';
-import { intervalFor, MASTERED_BOX } from '../src/schedule.ts';
+import { DAY, HOUR, intervalFor, MASTERED_BOX, SIBLING_GAP } from '../src/schedule.ts';
 import {
   chooseNext,
   finishIntro,
   MAX_FOLLOW_UPS,
   mixedDirections,
   newSession,
+  NO_VOICE_MESSAGE,
   practiceEntries,
   queueContrast,
   showCard,
   startDrill,
   submitAnswer,
+  todaySummary,
 } from '../src/session.ts';
 import { defaultState, updateSettings } from '../src/state.ts';
 import type { Card, Direction, Stat, State } from '../src/types.ts';
@@ -82,7 +88,6 @@ test('mixed practice reads first and adds the other directions already in use', 
   assert.deepEqual(mixedDirections(fresh.stats), ['read', 'cloze']);
   const used = withStats(fresh, ['recall:か', 'listen:か', 'write:か'], known());
   assert.deepEqual(mixedDirections(used.stats), ['read', 'recall', 'listen', 'write', 'cloze']);
-  assert.deepEqual(mixedDirections(used.stats, false), ['read', 'recall', 'write', 'cloze']);
   assert.equal(practiceEntries(used).length, 5 * 4);
 
   // Recall for あ waits until あ can be read; reading い is introduced instead.
@@ -97,9 +102,154 @@ test('mixed practice reads first and adds the other directions already in use', 
   );
   assert.ok(next.status === 'card' && next.direction === 'read' && next.item.kana === 'い');
 
-  const canRead = withStats(used, ['あ', 'い', 'う', 'え', 'お'], known(2));
+  const canRead = withStats(used, ['あ', 'い', 'う', 'え', 'お'], { ...known(2), last: NOW - SIBLING_GAP });
   const recall = chooseNext(canRead, newSession(), { now: NOW, random: first });
   assert.ok(recall.status === 'card' && recall.direction !== 'read' && recall.kind === 'new' && !recall.intro);
+});
+
+const reviewDue = (last: number): Stat => ({ correct: 3, wrong: 0, streak: 3, box: 6, due: NOW - 1, last });
+
+test('in mixed practice a review waits while another direction of the word was answered recently', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], direction: 'mixed' }, NOW);
+  const longAgo = NOW - 7 * DAY;
+  const stats = { あ: reviewDue(NOW - 60_000), 'recall:あ': reviewDue(longAgo), 'recall:い': reviewDue(longAgo) };
+  const step = chooseNext({ ...state, stats }, newSession(), { now: NOW, random: first });
+  assert.ok(step.status === 'card');
+  assert.equal(step.item.kana, 'あ', 'the longest overdue of those free to come up is reading あ, its own direction');
+  assert.equal(step.direction, 'read');
+
+  // Reading あ answered a minute ago holds recalling あ back, whatever else is due.
+  const answered = {
+    あ: { ...reviewDue(NOW - 60_000), due: NOW + DAY },
+    'recall:あ': reviewDue(longAgo),
+    'recall:い': reviewDue(longAgo),
+  };
+  const next = chooseNext({ ...state, stats: answered }, newSession(), { now: NOW, random: first });
+  assert.ok(next.status === 'card');
+  assert.equal(next.item.kana, 'い');
+  assert.equal(next.direction, 'recall');
+
+  // The wait ends.
+  const later = NOW + SIBLING_GAP;
+  const freed = chooseNext(
+    { ...state, stats: { ...answered, 'recall:い': { ...reviewDue(longAgo), due: later + DAY } } },
+    newSession(),
+    { now: later, random: first },
+  );
+  assert.ok(freed.status === 'card');
+  assert.equal(freed.item.kana, 'あ');
+  assert.equal(freed.direction, 'recall');
+});
+
+test('the day’s numbers leave out reviews waiting for another direction', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], direction: 'mixed' }, NOW);
+  const longAgo = NOW - 7 * DAY;
+  const stats = {
+    あ: { ...reviewDue(NOW - 60_000), due: NOW + DAY },
+    'recall:あ': reviewDue(longAgo),
+    'recall:い': reviewDue(longAgo),
+  };
+  assert.equal(todaySummary({ ...state, stats }, newSession(), NOW).due, 1);
+  assert.equal(todaySummary({ ...state, stats }, newSession(), NOW + SIBLING_GAP).due, 2);
+});
+
+test('a new direction of a word waits too, once the word can be read', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], direction: 'mixed' }, NOW);
+  const used = { 'recall:か': known() };
+  const fresh = { あ: { ...known(2), last: NOW - 60_000, due: NOW + DAY } };
+  const step = chooseNext({ ...state, stats: { ...used, ...fresh } }, newSession(), { now: NOW, random: first });
+  assert.ok(step.status === 'card');
+  assert.equal(step.item.kana, 'い', 'recalling あ waits, so reading the next kana is introduced');
+});
+
+test('cards still being learned aren’t held back for long, but stay apart when anything else is due', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], direction: 'mixed' }, NOW);
+  const learning = (last: number): Stat => ({ correct: 1, wrong: 1, streak: 0, box: 1, due: NOW - 1, last });
+  const recent = NOW - 60_000;
+  const both = {
+    あ: { ...learning(recent), due: NOW + 60_000 },
+    'recall:あ': learning(NOW - HOUR),
+    'recall:い': { ...learning(NOW - HOUR), due: NOW - 1 },
+  };
+  const apart = chooseNext({ ...state, stats: both }, newSession(), { now: NOW, random: first });
+  assert.ok(apart.status === 'card');
+  assert.equal(apart.item.kana, 'い');
+  const only = { あ: { ...learning(recent), due: NOW + 60_000 }, 'recall:あ': learning(NOW - HOUR) };
+  const alone = chooseNext({ ...state, stats: only }, newSession(), { now: NOW, random: first, voice: true });
+  assert.ok(alone.status === 'card');
+  assert.equal(alone.direction, 'recall');
+  assert.equal(alone.item.kana, 'あ');
+});
+
+test('practising one direction on its own isn’t held back by the others', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], direction: 'recall' }, NOW);
+  const stats = { あ: { ...reviewDue(NOW - 60_000), due: NOW + DAY }, 'recall:あ': reviewDue(NOW - 7 * DAY) };
+  const step = chooseNext({ ...state, stats }, newSession(), { now: NOW, random: first });
+  assert.ok(step.status === 'card');
+  assert.equal(step.item.kana, 'あ');
+  assert.equal(todaySummary({ ...state, stats }, newSession(), NOW).due, 1);
+});
+
+test('extra practice can still reach cards waiting for another direction when nothing else is left', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], direction: 'mixed' }, NOW);
+  const held: Record<string, Stat> = Object.fromEntries(
+    ['あ', 'い', 'う', 'え', 'お'].flatMap(kana => [
+      [kana, { ...reviewDue(NOW - 60_000), due: NOW + DAY }],
+      [`recall:${kana}`, reviewDue(NOW - 7 * DAY)],
+    ]),
+  );
+  assert.equal(chooseNext({ ...state, stats: held }, newSession(), { now: NOW, random: first }).status, 'done');
+  const extra = chooseNext({ ...state, stats: held }, { ...newSession(), extra: true }, { now: NOW, random: first });
+  assert.ok(extra.status === 'card' && extra.kind === 'ahead');
+});
+
+test('without a voice only cards with a recording can be listened to', () => {
+  const state = updateSettings(defaultState(), { rows: ['basic:Vowels', 'yoon:KY'], direction: 'listen' }, NOW);
+  const withVoice = practiceEntries(state, true).map(entry => entry.item.kana);
+  const withoutVoice = practiceEntries(state, false).map(entry => entry.item.kana);
+  assert.ok(withVoice.includes('きゃ'), 'a combination has no recording');
+  assert.ok(!withoutVoice.includes('きゃ'));
+  assert.ok(withoutVoice.includes('あ'));
+
+  const noRecordings = updateSettings(defaultState(), { rows: ['yoon:KY'], direction: 'listen' }, NOW);
+  assert.deepEqual(chooseNext(noRecordings, newSession(), { now: NOW, voice: false }), {
+    status: 'empty',
+    message: NO_VOICE_MESSAGE,
+  });
+  assert.equal(chooseNext(noRecordings, newSession(), { now: NOW, voice: true }).status, 'card');
+
+  const mixed = withStats(
+    updateSettings(defaultState(), { rows: ['basic:Vowels', 'yoon:KY'], direction: 'mixed' }, NOW),
+    ['listen:か'],
+  );
+  const heard = practiceEntries(mixed, false).filter(entry => entry.direction === 'listen');
+  assert.ok(heard.length > 0 && heard.every(entry => recordingOf(entry.item)));
+
+  const drill = startDrill(newSession(), { label: 'Sounds', items: [getKana('きゃ'), getKana('あ')] });
+  const drilled = chooseNext(noRecordings, drill, { now: NOW, voice: false, random: first });
+  assert.ok(drilled.status === 'card' && drilled.item.kana === 'あ');
+});
+
+test('recordings match their cards and exist', () => {
+  assert.equal(recordingOf(getKana('あ')), recordingOf(getKana('ア')), 'both scripts share a sound');
+  assert.notEqual(recordingOf(getKana('あ')), recordingOf(getKana('い')));
+  assert.notEqual(recordingOf(getKana('はし')), recordingOf(getKana('はし/箸')), 'homophones keep their own');
+  assert.equal(recordingOf(getKana('水')), undefined);
+  assert.equal(recordingOf({ ...getKana('あ'), id: 'toString' }), undefined);
+  for (const [id, stem] of Object.entries(RECORDINGS)) {
+    assert.ok(findKana(id), id);
+    assert.ok(existsSync(join(import.meta.dirname, '..', 'vendor', 'audio', `${stem}.mp3`)), stem);
+  }
+  const sources = readFileSync(join(import.meta.dirname, '..', 'vendor', 'audio', 'SOURCES.tsv'), 'utf8');
+  for (const stem of new Set(Object.values(RECORDINGS))) assert.ok(sources.includes(`${stem}.mp3\t`), stem);
+  assert.equal(
+    sources
+      .trim()
+      .split('\n')
+      .slice(1)
+      .every(line => /\t(CC0|CC BY 4\.0|CC BY-SA 4\.0)\t/.test(line)),
+    true,
+  );
 });
 
 test('mixed cards are answered in their own direction', () => {

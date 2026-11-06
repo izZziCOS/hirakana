@@ -45,7 +45,7 @@ test('the on-screen kana keyboard can answer recall cards', async ({ page, seed 
   await expect(page.locator('#kana-pad')).toBeVisible();
 });
 
-test('listening explains when there is no Japanese voice', async ({ page, seed }) => {
+test('listening explains when a card has no recording and there is no Japanese voice', async ({ page, seed }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'speechSynthesis', {
       value: {
@@ -56,9 +56,40 @@ test('listening explains when there is no Japanese voice', async ({ page, seed }
       },
     });
   });
-  await seed({ version: 5, settings: { direction: 'listen' } });
+  await seed({ version: 5, settings: { direction: 'listen', rows: ['yoon:KY'] } });
   await start(page);
-  await expect(feedback(page)).toContainText('Listening needs a Japanese voice');
+  await expect(feedback(page)).toContainText('this browser has no Japanese voice');
+});
+
+test('without a Japanese voice a card with a recording can still be listened to', async ({ page, seed }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'speechSynthesis', {
+      value: {
+        getVoices: () => [],
+        speak: () => undefined,
+        cancel: () => undefined,
+        addEventListener: () => undefined,
+      },
+    });
+    const started: unknown[] = [];
+    Object.assign(window, { started });
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
+      started.push(this.buffer?.duration);
+      start.apply(this, args);
+    };
+  });
+  await seed({ version: 5, settings: { direction: 'listen', mode: 'choose', rows: ['basic:Vowels'] } });
+  const played = page.waitForResponse(response => /\/audio\/[0-9a-f]{10}\.mp3$/.test(response.url()) && response.ok());
+  await start(page);
+  await expect(prompt(page)).toHaveText('♪');
+  await played;
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { started: number[] }).started.at(-1)))
+    .toBeGreaterThan(0.1);
+  await page.locator('#choices .choice[data-value="あ"]').click();
+  await expect(feedback(page)).toContainText('Correct! That was あ (a).');
 });
 
 test('listening plays the kana and asks for it', async ({ page, seed }) => {
@@ -85,13 +116,14 @@ test('listening plays the kana and asks for it', async ({ page, seed }) => {
       },
     });
   });
-  await seed({ version: 5, settings: { direction: 'listen', mode: 'choose', rows: ['basic:Vowels'] } });
+  // きゃ has no recording, so it is spoken by the browser's voice.
+  await seed({ version: 5, settings: { direction: 'listen', mode: 'choose', rows: ['yoon:KY'] } });
   await start(page);
   await expect(prompt(page)).toHaveText('♪');
   await expect(page.locator('#card-script')).toHaveText('Listen, then pick the hiragana');
-  await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toEqual(['あ']);
-  await page.locator('#choices .choice[data-value="あ"]').click();
-  await expect(feedback(page)).toContainText('Correct! That was あ (a).');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { spoken: string[] }).spoken)).toEqual(['きゃ']);
+  await page.locator('#choices .choice[data-value="きゃ"]').click();
+  await expect(feedback(page)).toContainText('Correct! That was きゃ (kya).');
 });
 
 test('the session goal shows progress and celebrates when reached', async ({ page, seed }) => {

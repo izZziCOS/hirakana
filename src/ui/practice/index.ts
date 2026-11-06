@@ -1,7 +1,7 @@
 import { answerOf } from '../../choices.ts';
 import { formatWait } from '../../format.ts';
 import { writingAnswer } from '../../handwriting.ts';
-import { hasReadingStage, isKanji, isWord, normalizeAnswer, spokenText, statKey } from '../../kana.ts';
+import { hasReadingStage, isKanji, isWord, normalizeAnswer, statKey } from '../../kana.ts';
 import { milestonesOf } from '../../milestones.ts';
 import {
   ADVANCE_DELAY,
@@ -35,7 +35,7 @@ import { clozePromptMarkup } from '../grammar.ts';
 import { html, setHtml } from '../html.ts';
 import { renderInfo } from '../info.ts';
 import { DIRECTION_LABEL, KIND_BADGE } from '../labels.ts';
-import { canSpeak, hasJapaneseVoice, onVoicesChanged, speak } from '../speech.ts';
+import { canSay, hasJapaneseVoice, onVoicesChanged, say } from '../speech.ts';
 import { mountStrokeOrder } from '../strokes.ts';
 import { mountWritingPad } from '../writing.ts';
 import {
@@ -59,8 +59,6 @@ export interface Practice {
 }
 
 const COMPOSITION_GRACE_MS = 80;
-const NO_VOICE_MESSAGE =
-  'Listening needs a Japanese voice, and this browser doesn’t have one. Install one in your system’s speech settings, or practise another direction.';
 
 function practiceElements() {
   return {
@@ -174,7 +172,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
         : '';
     if (listening) {
       els.speak.hidden = false;
-      if (isActive()) speak(card.item.kana);
+      if (isActive()) say(card.item);
     }
   }
 
@@ -194,14 +192,14 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     els.intro.hidden = false;
     setHtml(els.intro, introMarkup(item));
     els.learn.hidden = false;
-    els.speak.hidden = !canSpeak;
+    els.speak.hidden = !canSay(item);
     els.info.hidden = false;
     els.info.open = true;
     els.infoHint.hidden = true;
     setHtml(els.infoBody, renderInfo(item, data.get()));
     void mountStrokeOrder(els.infoBody.querySelector<HTMLElement>('.stroke-order'));
     if (isActive()) {
-      if (canSpeak) speak(spokenText(item));
+      if (canSay(item)) say(item);
       els.learn.focus();
     }
   }
@@ -323,7 +321,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     els.typo.hidden = !canForgiveTypo(state, session.get());
     els.undo.hidden = !session.get().undo;
     els.nextButton.hidden = false;
-    els.speak.hidden = !canSpeak;
+    els.speak.hidden = !canSay(card.item);
     els.infoHint.hidden = true;
     setHtml(els.infoBody, renderInfo(card.item, state));
     if (els.info.open) void mountStrokeOrder(els.infoBody.querySelector<HTMLElement>('.stroke-order'));
@@ -341,12 +339,6 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
 
   function next(): void {
     resetCard();
-    if (settings().direction === 'listen' && !hasJapaneseVoice()) {
-      session.update(s => (s.card ? { ...s, card: null } : s));
-      renderEmpty(NO_VOICE_MESSAGE);
-      renderChrome();
-      return;
-    }
     const step = chooseNext(data.get(), session.get(), { now: Date.now(), voice: hasJapaneseVoice() });
     session.update(s => showCard(s, step, performance.now(), document.hidden));
     const { card } = session.get();
@@ -445,14 +437,14 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
 
   els.prompt.addEventListener('click', () => {
     const { card } = session.get();
-    if (card?.direction === 'listen' || card?.intro) speak(spokenText(card.item));
+    if (card?.direction === 'listen' || card?.intro) say(card.item);
   });
   els.skip.addEventListener('click', () => submit(null));
   els.nextButton.addEventListener('click', next);
   els.learn.addEventListener('click', learn);
   els.speak.addEventListener('click', () => {
     const item = session.get().card?.item;
-    if (item) speak(spokenText(item));
+    if (item) say(item);
   });
   $('#drill-exit').addEventListener('click', () => {
     session.update(endDrill);
@@ -526,7 +518,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
         els.learn.focus();
         return;
       }
-      if (card.direction === 'listen') speak(card.item.kana);
+      if (card.direction === 'listen') say(card.item);
       if (modeOf(card) === 'type') els.input.focus();
     },
     drill,

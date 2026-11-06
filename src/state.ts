@@ -22,7 +22,18 @@ import {
   statKey,
   supportsDirection,
 } from './kana.ts';
-import { applyAnswer, applyKanjiStage, DAY, fuzzedInterval, isDue, isReview, levelOf, MAX_BOX } from './schedule.ts';
+import {
+  applyAnswer,
+  applyKanjiStage,
+  DAY,
+  fuzzedInterval,
+  intervalFor,
+  isDue,
+  isReview,
+  levelOf,
+  MAX_BOX,
+  memoryOf,
+} from './schedule.ts';
 import type {
   DayLog,
   Deck,
@@ -44,7 +55,7 @@ import type {
 } from './types.ts';
 import { isObject, nonNegative, type Random, unique } from './util.ts';
 
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 export const MAX_MOCK_TESTS = 50;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
@@ -135,6 +146,8 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   8: data => ({ ...data, version: 9 }),
   // Mock test results and passages read; the sanitising below fills them in.
   9: data => ({ ...data, version: 10 }),
+  // Each card's memory for scheduling; the sanitising below works it out for cards past the learning steps.
+  10: data => ({ ...data, version: 11 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -151,6 +164,16 @@ function sanitizeStat(stat: RawData): Stat {
   if (stat.kanjiOnly === true) clean.kanjiOnly = true;
   const moved = nonNegative(stat.moved);
   if (moved) clean.moved = moved;
+  const stability = nonNegative(stat.s);
+  const difficulty = nonNegative(stat.d);
+  if (stability && difficulty) {
+    clean.s = stability;
+    clean.d = Math.min(10, Math.max(1, difficulty));
+  } else if (isReview(clean)) {
+    const memory = memoryOf(clean);
+    clean.s = memory.stability;
+    clean.d = memory.difficulty;
+  }
   return clean;
 }
 
@@ -450,6 +473,8 @@ export function markKnown(state: State, item: KanaItem, now = Date.now(), random
       box: KNOWN_BOX,
       due: now + fuzzedInterval(KNOWN_BOX, random),
       last: now,
+      s: intervalFor(KNOWN_BOX) / DAY,
+      d: memoryOf({ correct: 0, wrong: 0, ...previous, box: KNOWN_BOX }).difficulty,
       ...(hasReadingStage(item) && direction !== 'write' && direction !== 'recall' ? { kanjiOnly: true } : {}),
     };
   }

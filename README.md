@@ -9,9 +9,13 @@ loaded, and keeps progress in the browser with no backend.
 - **Seven directions:** read (あ → ka, 水 → sui or mizu), recall (ka → あ, or cat → ねこ for words, picked from four options or typed), match (あ ↔ ア),
   listen (hear a kana or a word, then pick or type it), meaning (水 → water, ねこ → cat, for kanji and words), fill in (今日＿暑いですね → は, for grammar) and write (ka or "water" → draw
   it, checked stroke by stroke; up to one retried stroke in four still passes). Each has its own review schedule.
-  Listening uses the browser's Japanese voice and is only offered when one exists. **Mixed** practice brings due
-  cards from every direction you use into one session; new characters are learned by reading first, and the other
-  directions open up once a character can be read.
+  **Mixed** practice brings due cards from every direction you use into one session; new characters are learned by
+  reading first, and the other directions open up once a character can be read. So that one direction doesn't give away
+  another, once a word has been answered its other directions wait 12 hours if they are reviews or not started yet;
+  cards still being learned stay a few minutes apart when anything else is due.
+- **Listening:** most kana (not combinations like きゃ, ぢ or ぺ) and most everyday and N5 words play a recording by a
+  person, and everything else uses the browser's Japanese voice. Without a voice, Listen offers only the cards with
+  recordings. Read-aloud sentences and passages always use the voice.
 - **Character sets:** basic kana, dakuten, combinations (きゃ), small っ and long ー, loanword katakana (ファ), ~90 everyday
   words, and the full JLPT vocabulary lists (~7,700 words: about 590 N5, 600 N4, 2,100 N3, 1,650 N2 and 2,650 N1,
   shown with their kanji). Each level starts with hand-picked themed rows, then the rest in rows of 30, words whose
@@ -52,10 +56,13 @@ loaded, and keeps progress in the browser with no backend.
 - **Learning new characters:** a character seen for the first time is introduced with its reading, sound, stroke order
   and example before it is tested, a minute later (can be turned off in Settings). After a mix-up, both characters
   come back within the next few cards to tell them apart.
-- **Spaced repetition** with 11 steps from 1 minute to 8 months; gaps of a day or more vary by up to 10%, so cards
-  learned together spread out. Slow answers don't advance a card; the time limit adapts to your own pace and can be
-  switched off. A miss moves a card back three steps and a peek two, in both cases no further on than the 1-hour step, and
-  asks it again a minute later, so a long-known card builds up again from a day rather than from months. A daily limit on new characters, and an
+- **Spaced repetition:** new cards go through steps of 1 minute, 10 minutes and 1 hour to a first review a day later.
+  From then on [FSRS-6](https://github.com/open-spaced-repetition) with its default parameters sets each gap from how
+  well that card has gone, aiming for a 90% chance of remembering it, up to a year. Hard cards come back sooner than easy
+  ones, and a right answer after a long time away counts for more than one on time. Gaps vary by up to 10%, so cards
+  learned together spread out. Slow answers grow a gap less; the time limit adapts to your own pace and can be switched
+  off. A miss moves a card back three steps and a peek two, in both cases no further on than the 1-hour step, and asks it
+  again a minute later, then the card returns to the shorter gap its memory still supports. A daily limit on new characters, and an
   optional one on reviews (cards whose last gap was a day or more; cards still being learned don’t count), lead to a
   "Done for today" screen that can ask for a few more of either.
 - **Catching up after a break:** when more reviews are due than fit in a day (over the daily review limit, or over a
@@ -116,6 +123,7 @@ index.html               Page template; the build fills in the hashed asset name
 styles/                  One CSS file per screen; index.css imports them in order, tokens.css holds the colours
 public/                  Copied as-is: web app manifest, icons and the two background photos
 vendor/kanjivg/          Stroke data for every character the app uses (see its README)
+vendor/audio/            Recorded pronunciations, their sources and licences (see its README)
 src/
   data.ts                All kana, words, examples, notes and look-alike groups
   kanji-data.ts          Generated JLPT kanji list (readings, meanings); refresh with node scripts/fetch-kanji.ts
@@ -139,6 +147,9 @@ src/
   milestones.ts          Recall rates per set and milestones after an answer
   kana.ts                Builds the kana, word and kanji items, romaji and answer lookups from the data
   schedule.ts            Spaced repetition and answer timing
+  fsrs.ts                The FSRS-6 memory model behind the review gaps
+  audio.ts               Which cards have a recording
+  audio-data.ts          Generated list of recordings; refresh with node scripts/fetch-audio.ts
   choices.ts             Multiple-choice options and answer checking
   days.ts                Daily log, streaks, forecast and chart data
   mistakes.ts            Most-missed, mixed-up pairs and per-day filtering
@@ -172,8 +183,8 @@ Everything outside `src/ui/` is pure and has no DOM access. State changes go thr
   get it in the background; saved progress that involves kanji waits for it, because cleaning it up without the kanji
   would drop those cards. Tests that need kanji import `src/kanji.ts`;
 - writes `dist/index.html`, with a `modulepreload` link for the code `main.js` shares with the kanji file;
-- generates `sw.js`, which pre-caches the built files so the app works offline. Fonts (3.3 MB of the 4.9 MB) go in a
-  cache of their own that lasts until the font package changes, so an app update doesn't fetch them again. Kanji stroke
+- generates `sw.js`, which pre-caches the built files so the app works offline. Fonts (3.3 MB) and recordings (4 MB) go
+  in caches of their own that last until they change, so an app update doesn't fetch them again. Kanji stroke
   files are cached as each is opened, or all at once with **Download all kanji** in Settings (about 9 MB).
 
 ## Saved data
@@ -183,7 +194,7 @@ progress** to back it up or move it, or turn on sync. An import can be merged wi
 replace it. With sync on, `kana-dojo-sync` holds the sync code and
 `kana-dojo-device` this device's id; neither is part of an export.
 
-The saved object carries a `version` (currently 10). When the shape changes:
+The saved object carries a `version` (currently 11). When the shape changes:
 
 1. bump `STATE_VERSION` in `src/state.ts`;
 2. add a step to `MIGRATIONS` that upgrades the previous version;
@@ -222,5 +233,10 @@ allowed, plus inline `style` attributes. A build with `SYNC_URL` also allows con
   [Tianshu Liu](https://unsplash.com/photos/torii-gate-japan-SBK40fdKbAg) and the Miyajima torii behind a practice
   session by [Manoa Angelo](https://unsplash.com/photos/a-red-torii-gate-stands-in-the-sea-7NNgxNXac0k), stored in
   `public/images/`.
+- Recordings: [Tofugu and WaniKani](https://github.com/tofugu/japanese-vocabulary-pronunciation-audio), CC BY-SA 4.0, and
+  Lingua Libre speakers Fukujinzuke, 葵心 and CKali, CC BY 4.0 and CC0, trimmed, levelled and converted to small MP3s. Each
+  file's source is listed in `vendor/audio/SOURCES.tsv`.
+- Spaced repetition: [FSRS](https://github.com/open-spaced-repetition) by the Open Spaced Repetition project, MIT, with
+  its published default parameters.
 - Kana font: [Klee One](https://fonts.google.com/specimen/Klee+One) by Fontworks, SIL Open Font License 1.1, from
   `@fontsource/klee-one`.

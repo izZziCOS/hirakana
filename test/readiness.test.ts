@@ -136,7 +136,7 @@ test('the clock counts down in minutes and seconds and stops at zero', () => {
 });
 
 test('mock results and passages read are saved, sanitised, kept in a limit and synced', () => {
-  assert.equal(STATE_VERSION, 10);
+  assert.equal(STATE_VERSION, 11);
   const withMock = recordMockTest(defaultState(), { level: 3, correct: 10, total: 30, at: NOW });
   const state = recordPassage(withMock, 'my-day', 2, 3, NOW);
   const saved = migrateState(JSON.parse(JSON.stringify(state)), NOW);

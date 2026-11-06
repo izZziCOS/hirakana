@@ -18,6 +18,7 @@ import {
   wordsWithKanji,
 } from '../kana.ts';
 import { mixUpsFor } from '../mistakes.ts';
+import { recordingOf } from '../audio.ts';
 import { levelOf } from '../schedule.ts';
 import { isKnown, isSuspended } from '../state.ts';
 import type { KanaItem, State } from '../types.ts';
@@ -281,6 +282,14 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
   }
   if (item.counterpart) add(item.script === 'hiragana' ? 'In katakana' : 'In hiragana', bigJp(item.counterpart));
   if (!isWord(item)) add('Stroke order', strokeOrderBlock(item));
+  if (recordingOf(item)) {
+    add(
+      'Recording',
+      html`<a class="muted small credit" href="audio/README.md" target="_blank" rel="noopener"
+        >Tofugu and WaniKani (CC BY-SA 4.0), or Lingua Libre speakers (CC BY 4.0, CC0)</a
+      >`,
+    );
+  }
 
   if (item.origin) {
     add(

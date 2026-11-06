@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { RECORDINGS } from '../src/audio-data.ts';
 import { expect, prompt, start, test } from './fixtures.ts';
 
 test.use({ serviceWorkers: 'allow' });
@@ -98,4 +99,29 @@ test('the manifest makes the app installable', async ({ request }) => {
   expect(manifest.name).toBe('Kana Dojo');
   expect(manifest.display).toBe('standalone');
   expect(manifest.icons.map(icon => icon.sizes)).toEqual(expect.arrayContaining(['192x192', '512x512']));
+});
+
+test('recordings are kept for offline use, and survive being fetched again from the cache', async ({
+  page,
+  context,
+}) => {
+  await start(page);
+  await waitForWorker(page);
+  await context.setOffline(true);
+  const stem = RECORDINGS['あ'] ?? '';
+  const bytes = await page.evaluate(async file => {
+    const response = await fetch(`audio/${file}.mp3`);
+    const audio = new AudioContext();
+    const decoded = await audio.decodeAudioData(await response.arrayBuffer());
+    return { ok: response.ok, seconds: decoded.duration };
+  }, stem);
+  expect(bytes.ok).toBe(true);
+  expect(bytes.seconds).toBeGreaterThan(0.1);
+  const kept = await page.evaluate(async () => {
+    const names = await caches.keys();
+    const audio = names.find(name => name.startsWith('kana-dojo-audio-'));
+    return audio ? (await (await caches.open(audio)).keys()).length : 0;
+  });
+  expect(kept).toBe(new Set(Object.values(RECORDINGS)).size);
+  await context.setOffline(false);
 });

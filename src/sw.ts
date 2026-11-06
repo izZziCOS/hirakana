@@ -26,19 +26,24 @@ const STROKES_URL = new URL(`${KANJIVG_PATH}/`, worker.location.href).href;
 // Fonts rarely change and are most of the download, so an app update doesn't fetch them again.
 const FONTS = `${CACHE_PREFIX}fonts-${__FONTS_VERSION__}`;
 const FONTS_URL = new URL('fonts/', worker.location.href).href;
+// So are the recordings, which are needed offline as soon as a card comes up.
+const AUDIO = `${CACHE_PREFIX}audio-${__AUDIO_VERSION__}`;
+const AUDIO_URL = new URL('audio/', worker.location.href).href;
 const PAGE = 'index.html';
 
-async function precacheFonts(): Promise<void> {
-  const cache = await caches.open(FONTS);
-  const held = await Promise.all(__FONTS__.map(font => cache.match(font)));
-  await cache.addAll(__FONTS__.filter((_, i) => !held[i]));
+async function precacheKept(store: string, files: string[]): Promise<void> {
+  const cache = await caches.open(store);
+  const held = await Promise.all(files.map(file => cache.match(file)));
+  await cache.addAll(files.filter((_, i) => !held[i]));
 }
 
 worker.addEventListener('install', event => {
   event.waitUntil(
-    Promise.all([caches.open(CACHE).then(cache => cache.addAll(__PRECACHE__)), precacheFonts()]).then(() =>
-      worker.skipWaiting(),
-    ),
+    Promise.all([
+      caches.open(CACHE).then(cache => cache.addAll(__PRECACHE__)),
+      precacheKept(FONTS, __FONTS__),
+      precacheKept(AUDIO, __AUDIO__),
+    ]).then(() => worker.skipWaiting()),
   );
 });
 
@@ -49,7 +54,7 @@ worker.addEventListener('activate', event => {
       .then(keys =>
         Promise.all(
           keys
-            .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE && key !== STROKES && key !== FONTS)
+            .filter(key => key.startsWith(CACHE_PREFIX) && ![CACHE, STROKES, FONTS, AUDIO].includes(key))
             .map(key => caches.delete(key)),
         ),
       )
@@ -85,5 +90,6 @@ worker.addEventListener('fetch', event => {
   if (request.method !== 'GET' || new URL(request.url).origin !== worker.location.origin) return;
   if (request.mode === 'navigate') event.respondWith(fromNetworkFirst(request));
   else if (request.url.startsWith(FONTS_URL)) event.respondWith(fromCacheFirst(request, FONTS));
+  else if (request.url.startsWith(AUDIO_URL)) event.respondWith(fromCacheFirst(request, AUDIO));
   else event.respondWith(fromCacheFirst(request, request.url.startsWith(STROKES_URL) ? STROKES : CACHE));
 });

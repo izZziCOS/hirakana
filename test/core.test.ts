@@ -148,10 +148,16 @@ test('a new kana answered correctly jumps to box 2', () => {
   assert.equal(result.avgMs, 1500);
 });
 
-test('a due kana answered correctly moves up one box', () => {
-  const result = applyAnswer({ ...stat(4, NOW - 1), correct: 3, streak: 3 }, 'correct', NOW, null, () => 0.5);
-  assert.equal(result.box, 5);
-  assert.equal(result.due, NOW + intervalFor(5));
+test('a due kana answered correctly gets a longer gap', () => {
+  const result = applyAnswer(
+    { ...stat(4, NOW - 1), correct: 3, streak: 3, last: NOW - DAY },
+    'correct',
+    NOW,
+    null,
+    () => 0.5,
+  );
+  assert.ok(result.box > 4);
+  assert.ok(result.due - NOW >= intervalFor(5));
 });
 
 test('a slow correct answer counts as right but keeps the box', () => {
@@ -185,13 +191,13 @@ test('a wrong answer moves the kana back three boxes and brings it back a minute
   assert.equal(applyAnswer(undefined, 'wrong', NOW).box, 1);
 });
 
-test('a long-known card that is missed builds up again from a day, not from where its gaps had reached', () => {
+test('a long-known card that is missed comes back far sooner than its gaps had reached', () => {
   const missed = applyAnswer(stat(MAX_BOX, NOW), 'wrong', NOW);
   assert.equal(missed.box, LAPSE_BOX);
   assert.equal(missed.due, NOW + MINUTE);
   const relearned = applyAnswer(missed, 'correct', NOW + MINUTE, null, () => 0.5);
-  assert.equal(relearned.box, LAPSE_BOX + 1);
-  assert.equal(relearned.due, NOW + MINUTE + DAY);
+  assert.ok(relearned.box > LAPSE_BOX);
+  assert.ok(relearned.due - NOW >= DAY && relearned.due - NOW < 30 * DAY);
   // A card that was missed before it got that far just moves back its three steps.
   assert.equal(applyAnswer(stat(5, NOW), 'wrong', NOW).box, 5 - MISS_PENALTY);
 });
@@ -485,10 +491,12 @@ test('the html helper escapes values and keeps trusted fragments', () => {
   assert.equal(toMarkup(trusted('<i>ok</i>')), '<i>ok</i>');
 });
 
-test('reviews space out to about eight months at the last step', () => {
+test('the last step is reached by gaps of about eight months or more', () => {
   assert.equal(MAX_BOX, 10);
   assert.equal(intervalFor(MAX_BOX - 2), 60 * DAY);
   assert.equal(intervalFor(MAX_BOX), 240 * DAY);
   const due = { correct: 9, wrong: 0, streak: 9, box: MAX_BOX - 1, due: NOW, last: NOW - 120 * DAY };
-  assert.equal(applyAnswer(due, 'correct', NOW, null, () => 0.5).due, NOW + 240 * DAY);
+  const next = applyAnswer(due, 'correct', NOW, null, () => 0.5);
+  assert.equal(next.box, MAX_BOX);
+  assert.ok(next.due - NOW >= 240 * DAY);
 });

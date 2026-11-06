@@ -1,3 +1,4 @@
+import { recordingOf } from './audio.ts';
 import { answerOf, buildChoices, isCorrectAnswer } from './choices.ts';
 import { dayKey } from './days.ts';
 import { deckRowId } from './decks.ts';
@@ -5,6 +6,7 @@ import { formatSeconds } from './format.ts';
 import { DIRECTIONS, inScript, isGrammar, KANA, parseStatKey, statKey, supportsDirection } from './kana.ts';
 import { mixUpOf } from './mistakes.ts';
 import {
+  heldBySibling,
   isDue,
   isDueReview,
   isSeen,
@@ -91,13 +93,15 @@ export const activePool = (
   direction: Direction = singleDirection(settings.direction),
 ): KanaItem[] => rowsPool(settings).filter(item => supportsDirection(item, direction));
 
-// Mixed practice covers reading, filling in, and every other direction already practised (listening only with a voice).
-export function mixedDirections(stats: Stats, voice = true): Direction[] {
+// Mixed practice covers reading, filling in, and every other direction already practised.
+export function mixedDirections(stats: Stats): Direction[] {
   const used = new Set(Object.keys(stats).map(key => parseStatKey(key).direction));
-  return DIRECTIONS.filter(
-    direction => (isFirstDirection(direction) || used.has(direction)) && (voice || direction !== 'listen'),
-  );
+  return DIRECTIONS.filter(direction => isFirstDirection(direction) || used.has(direction));
 }
+
+// A card can be listened to if it has a recording, or if the browser can speak Japanese.
+const canHear = (item: KanaItem, direction: Direction, voice: boolean): boolean =>
+  direction !== 'listen' || voice || recordingOf(item) !== undefined;
 
 // The words of imported decks come first, the most recently imported deck first: they were imported to be studied.
 function byDeck(state: State): (item: KanaItem) => number {
@@ -107,12 +111,14 @@ function byDeck(state: State): (item: KanaItem) => number {
 
 function rowEntries(state: State, voice: boolean): Entry[] {
   const { settings, stats } = state;
-  const directions = settings.direction === 'mixed' ? mixedDirections(stats, voice) : [settings.direction];
+  const directions = settings.direction === 'mixed' ? mixedDirections(stats) : [settings.direction];
   const rank = byDeck(state);
   return rowsPool(settings)
     .sort((a, b) => rank(a) - rank(b))
     .flatMap(item =>
-      directions.filter(direction => supportsDirection(item, direction)).map(direction => ({ item, direction })),
+      directions
+        .filter(direction => supportsDirection(item, direction) && canHear(item, direction, voice))
+        .map(direction => ({ item, direction })),
     );
 }
 
@@ -156,7 +162,9 @@ export interface TodaySummary {
 
 // What "Continue" will bring up: reviews due now and new cards still allowed today, in the picked rows.
 export function todaySummary(state: State, session: Session, now: number): TodaySummary {
-  const keys = practiceKeys(state);
+  const entries = practiceEntries(state);
+  const held = heldBySibling(entries, state.stats, now);
+  const keys = entries.filter(entry => !held(entry)).map(entry => statKey(entry.item, entry.direction));
   const unseen = keys.filter(key => !isSeen(state.stats, key)).length;
   const due = keys.filter(key => isDue(state.stats, key, now));
   const reviews = due.filter(key => isDueReview(state.stats, key, now)).length;
@@ -197,6 +205,9 @@ export function emptyMessage(settings: Settings, drill: Drill | null): string {
   return 'Kanji can be practised in Read or Meaning mode, words in every mode but Match and Write, and grammar in Fill in. Choose more rows above.';
 }
 
+export const NO_VOICE_MESSAGE =
+  'None of these cards has a recording, and this browser has no Japanese voice. Choose kana or JLPT N5 words, install a voice in your system’s speech settings, or practise another direction.';
+
 const ALL_SUSPENDED_MESSAGE =
   'Every card you picked is suspended. Resume some on the Mistakes tab, or choose more rows.';
 
@@ -208,7 +219,7 @@ export type NextStep =
 interface NextOptions {
   now: number;
   random?: Random;
-  // Whether the browser can speak Japanese; without it mixed practice leaves listening out.
+  // Whether the browser can speak Japanese; without it only cards with a recording can be listened to.
   voice?: boolean;
 }
 
@@ -221,7 +232,8 @@ export function chooseNext(
   const currentItem = session.card?.item ?? null;
   const entries = practiceEntries(state, voice);
   const drilled = session.drill ? drillDirection(settings, session.drill) : singleDirection(settings.direction);
-  const drillItems = session.drill?.items.filter(item => supportsDirection(item, drilled)) ?? [];
+  const drillItems =
+    session.drill?.items.filter(item => supportsDirection(item, drilled) && canHear(item, drilled, voice)) ?? [];
   const followUp = session.drill
     ? undefined
     : session.followUps.find(entry => entry.item !== currentItem && !isSuspended(state, entry.item.id));
@@ -243,6 +255,9 @@ export function chooseNext(
     // Everything left is reviews the daily limit holds back.
     if (!session.drill && entries.length) return { status: 'done' };
     if (!session.drill && rowEntries(state, voice).length) return { status: 'empty', message: ALL_SUSPENDED_MESSAGE };
+    if (!session.drill && !voice && settings.direction === 'listen' && rowEntries(state, true).length) {
+      return { status: 'empty', message: NO_VOICE_MESSAGE };
+    }
     return { status: 'empty', message: emptyMessage(settings, session.drill) };
   }
 
@@ -457,7 +472,7 @@ function scheduleNote({ outcome, ms, wasNew, nextReview }: FeedbackNoteInput): s
   if (outcome === 'slow') {
     return wasNew
       ? `Right, but slow${timing}. Next review ${nextReview}.`
-      : `Right, but slow${timing}, so it stays at its current step. Next review ${nextReview}.`;
+      : `Right, but slow${timing}, so its gap grows less. Next review ${nextReview}.`;
   }
   if (outcome === 'correct') return `Next review ${nextReview}${ms === null ? '' : ` · ${formatSeconds(ms)}`}`;
   return `Next review ${nextReview}`;

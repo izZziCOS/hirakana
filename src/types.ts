@@ -187,6 +187,10 @@ export interface Stat {
   kanjiOnly?: boolean;
   // When catch-up last moved its review to a later day, so syncing passes the move on.
   moved?: number;
+  // Its memory (see fsrs.ts), from its first review on: its stability, the days until the chance of remembering falls
+  // to 90%, and its difficulty, how hard it has proved from 1 to 10. Short names, as every card saves them.
+  s?: number;
+  d?: number;
 }
 
 // Whether a card is kept out of practice. A card that is resumed keeps its entry, so syncing doesn't suspend it again.

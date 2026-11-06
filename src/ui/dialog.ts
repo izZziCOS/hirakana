@@ -1,4 +1,4 @@
-import { findKana, KANA, spokenText, wordsWithKanji } from '../kana.ts';
+import { findKana, KANA, wordsWithKanji } from '../kana.ts';
 import { isSuspended, markKnown, setSuspended } from '../state.ts';
 import type { Store } from '../store.ts';
 import type { KanaItem, State } from '../types.ts';
@@ -7,7 +7,7 @@ import { $, onDelegate } from './dom.ts';
 import { shortLabel } from './grammar.ts';
 import { setHtml } from './html.ts';
 import { renderInfo } from './info.ts';
-import { canSpeak, speak } from './speech.ts';
+import { canSay, say } from './speech.ts';
 import { mountStrokeOrder } from './strokes.ts';
 
 export interface KanaDialog {
@@ -50,24 +50,26 @@ export function createDialog(data: Store<State>, drill: StartDrill): KanaDialog 
   const kanaLabel = $('#dialog-kana');
   const body = $('#dialog-body');
   const speakButton = $('#dialog-speak', HTMLButtonElement);
-  let currentKana = '';
+  let current: KanaItem | undefined;
 
   $('#dialog-close').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => {
     if (event.target === dialog) dialog.close();
   });
-  speakButton.addEventListener('click', () => speak(currentKana));
+  speakButton.addEventListener('click', () => {
+    if (current) say(current);
+  });
 
   function open(id: string): void {
     const item = findKana(id);
     if (!item) return;
-    currentKana = spokenText(item);
+    current = item;
     // A grammar card's sentence is in the panel itself; the title names its point.
     const label = item.cloze ? item.row : shortLabel(item);
     kanaLabel.textContent = label;
     kanaLabel.classList.toggle('is-word', codePoints(label).length > 2);
     setHtml(body, renderInfo(item, data.get()));
-    speakButton.hidden = !canSpeak;
+    speakButton.hidden = !canSay(item);
     if (!dialog.open) dialog.showModal();
     body.scrollTop = 0;
     void mountStrokeOrder(body.querySelector<HTMLElement>('.stroke-order'));

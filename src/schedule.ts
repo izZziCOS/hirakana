@@ -1,4 +1,5 @@
 import { DECK_GROUP } from './decks.ts';
+import { afterLapse, afterRecall, firstMemory, GOOD, HARD, type Memory } from './fsrs.ts';
 import { findKana, isWord, kanjiOfWord, parseStatKey, statKey } from './kana.ts';
 import type { Direction, Entry, KanaItem, Level, Mode, Outcome, Pick, Stat } from './types.ts';
 import { randomFrom, type Random } from './util.ts';
@@ -27,6 +28,8 @@ export const MISS_PENALTY = 3;
 // The furthest a card is left after a miss or a peek: the 1-hour step, one below a review.
 export const LAPSE_BOX = 3;
 export const MAX_TIMED_MS = 60 * 1000;
+// The longest a review waits, however well a card is known.
+export const MAX_INTERVAL = 365 * DAY;
 
 export type Stats = Record<string, Stat>;
 
@@ -44,6 +47,33 @@ export const REVIEW_BOX = 4;
 export const isReview = (stat: Stat | undefined): boolean => (stat?.box ?? 0) >= REVIEW_BOX;
 export const isDueReview = (stats: Stats, key: string, now: number): boolean =>
   isReview(stats[key]) && isDue(stats, key, now);
+
+// The step a gap has reached, which is what mastery, readiness and the kanji stages go by.
+export function boxForInterval(interval: number): number {
+  const box = INTERVALS.findLastIndex(step => step <= interval);
+  return Math.max(box, REVIEW_BOX);
+}
+
+const inHundredths = (value: number): number => Math.round(value * 100) / 100;
+const DIFFICULTY_PER_MISS = 14;
+
+// A card's memory. A card past the learning steps with none saved has progress from before the app kept it: its gap so
+// far is the best guess at its stability, and its share of misses at its difficulty.
+export function memoryOf(stat: Omit<Stat, 'streak' | 'due' | 'last'>): Memory {
+  if (stat.s && stat.d) return { stability: stat.s, difficulty: stat.d };
+  const total = stat.correct + stat.wrong;
+  const easiest = firstMemory(GOOD).difficulty;
+  return {
+    stability: Math.max(intervalFor(stat.box), DAY) / DAY,
+    difficulty: inHundredths(Math.min(10, easiest + (total ? stat.wrong / total : 0) * DIFFICULTY_PER_MISS)),
+  };
+}
+
+const withMemory = (stat: Stat, { stability, difficulty }: Memory): Stat => ({
+  ...stat,
+  s: inHundredths(stability),
+  d: inHundredths(difficulty),
+});
 
 export function levelOf(stat: Stat | undefined): Level {
   if (!stat?.box) return 'new';
@@ -104,10 +134,17 @@ export function outcomeFor({ isCorrect, revealed, ms, threshold }: OutcomeInput)
 // Gaps of a day or more vary by up to this much, so cards learned together don't keep coming due together.
 export const INTERVAL_FUZZ = 0.1;
 
-export const fuzzedInterval = (box: number, random: Random = Math.random): number => {
-  const interval = intervalFor(box);
-  return interval < DAY ? interval : Math.round(interval * (1 + INTERVAL_FUZZ * (2 * random() - 1)));
-};
+const fuzzed = (interval: number, random: Random): number =>
+  interval < DAY ? interval : Math.round(interval * (1 + INTERVAL_FUZZ * (2 * random() - 1)));
+
+export const fuzzedInterval = (box: number, random: Random = Math.random): number => fuzzed(intervalFor(box), random);
+
+// Schedules a card from its memory. Stability is the time until the chance of remembering falls to 90%, the retention
+// aimed for, so it is also the gap.
+function scheduleByMemory(stat: Stat, now: number, random: Random): Stat {
+  const interval = Math.min(Math.max((stat.s ?? 0) * DAY, DAY), MAX_INTERVAL);
+  return { ...stat, box: boxForInterval(interval), due: now + fuzzed(interval, random) };
+}
 
 export function applyAnswer(
   previous: Stat | undefined,
@@ -119,27 +156,44 @@ export function applyAnswer(
   const stat: Stat = { correct: 0, wrong: 0, streak: 0, box: 0, due: now, ...previous, last: now };
   delete stat.moved;
   const scheduled = stat.box <= 1 || stat.due <= now;
+  const elapsedDays = previous ? (now - previous.last) / DAY : 0;
+  const reviewed = stat.box >= REVIEW_BOX;
 
   if (outcome === 'correct' || outcome === 'slow') {
     stat.correct++;
     stat.streak++;
     if (ms !== null) stat.avgMs = Math.round(stat.avgMs ? stat.avgMs * 0.7 + ms * 0.3 : ms);
-    if (scheduled) {
-      stat.box = outcome === 'correct' ? (stat.box ? Math.min(stat.box + 1, MAX_BOX) : 2) : Math.max(stat.box, 1);
-      stat.due = now + fuzzedInterval(stat.box, random);
+    if (!scheduled) return stat;
+    if (reviewed) {
+      const grade = outcome === 'correct' ? GOOD : HARD;
+      return scheduleByMemory(withMemory(stat, afterRecall(memoryOf(stat), elapsedDays, grade)), now, random);
     }
-    return stat;
+    if (outcome === 'slow' || stat.box < REVIEW_BOX - 1) {
+      stat.box = outcome === 'correct' ? (stat.box ? stat.box + 1 : 2) : Math.max(stat.box, 1);
+      stat.due = now + intervalFor(stat.box);
+      return stat;
+    }
+    // Past the learning steps. A card that has lapsed goes back to the gap its memory still supports; one meeting its
+    // first review gets a day, and its memory starts from how the learning steps went.
+    if (stat.s) return scheduleByMemory(stat, now, random);
+    return {
+      ...withMemory(stat, firstMemory(stat.wrong ? HARD : GOOD)),
+      box: REVIEW_BOX,
+      due: now + fuzzedInterval(REVIEW_BOX, random),
+    };
   }
 
   // A miss or a peek moves the card back a few steps rather than to the start, so a long-known card isn't relearned from
   // scratch, but never leaves it past the 1-hour step: one right answer a minute later doesn't show it has been
-  // remembered, so the gaps build up again from a day. Either way it comes back a minute later to be answered.
-  stat.streak = 0;
-  if (outcome === 'wrong') stat.wrong++;
+  // remembered. Its memory drops only for a review, as the steps after a lapse are still part of the same lapse. Either
+  // way it comes back a minute later to be answered.
+  const lapsed = reviewed ? withMemory(stat, afterLapse(memoryOf(stat), elapsedDays)) : stat;
+  lapsed.streak = 0;
+  if (outcome === 'wrong') lapsed.wrong++;
   const penalty = outcome === 'wrong' ? MISS_PENALTY : PEEK_PENALTY;
-  stat.box = Math.max(1, Math.min(stat.box - penalty, LAPSE_BOX));
-  stat.due = now + intervalFor(1);
-  return stat;
+  lapsed.box = Math.max(1, Math.min(lapsed.box - penalty, LAPSE_BOX));
+  lapsed.due = now + intervalFor(1);
+  return lapsed;
 }
 
 // A card that keeps being missed isn't helped by more of the same reviews: it needs a closer look, or a rest.
@@ -153,7 +207,8 @@ export const isLeech = (stat: Stat | undefined): boolean =>
 export const KANJI_ONLY_BOX = 2;
 
 // Kanji and words with a kanji spelling are learned in two stages: first with the reading under the kanji, then, once
-// mastered, from the kanji alone, starting back in learning. A miss or a peek brings the reading back.
+// mastered, from the kanji alone, starting back in learning. With the reading in view a right answer says little about
+// remembering it, so the kanji alone starts with a new memory. A miss or a peek brings the reading back.
 export function applyKanjiStage(stat: Stat, outcome: Outcome): Stat {
   if (stat.kanjiOnly) {
     if (outcome === 'correct' || outcome === 'slow') return stat;
@@ -162,7 +217,15 @@ export function applyKanjiStage(stat: Stat, outcome: Outcome): Stat {
     return shown;
   }
   if (outcome !== 'correct' || stat.box < MASTERED_BOX) return stat;
-  return { ...stat, kanjiOnly: true, box: KANJI_ONLY_BOX, due: stat.last + intervalFor(KANJI_ONLY_BOX) };
+  const promoted: Stat = {
+    ...stat,
+    kanjiOnly: true,
+    box: KANJI_ONLY_BOX,
+    due: stat.last + intervalFor(KANJI_ONLY_BOX),
+  };
+  delete promoted.s;
+  delete promoted.d;
+  return promoted;
 }
 
 function weightOf(stats: Stats, key: string): number {
@@ -229,6 +292,41 @@ interface PickEntryOptions extends Omit<PickNextOptions, 'pool' | 'direction'> {
   reviewsLeft?: boolean;
 }
 
+// A word met in one direction gives away the answer in another (水 read as mizu, then 水 for its meaning), so while one
+// direction of it has been answered recently, the others wait. Cards still being learned can't wait that long, as their
+// steps are short, but they stay a few minutes apart when anything else is due.
+export const SIBLING_GAP = 12 * HOUR;
+export const SIBLING_APART = 5 * MINUTE;
+
+// How long ago another direction of an entry's item was answered. Only directions in `entries` count: someone who
+// practises one direction on its own has chosen to.
+export function sinceSibling(entries: Entry[], stats: Stats, now: number): (entry: Entry) => number {
+  const byItem = new Map<KanaItem, Entry[]>();
+  for (const entry of entries) {
+    const siblings = byItem.get(entry.item);
+    if (siblings) siblings.push(entry);
+    else byItem.set(entry.item, [entry]);
+  }
+  return entry => {
+    let latest = -Infinity;
+    for (const other of byItem.get(entry.item) ?? []) {
+      if (other.direction === entry.direction) continue;
+      const last = stats[statKey(other.item, other.direction)]?.last;
+      if (last !== undefined && last > latest) latest = last;
+    }
+    return now - latest;
+  };
+}
+
+// Which entries wait for another direction of their item: reviews, and directions not started yet.
+export function heldBySibling(entries: Entry[], stats: Stats, now: number): (entry: Entry) => boolean {
+  const since = sinceSibling(entries, stats, now);
+  return entry => {
+    const stat = stats[statKey(entry.item, entry.direction)];
+    return (!stat?.box || isReview(stat)) && since(entry) < SIBLING_GAP;
+  };
+}
+
 // Reviews that are due come first, then new cards (up to the daily limit, and not while too many are struggling),
 // then the reviews due soonest.
 export function pickEntry({
@@ -251,18 +349,16 @@ export function pickEntry({
       : shown;
   const dueAt = (entry: Entry) => stats[key(entry)]?.due ?? 0;
   const byDue = (a: Entry, b: Entry) => dueAt(a) - dueAt(b);
+  const since = sinceSibling(entries, stats, now);
+  const held = heldBySibling(entries, stats, now);
 
-  const review = randomFrom(
-    others
-      .filter(entry => isDue(stats, key(entry), now))
-      .sort(byDue)
-      .slice(0, 3),
-    random,
-  );
+  const due = others.filter(entry => isDue(stats, key(entry), now) && !held(entry));
+  const apart = due.filter(entry => since(entry) >= SIBLING_APART);
+  const review = randomFrom((apart.length ? apart : due).sort(byDue).slice(0, 3), random);
   if (review) return { ...review, kind: 'review' };
 
   const struggling = entries.filter(entry => stats[key(entry)]?.box === 1).length;
-  const unseenEntries = others.filter(entry => !isSeen(stats, key(entry)) && canIntroduce(entry));
+  const unseenEntries = others.filter(entry => !isSeen(stats, key(entry)) && canIntroduce(entry) && !held(entry));
   // Words whose kanji are known go first, but never ahead of an imported deck's words, which come first anyway.
   const first = unseenEntries[0];
   const inDeck = (entry: Entry) => entry.item.group === DECK_GROUP;
@@ -274,13 +370,10 @@ export function pickEntry({
     ) ?? first;
   if (unseen && allowNew && struggling < LEARNING_LIMIT) return { ...unseen, kind: 'new' };
 
-  const ahead = randomFrom(
-    others
-      .filter(entry => isSeen(stats, key(entry)))
-      .sort(byDue)
-      .slice(0, 4),
-    random,
-  );
+  // Extra practice leaves out what is waiting too, unless nothing else is left.
+  const seen = others.filter(entry => isSeen(stats, key(entry)));
+  const free = seen.filter(entry => !held(entry));
+  const ahead = randomFrom((free.length ? free : seen).sort(byDue).slice(0, 4), random);
   if (ahead) return { ...ahead, kind: 'ahead' };
 
   // With reviews held back for today there is nothing else to show; new cards keep to their own limit.

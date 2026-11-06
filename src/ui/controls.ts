@@ -38,7 +38,7 @@ export function createControls(data: Store<State>): Controls {
       if (listen) {
         listen.title = hasJapaneseVoice()
           ? 'Hear the kana, then pick or type it'
-          : 'Needs a Japanese voice for speech. None was found in this browser.';
+          : 'Plays recordings of kana and JLPT N5 words. Other cards need a Japanese voice, and this browser has none.';
       }
     },
   };

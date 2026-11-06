@@ -6,3 +6,6 @@ declare const __VERSION__: string;
 // The font files, kept in a cache of their own that lasts until they change.
 declare const __FONTS__: string[];
 declare const __FONTS_VERSION__: string;
+// The recordings, likewise.
+declare const __AUDIO__: string[];
+declare const __AUDIO_VERSION__: string;

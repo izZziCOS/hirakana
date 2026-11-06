@@ -194,11 +194,8 @@ test('feedbackNote explains what happened to the schedule', () => {
     feedbackNote({ outcome: 'correct', ms: null, wasNew: false, nextReview: 'in 1 h' }),
     'Next review in 1 h',
   );
-  assert.match(
-    feedbackNote({ outcome: 'slow', ms: 9000, wasNew: false, nextReview: 'in 1 h' }),
-    /stays at its current step/,
-  );
-  assert.doesNotMatch(feedbackNote({ outcome: 'slow', ms: 9000, wasNew: true, nextReview: 'in 1 min' }), /stays/);
+  assert.match(feedbackNote({ outcome: 'slow', ms: 9000, wasNew: false, nextReview: 'in 1 h' }), /its gap grows less/);
+  assert.doesNotMatch(feedbackNote({ outcome: 'slow', ms: 9000, wasNew: true, nextReview: 'in 1 min' }), /grows less/);
   assert.match(feedbackNote({ outcome: 'peeked', ms: null, wasNew: true, nextReview: 'in 1 min' }), /peeked/);
 });
 

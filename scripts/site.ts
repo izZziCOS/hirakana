@@ -89,11 +89,16 @@ async function buildFonts(): Promise<string> {
 }
 
 const isFont = (file: string): boolean => file.startsWith('fonts/');
+const isAudio = (file: string): boolean => file.startsWith('audio/');
+const isRecording = (file: string): boolean => isAudio(file) && file.endsWith('.mp3');
 
 // Kana stroke files (U+30xx) are precached; the ~2,200 kanji files are cached the first time each is opened, in a
 // cache of their own that survives app updates (see src/sw.ts).
 const precached = (file: string): boolean =>
-  !file.endsWith('.map') && !isFont(file) && (!file.startsWith('kanjivg/') || file.startsWith('kanjivg/030'));
+  !file.endsWith('.map') &&
+  !isFont(file) &&
+  !isAudio(file) &&
+  (!file.startsWith('kanjivg/') || file.startsWith('kanjivg/030'));
 
 // Progress sync is offered when the site is built with the URL of a sync server (see worker/README.md).
 const SYNC_URL = process.env.SYNC_URL?.trim() ?? '';
@@ -103,10 +108,13 @@ async function buildServiceWorker(): Promise<void> {
   const built = (await listFiles(OUT)).map(file => relative(OUT, file).split('\\').join('/')).sort();
   const files = built.filter(precached);
   const fonts = built.filter(isFont);
+  const recordings = built.filter(isRecording);
   const version = shortHash(files.join('\n') + (await readFile(join(OUT, 'index.html'), 'utf8')));
   // The package's file names don't change with its contents, so its version goes into the cache's name.
   const fontPackage = JSON.parse(await readFile(join(FONT_PACKAGE, 'package.json'), 'utf8')) as { version: string };
   const fontsVersion = shortHash(`${fontPackage.version}\n${fonts.join('\n')}`);
+  // The recordings' names come from their sources, so what is done to them has to show in the cache's name too.
+  const audioVersion = shortHash(await readFile(join(OUT, 'audio', 'SOURCES.tsv')));
   await build({
     absWorkingDir: ROOT,
     entryPoints: ['src/sw.ts'],
@@ -120,6 +128,8 @@ async function buildServiceWorker(): Promise<void> {
       __VERSION__: JSON.stringify(version),
       __FONTS__: JSON.stringify(fonts),
       __FONTS_VERSION__: JSON.stringify(fontsVersion),
+      __AUDIO__: JSON.stringify(recordings),
+      __AUDIO_VERSION__: JSON.stringify(audioVersion),
     },
     logLevel: 'warning',
   });
@@ -156,6 +166,8 @@ export async function buildSite({ dev = false }: BuildOptions = {}): Promise<str
     recursive: true,
     filter: source => !source.endsWith('.md'),
   });
+
+  await cp(join(ROOT, 'vendor', 'audio'), join(OUT, 'audio'), { recursive: true });
 
   const assets = {
     boot: outputFor(boot.metafile, 'src/boot.ts'),
