@@ -106,7 +106,7 @@ test('the done screen and session bar tell about the daily review limit', () => 
   assert.ok(screen.includes('10 more reviews are due, waiting for tomorrow: you reached your limit of 50 today.'));
   assert.ok(screen.includes('Review 10 more'));
   const bar = text(toMarkup(sessionBar(state, newSession(), NOW)));
-  assert.ok(bar.includes('Due 0') && bar.includes('Reviews today 50/50'));
+  assert.ok(bar.includes('Due 0') && bar.includes('Reviews today: 50 of 50'));
   assert.ok(!text(toMarkup(sessionBar(practising(), newSession(), NOW))).includes('Reviews today'));
   assert.ok(!text(toMarkup(doneScreen(practising(), newSession(), NOW))).includes('Review '));
 });

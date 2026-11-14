@@ -128,15 +128,6 @@
   fill: var(--accent);
 }
 
-.credit {
-  flex-basis: 100%;
-  text-decoration: none;
-}
-
-.credit:hover {
-  text-decoration: underline;
-}
-
 @keyframes stroke-draw {
   from {
     stroke-dashoffset: var(--length);
@@ -213,4 +204,15 @@
 
 .info-link:hover {
   color: var(--accent);
+}
+
+.credits ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.credits a {
+  color: inherit;
 }

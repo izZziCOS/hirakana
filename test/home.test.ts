@@ -97,8 +97,22 @@ test('track cards show each set’s selection and progress', () => {
   assert.match(kanji, /data-row="k5:N5 · 1–30"/);
   assert.doesNotMatch(kanji, /data-row="k4:/, 'closed kanji levels keep their rows hidden');
 
-  const write = toMarkup(trackCard(TRACKS[1] ?? kanaTrack, updateSettings(state, { direction: 'write' })));
-  assert.match(text(write), /Everyday words ねこ Not in Write/);
+  const vocabulary = TRACKS[1] ?? kanaTrack;
+  const folded = toMarkup(trackCard(vocabulary, state));
+  assert.match(folded, /class="track is-collapsed"/, 'a track with nothing turned on is folded');
+  assert.match(folded, /data-show-track="vocabulary"\s+aria-expanded="false"/);
+  assert.doesNotMatch(folded, /data-group=/);
+  assert.match(text(toMarkup(trackCard(kanaTrack, state, false, new Set(), '', NOW, false))), /Show 4 sets/);
+
+  const write = toMarkup(
+    trackCard(vocabulary, updateSettings(state, { direction: 'write' }), false, new Set(), '', NOW, true),
+  );
+  assert.match(text(write), /Everyday words ねこ No Write cards/);
+  const grammar = TRACKS.find(track => track.id === 'grammar') ?? kanaTrack;
+  assert.match(
+    text(toMarkup(trackCard(grammar, state, false, new Set(), '', NOW, true))),
+    /JLPT N5 grammar .* Fill in only/,
+  );
 });
 
 test('the decks card offers an import and lists the decks with a way to delete each', () => {

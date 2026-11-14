@@ -7,7 +7,10 @@ import {
   feedback,
   openApp,
   prompt,
+  savedProgress,
   savedStatKeys,
+  savedText,
+  showTrack,
   start,
   STORAGE_KEY,
   test,
@@ -32,14 +35,28 @@ test('progress is saved and survives a reload', async ({ page }) => {
   await expect(page.locator('.stat-card').first()).toContainText('1');
 });
 
-test('the old storage key is migrated to the new one', async ({ page, seed }) => {
+test('progress under the old localStorage key moves to IndexedDB, leaving a marker for older versions', async ({
+  page,
+  seed,
+}) => {
   await seed({ version: 3, settings: { script: 'katakana', rows: ['basic:Vowels'] }, bestStreak: 7 }, 'kana-dojo-v1');
   await start(page);
   await expect(prompt(page)).toHaveText('ア');
   await answer(page, 'a');
-  await expect
-    .poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('kana-dojo'))))
-    .toEqual([STORAGE_KEY]);
+  await expect.poll(async () => (await savedProgress(page)).bestStreak).toBe(7);
+  await expect.poll(async () => Object.keys((await savedProgress(page)).stats ?? {})).toEqual(['ア']);
+  const local = await page.evaluate(() =>
+    Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])),
+  );
+  expect(local).toEqual({
+    [STORAGE_KEY]: JSON.stringify({ version: 1_000_000, movedTo: 'indexedDB' }),
+    'kana-dojo-theme': 'system',
+  });
+
+  // It stays there after a reload, and isn't moved again: still katakana, with ア answered and イ next.
+  await page.reload();
+  await page.locator('#continue-btn').click();
+  await expect(prompt(page)).toHaveText('イ');
 });
 
 test('activity and accuracy charts have tooltips and table views', async ({ page, seed }) => {
@@ -130,13 +147,8 @@ test('"Not now" hides the backup reminder until the next visit', async ({ page, 
 });
 
 test('answers given in another tab are kept when this tab answers next', async ({ page, context }) => {
-  const correctCount = () =>
-    page.evaluate(
-      key =>
-        (JSON.parse(localStorage.getItem(key) ?? '{}') as { stats?: Record<string, { correct: number }> }).stats?.あ
-          ?.correct,
-      STORAGE_KEY,
-    );
+  const correctCount = async () =>
+    ((await savedProgress(page)).stats as Record<string, { correct: number }> | undefined)?.あ?.correct;
   await start(page);
   await expect(prompt(page)).toHaveText('あ');
   const other = await context.newPage();
@@ -158,13 +170,12 @@ test('kanji progress is kept when the kanji load after the app', async ({ page, 
   // Any change saves the whole state; the kanji cards must still be in it.
   await page.locator('#theme-toggle').click();
   await expect.poll(() => savedStatKeys(page)).toEqual(['日', 'meaning:水', 'あ']);
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('kana-dojo')?.includes('"theme":"light"')))
-    .toBe(true);
+  await expect.poll(async () => (await savedText(page))?.includes('"theme":"light"')).toBe(true);
 });
 
 test('a kana learner sees the kanji sets once they have loaded in the background', async ({ page }) => {
   await openApp(page);
+  await showTrack(page, 'kanji');
   await expect(page.locator('.track-group[data-group="k5"] .track-group-status')).toHaveText('80 cards');
 });
 

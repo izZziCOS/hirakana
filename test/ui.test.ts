@@ -52,12 +52,13 @@ test('prompt labels and placeholders match the direction and mode', () => {
   assert.equal(placeholderFor(getKana('やま'), 'read'), 'Romaji (long vowels as oo, ii…)');
 });
 
-test('the session bar shows due cards, the daily limit and the goal', () => {
+test('the session bar shows due and new cards and the goal, with the session record hidden from view', () => {
   const state = updateSettings(defaultState(), { rows: ['basic:Vowels'], goal: 10 });
   const bar = text(toMarkup(sessionBar(state, { ...newSession(), answered: 4, correct: 3, streak: 2 }, NOW)));
   assert.match(bar, /Due 0/);
   assert.match(bar, /New today 0\/15/);
-  assert.match(bar, /Session 3\/4 \(75%\)/);
+  assert.match(bar, /3 of 4 right \(75%\), 2 in a row/);
+  assert.doesNotMatch(bar, /Streak|Day streak|Session/, 'the bar keeps to what is left');
   assert.match(bar, /Goal 4\/10/);
   const drilling = text(
     toMarkup(sessionBar(state, { ...newSession(), drill: { label: 'x', items: [getKana('あ')] } }, NOW)),

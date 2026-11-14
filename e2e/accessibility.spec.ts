@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
-import { dayKey, expect, openApp, start, test } from './fixtures.ts';
+import { dayKey, expect, openApp, showTrack, start, test } from './fixtures.ts';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -31,6 +31,7 @@ for (const theme of ['light', 'dark'] as const) {
     }) => {
       await seed(history);
       await openApp(page);
+      await showTrack(page, 'kanji');
       await page.locator('[data-track="kanji"]').click();
       await page.locator('[data-expand="k5"]').click();
       await expect(page.locator('[data-row="k5:N5 · 1–30"]')).toBeVisible();

@@ -59,5 +59,5 @@ test('past the daily limit, reviews wait for tomorrow unless more are asked for'
   await done.getByRole('button', { name: 'Review 5 more' }).click();
   await expect(page.locator('#card-badge')).toHaveText('Review');
   await expect(prompt(page)).toHaveText(/^[あいうえお]$/);
-  await expect(page.locator('#session')).toContainText('Reviews today 50/75');
+  await expect(page.locator('#session')).toContainText('Reviews today: 50 of 75');
 });

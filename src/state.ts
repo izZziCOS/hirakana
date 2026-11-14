@@ -52,10 +52,11 @@ import type {
   Stat,
   State,
   Theme,
+  Suspension,
 } from './types.ts';
 import { isObject, nonNegative, type Random, unique } from './util.ts';
 
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 export const MAX_MOCK_TESTS = 50;
 export const EXPORT_APP = 'kana-dojo';
 export const MAX_MISTAKES = 2000;
@@ -105,6 +106,7 @@ export const defaultState = (): State => ({
   suspensions: {},
   mockTests: [],
   passages: {},
+  saved: {},
 });
 
 const entriesOf = (value: unknown): [string, unknown][] => (isObject(value) ? Object.entries(value) : []);
@@ -148,6 +150,8 @@ const MIGRATIONS: Record<number, (data: RawData, now: number) => RawData> = {
   9: data => ({ ...data, version: 10 }),
   // Each card's memory for scheduling; the sanitising below works it out for cards past the learning steps.
   10: data => ({ ...data, version: 11 }),
+  // Words saved from the Read tab; the sanitising below fills them in.
+  11: data => ({ ...data, version: 12 }),
 };
 
 function sanitizeStat(stat: RawData): Stat {
@@ -275,6 +279,14 @@ function sanitizeDays(raw: unknown): Record<string, DayLog> {
 
 export const MAX_DELETED_DECKS = 200;
 
+// Per-item choices that sync, such as suspensions: whether it is on, and when that was chosen.
+const toggles = (raw: unknown, keep: (id: string) => boolean): Record<string, Suspension> =>
+  Object.fromEntries(
+    entriesOf(raw)
+      .filter((entry): entry is [string, RawData] => keep(entry[0]) && isObject(entry[1]))
+      .map(([id, toggle]) => [id, { on: toggle.on === true, at: nonNegative(toggle.at) }]),
+  );
+
 function sanitizeState(data: RawData): State {
   const decks = sanitizeDecks(data.decks);
   // Cards of imported decks are checked against the decks saved with them, not the ones this tab has open.
@@ -309,11 +321,9 @@ function sanitizeState(data: RawData): State {
         .slice(0, MAX_DELETED_DECKS)
         .map(([id, at]) => [id, nonNegative(at)]),
     ),
-    suspensions: Object.fromEntries(
-      entriesOf(data.suspensions)
-        .filter((entry): entry is [string, RawData] => find(entry[0]) !== undefined && isObject(entry[1]))
-        .map(([id, suspension]) => [id, { on: suspension.on === true, at: nonNegative(suspension.at) }]),
-    ),
+    suspensions: toggles(data.suspensions, id => find(id) !== undefined),
+    // Only the app's own words and kanji are saved from the Read tab.
+    saved: toggles(data.saved, id => !isDeckItemId(id) && findKana(id) !== undefined),
     mockTests: (Array.isArray(data.mockTests) ? data.mockTests : [])
       .filter((result): result is RawData => isObject(result) && [1, 2, 3, 4, 5].includes(result.level as number))
       .map(result => ({
@@ -435,6 +445,21 @@ export const recordPassage = (state: State, id: string, correct: number, total: 
 
 export const isSuspended = (state: State, id: string): boolean => state.suspensions[id]?.on === true;
 
+export const isSaved = (state: State, id: string): boolean => state.saved[id]?.on === true;
+
+export const setSaved = (state: State, id: string, on: boolean, now = Date.now()): State => ({
+  ...state,
+  saved: { ...state.saved, [id]: { on, at: now } },
+});
+
+// The words and kanji saved from the Read tab, the latest first.
+export const savedItems = (state: State): KanaItem[] =>
+  Object.entries(state.saved)
+    .filter(([, entry]) => entry.on)
+    .sort(([, a], [, b]) => b.at - a.at)
+    .map(([id]) => findKana(id))
+    .filter((item): item is KanaItem => item !== undefined);
+
 export const setSuspended = (state: State, id: string, on: boolean, now = Date.now()): State => ({
   ...state,
   suspensions: { ...state.suspensions, [id]: { on, at: now } },
@@ -544,9 +569,12 @@ export interface DeckProgress {
 }
 
 // Where the learner is with an imported deck, in the direction being practised.
-export function deckProgress(state: State, deck: Deck, now = Date.now()): DeckProgress {
+export const deckProgress = (state: State, deck: Deck, now = Date.now()): DeckProgress =>
+  itemsProgress(state, deckItems(deck), now);
+
+// Where the learner is with a list of words, such as a deck or the words saved from the Read tab.
+export function itemsProgress(state: State, items: KanaItem[], now = Date.now()): DeckProgress {
   const practised = state.settings.direction === 'mixed' ? 'read' : state.settings.direction;
-  const items = deckItems(deck);
   const direction = items.every(item => supportsDirection(item, practised)) ? practised : 'read';
   const progress = { direction, total: items.length, mastered: 0, learning: 0, due: 0 };
   for (const item of items) {
@@ -621,6 +649,7 @@ export const resetProgress = (state: State, now = Date.now()): State => ({
   resetAt: now,
   decks: state.decks,
   deletedDecks: state.deletedDecks,
+  saved: state.saved,
 });
 
 // Adds an imported deck and picks its row, so Continue practises it.

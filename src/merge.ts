@@ -46,7 +46,7 @@ function sinceReset(state: State, resetAt: number): State {
   };
 }
 
-// The latest choice for each card wins, whichever device made it.
+// The latest choice for each card wins, whichever device made it: suspending it, or saving it from the Read tab.
 function mergeSuspensions(a: Record<string, Suspension>, b: Record<string, Suspension>): Record<string, Suspension> {
   const merged = { ...a };
   for (const [id, entry] of Object.entries(b)) {
@@ -166,5 +166,6 @@ export function mergeStates(local: State, localDevice: string, remote: State, re
     ),
     mockTests: mergeMockTests(mine.mockTests, theirs.mockTests),
     passages: mergePassages(mine.passages, theirs.passages),
+    saved: Object.fromEntries(Object.entries(mergeSuspensions(mine.saved, theirs.saved)).filter(([id]) => !gone(id))),
   };
 }

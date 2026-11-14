@@ -65,6 +65,49 @@
   visibility: visible;
 }
 
+.sentence-word.is-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* The selected word: its reading and meaning, saving it to learn and its details. */
+.word-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 4px 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunken);
+}
+
+.word-pick-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.word-pick-reading {
+  color: var(--muted-strong);
+}
+
+.word-pick-meaning {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.word-pick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.word-pick .is-saved {
+  border-color: var(--good);
+  color: var(--good);
+}
+
 .sentence-actions {
   display: flex;
   flex-wrap: wrap;

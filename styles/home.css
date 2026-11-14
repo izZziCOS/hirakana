@@ -562,3 +562,35 @@
 #sync-status:empty {
   display: none;
 }
+
+.track-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.track-toggle {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.track.is-collapsed {
+  gap: 12px;
+  padding-block: 16px;
+}
+
+.track.is-collapsed .track-glyph {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 24px;
+  white-space: nowrap;
+}
+
+.track.is-collapsed .track-glyph.track-vocabulary {
+  font-size: 17px;
+}
+
+.saved-examples {
+  color: var(--muted-strong);
+  overflow-wrap: anywhere;
+}

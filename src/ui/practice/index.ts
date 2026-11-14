@@ -5,6 +5,7 @@ import { hasReadingStage, isKanji, isWord, normalizeAnswer, statKey } from '../.
 import { milestonesOf } from '../../milestones.ts';
 import {
   ADVANCE_DELAY,
+  clearMissed,
   type AnswerResult,
   canForgiveTypo,
   chooseNext,
@@ -50,7 +51,7 @@ import {
   writePromptMarkup,
 } from './card.ts';
 import { kanaPad } from './kana-pad.ts';
-import { doneScreen, sessionBar } from './summary.ts';
+import { doneScreen, missedItems, sessionBar } from './summary.ts';
 
 export interface Practice {
   next(): void;
@@ -417,6 +418,12 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
   els.done.addEventListener('click', event => {
     const button = (event.target as Element).closest<HTMLElement>('[data-done]');
     if (!button) return;
+    if (button.dataset.done === 'missed') {
+      const items = missedItems(session.get());
+      session.update(clearMissed);
+      drill('what you missed', items);
+      return;
+    }
     const more = { more: learnMore, reviews: reviewMore }[button.dataset.done ?? ''] ?? practiseExtra;
     session.update(more);
     next();
@@ -491,6 +498,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
   }
 
   bindInfoLinks(els.infoBody, kana => dialog.open(kana), drill);
+  bindInfoLinks(els.done, kana => dialog.open(kana), drill);
 
   // Acting on the card on screen moves on to the next one; a card being drilled stays, as drills are chosen by hand.
   const afterAction = (id: string) => {

@@ -4,7 +4,8 @@ import type { AppStores } from '../store.ts';
 import { $, onDelegate, onSegmented, press } from './dom.ts';
 import { setHtml } from './html.ts';
 import { createPassages } from './passages.ts';
-import { readerSummary, sentenceItem, type Furigana } from './sentences.ts';
+import type { KanaDialog } from './dialog.ts';
+import { bindWordPicks, newPicks, readerSummary, sentenceItem, type Furigana } from './sentences.ts';
 import { canSpeak, speak } from './speech.ts';
 
 type ReaderShow = 'readable' | 'all';
@@ -14,7 +15,7 @@ export interface ReaderView {
   render(): void;
 }
 
-export function createReader(stores: AppStores, isActive: () => boolean): ReaderView {
+export function createReader(stores: AppStores, isActive: () => boolean, dialog: KanaDialog): ReaderView {
   const { data } = stores;
   const els = {
     summary: $('#reader-summary'),
@@ -26,11 +27,14 @@ export function createReader(stores: AppStores, isActive: () => boolean): Reader
   let show: ReaderShow = 'readable';
   let furigana: Furigana = 'new';
   let shown: Sentence[] = [];
+  // Words tapped in the list; the list changes, and its numbering with it, when what it shows does.
+  let picks = newPicks();
   const passages = createPassages(
     stores,
     els.passages,
     () => furigana,
     () => isActive() && mode === 'passages',
+    dialog,
   );
 
   function render(): void {
@@ -45,14 +49,15 @@ export function createReader(stores: AppStores, isActive: () => boolean): Reader
       passages.render();
       return;
     }
-    const { stats } = data.get();
+    const state = data.get();
+    const { stats } = state;
     const readable = readableSentences(stats);
     shown = show === 'readable' ? readable : sentences;
     press('#reader-show', show);
     els.summary.textContent = kanjiLoaded() ? readerSummary(readable.length, sentences.length) : 'Loading the kanji…';
     setHtml(
       els.list,
-      shown.map((sentence, i) => sentenceItem(sentence, i, { stats, furigana, listen: canSpeak })),
+      shown.map((sentence, i) => sentenceItem(sentence, i, { stats, furigana, listen: canSpeak, picks, state })),
     );
   }
 
@@ -62,16 +67,21 @@ export function createReader(stores: AppStores, isActive: () => boolean): Reader
   });
   onSegmented('#reader-show', value => {
     show = value as ReaderShow;
+    picks = newPicks();
     render();
   });
   onSegmented('#reader-furigana', value => {
     furigana = value as Furigana;
+    picks.flipped.clear();
     render();
   });
-  onDelegate(els.list, '.sentence-word', word => {
-    const pressed = word.classList.toggle('show-reading');
-    word.setAttribute('aria-pressed', String(pressed));
-  });
+  bindWordPicks(
+    els.list,
+    () => picks,
+    data,
+    render,
+    id => dialog.open(id),
+  );
   onDelegate(els.list, '[data-speak]', button => speak(shown[Number(button.dataset.speak)]?.text ?? ''));
 
   data.subscribe(render);

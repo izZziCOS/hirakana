@@ -1,7 +1,18 @@
 import { GROUPS, TRACKS } from '../data.ts';
 import { dayStreak } from '../days.ts';
 import { deckChanges, deckNameOf, newDeckId, parseDeck } from '../decks.ts';
-import { inScript, isGrammarGroup, isKanjiGroup, KANA, kanjiLoaded, ROW_INFO, toKatakana } from '../kana.ts';
+import { spellingOf } from '../examples.ts';
+import {
+  DIRECTIONS,
+  inScript,
+  isGrammarGroup,
+  isKanjiGroup,
+  KANA,
+  kanjiLoaded,
+  ROW_INFO,
+  supportsDirection,
+  toKatakana,
+} from '../kana.ts';
 import { groupRecall } from '../milestones.ts';
 import { backlog, catchUp, resetCard, singleDirection, todaySummary, type TodaySummary } from '../session.ts';
 import { catchUpPlan } from '../schedule.ts';
@@ -18,7 +29,9 @@ import {
   updateDeck,
   groupProgress,
   groupSelection,
+  itemsProgress,
   rowsSummary,
+  savedItems,
   toggleGroup,
   toggleRow,
 } from '../state.ts';
@@ -129,11 +142,21 @@ function progressBar(size: string, { mastered, learning, total }: GroupProgress)
   </div>`;
 }
 
+// A set with no cards in the picked direction says where it is practised when that is a single mode: grammar and
+// conjugation are only filled in.
+function practisedOnlyIn(groupId: GroupId, script: ScriptSetting): string | null {
+  const items = KANA.filter(item => item.group === groupId && inScript(item, script));
+  const ways = DIRECTIONS.filter(direction => items.some(item => supportsDirection(item, direction)));
+  const [only] = ways;
+  return ways.length === 1 && only ? `${DIRECTION_LABEL[only]} only` : null;
+}
+
 function groupStatus(state: State, groupId: GroupId, { mastered, learning, total }: GroupProgress): string {
   // Grammar past N4 and the conjugation forms load with the kanji.
   const onDemand = isKanjiGroup(groupId) || (isGrammarGroup(groupId) && groupId !== 'g5' && groupId !== 'g4');
   if (onDemand && !kanjiLoaded()) return 'Loading…';
-  if (!total) return `Not in ${DIRECTION_LABEL[state.settings.direction]}`;
+  if (!total)
+    return practisedOnlyIn(groupId, state.settings.script) ?? `No ${DIRECTION_LABEL[state.settings.direction]} cards`;
   const recall = groupRecall(
     state.stats,
     groupId,
@@ -169,12 +192,30 @@ function deckItem(state: State, deck: Deck, now: number): Html {
   </li>`;
 }
 
+// Words saved from the Read tab are practised whatever is picked here; each can be let go from its details panel.
+function savedItem(state: State, now: number): Html | null {
+  const items = savedItems(state);
+  if (!items.length) return null;
+  const progress = itemsProgress(state, items, now);
+  const practised = singleDirection(state.settings.direction);
+  const examples = items.slice(0, 6).map(item => spellingOf(item) ?? item.kana);
+  return html`<li>
+    <div class="deck-info">
+      <span class="deck-name">Saved from reading</span>
+      <span class="muted small">${deckSummary(progress, practised)} · always practised</span>
+      <span class="small jp saved-examples" lang="ja">${examples.join('、')}${items.length > 6 ? '…' : ''}</span>
+      ${progressBar('deck-bar', progress)}
+    </div>
+  </li>`;
+}
+
 function deckTools(state: State, deckStatus: string, now: number): Html {
+  const saved = savedItem(state, now);
   return html`<div class="deck-tools">
     ${
-      state.decks.length > 0 &&
+      (state.decks.length > 0 || saved) &&
       html`<ul class="deck-list">
-        ${state.decks.map(deck => deckItem(state, deck, now))}
+        ${saved}${state.decks.map(deck => deckItem(state, deck, now))}
       </ul>`
     }
     <button type="button" class="ghost" data-import-deck>Import a word list</button>
@@ -217,11 +258,12 @@ export function trackCard(
   openLevels = new Set<string>(),
   deckStatus = '',
   now = Date.now(),
+  shown?: boolean,
 ): Html {
   const { script } = state.settings;
   // Without any decks the decks card only offers to import one.
   const empty = track.id === 'decks' && !state.decks.length;
-  const { track: shown, groups } = inPickedScript(
+  const { track: display, groups } = inPickedScript(
     track,
     empty ? [] : GROUPS.filter(group => track.groups.includes(group.id) && hasCardsIn(group, script)),
     script,
@@ -230,16 +272,49 @@ export function trackCard(
   const sum = (key: keyof GroupProgress) => sets.reduce((total, set) => total + set.progress[key], 0);
   const trackProgress = { mastered: sum('mastered'), learning: sum('learning'), total: sum('total') };
   const cards = KANA.filter(item => track.groups.includes(item.group) && inScript(item, script)).length;
-  return html`<article class="track" aria-labelledby="track-${track.id}">
+  // A track with nothing turned on folds down to its heading, unless it was opened.
+  const collapsible = track.id !== 'decks';
+  const expanded = !collapsible || (shown ?? (open || isTrackActive(state, track)));
+  const started = trackProgress.mastered + trackProgress.learning > 0;
+  return html`<article class="track${expanded ? '' : ' is-collapsed'}" aria-labelledby="track-${track.id}">
     <div class="track-head">
-      <span class="track-glyph track-${track.id} jp" aria-hidden="true">${shown.glyph}</span>
-      <div>
+      <span class="track-glyph track-${track.id} jp" aria-hidden="true">${display.glyph}</span>
+      <div class="track-title">
         <h3 id="track-${track.id}">${track.label}</h3>
-        <p class="muted small">${shown.summary} · ${plural(cards, 'card')}</p>
+        <p class="muted small">${display.summary} · ${plural(cards, 'card')}</p>
       </div>
+      ${
+        collapsible &&
+        html`<button
+          type="button"
+          class="ghost small track-toggle"
+          data-show-track="${track.id}"
+          aria-expanded="${String(expanded)}"
+        >
+          ${expanded ? 'Hide sets' : `Show ${plural(sets.length, 'set')}`}
+        </button>`
+      }
     </div>
-    ${!empty && progressBar('track-bar', trackProgress)}
-    <ul class="track-groups">
+    ${!empty && (expanded || started) && progressBar('track-bar', trackProgress)}
+    ${!expanded ? '' : trackBody(track, state, sets, groups, open, openLevels, empty)}
+    ${track.id === 'decks' && deckTools(state, deckStatus, now)}
+  </article>`;
+}
+
+// Whether any set in a track is turned on.
+export const isTrackActive = (state: State, track: Track): boolean =>
+  track.groups.some(group => groupSelection(state, group) !== 'none');
+
+function trackBody(
+  track: Track,
+  state: State,
+  sets: { group: Group; progress: GroupProgress }[],
+  groups: Group[],
+  open: boolean,
+  openLevels: Set<string>,
+  empty: boolean,
+): Html {
+  return html` <ul class="track-groups">
       ${sets.map(
         ({ group, progress }) =>
           html`<li>
@@ -263,9 +338,7 @@ export function trackCard(
         ${open ? 'Hide rows' : 'Choose rows'}
       </button>`
     }
-    ${open && html`<div class="track-rows">${groups.map(group => groupRows(group, state.settings, openLevels))}</div>`}
-    ${track.id === 'decks' && deckTools(state, deckStatus, now)}
-  </article>`;
+    ${open && html`<div class="track-rows">${groups.map(group => groupRows(group, state.settings, openLevels))}</div>`}`;
 }
 
 export function createHome({ data, session }: AppStores, isVisible: () => boolean, onExport: () => void): Home {
@@ -283,6 +356,8 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     catchUpSpread: $('#catch-up-spread', HTMLButtonElement),
   };
   const openTracks = new Set<string>();
+  // Tracks opened or folded by hand this visit; the others are open while a set in them is turned on.
+  const shownTracks = new Map<string, boolean>();
   const openLevels = new Set<string>();
   const deckFile = $('#deck-file', HTMLInputElement);
   let deckStatus = '';
@@ -314,7 +389,9 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     }
     setHtml(
       els.tracks,
-      TRACKS.map(track => trackCard(track, state, openTracks.has(track.id), openLevels, deckStatus)),
+      TRACKS.map(track =>
+        trackCard(track, state, openTracks.has(track.id), openLevels, deckStatus, now, shownTracks.get(track.id)),
+      ),
     );
   }
 
@@ -323,9 +400,20 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     render();
   };
 
-  onDelegate(els.tracks, 'button[data-group]', button =>
-    data.update(state => toggleGroup(state, button.dataset.group as GroupId)),
-  );
+  onDelegate(els.tracks, 'button[data-group]', button => {
+    const groupId = button.dataset.group as GroupId;
+    // Turning off the last set in a track leaves it open rather than folding it away under the pointer.
+    const track = TRACKS.find(candidate => candidate.groups.includes(groupId));
+    if (track) shownTracks.set(track.id, true);
+    data.update(state => toggleGroup(state, groupId));
+  });
+  onDelegate(els.tracks, 'button[data-show-track]', button => {
+    const id = button.dataset.showTrack ?? '';
+    const track = TRACKS.find(candidate => candidate.id === id);
+    if (!track) return;
+    shownTracks.set(id, !(shownTracks.get(id) ?? (openTracks.has(id) || isTrackActive(data.get(), track))));
+    render();
+  });
   onDelegate(els.tracks, 'button[data-row]', button =>
     data.update(state => toggleRow(state, button.dataset.row ?? '')),
   );

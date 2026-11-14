@@ -1,4 +1,16 @@
-import { answer, expect, feedback, openApp, prompt, start, STORAGE_KEY, test } from './fixtures.ts';
+import {
+  answer,
+  expect,
+  feedback,
+  openApp,
+  prompt,
+  saveAsOtherTab,
+  savedProgress,
+  savedText,
+  start,
+  STORAGE_KEY,
+  test,
+} from './fixtures.ts';
 
 test('progress from a newer version stops the app rather than being overwritten', async ({ page }) => {
   const newer = { version: 999, bestStreak: 5, futureField: 'kept' };
@@ -11,21 +23,17 @@ test('progress from a newer version stops the app rather than being overwritten'
   await page.goto('/');
   await expect(page.locator('#app-error')).toBeVisible();
   await expect(page.locator('#app-error-detail')).toContainText('newer version');
+  // It is neither moved nor saved over.
   const saved = await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY);
   expect(JSON.parse(saved ?? '{}')).toEqual(newer);
+  expect(await savedText(page)).toBeNull();
 });
 
 test('a tab stops saving once a newer version has saved, and offers to reload', async ({ page }) => {
   await start(page);
   await expect(prompt(page)).toHaveText('あ');
   const newer = JSON.stringify({ version: 999, futureField: 'kept' });
-  await page.evaluate(
-    ([key, value]) => {
-      localStorage.setItem(key, value);
-      window.dispatchEvent(new StorageEvent('storage', { key }));
-    },
-    [STORAGE_KEY, newer] as const,
-  );
+  await saveAsOtherTab(page, newer);
   const note = page.locator('#update-note');
   await expect(note).toBeVisible();
   await expect(note).toContainText('stopped saving');
@@ -35,7 +43,7 @@ test('a tab stops saving once a newer version has saved, and offers to reload', 
   await expect(feedback(page)).toContainText('Correct!');
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await page.waitForTimeout(600);
-  expect(await page.evaluate(key => localStorage.getItem(key), STORAGE_KEY)).toBe(newer);
+  expect(await savedText(page)).toBe(newer);
 });
 
 test('progress that can’t be read is kept for the learner to download or delete', async ({ page }) => {
@@ -62,7 +70,7 @@ test('progress that can’t be read is kept for the learner to download or delet
   await expect(note).toBeVisible();
   await note.getByRole('button', { name: 'Delete it' }).click();
   await expect(note).toBeHidden();
-  expect(await page.evaluate(() => localStorage.getItem('kana-dojo-unreadable'))).toBeNull();
+  expect(await savedText(page, 'kana-dojo-unreadable')).toBeNull();
 });
 
 test('the writing pad says when a character’s strokes can’t be loaded, and can be passed over', async ({
@@ -93,9 +101,5 @@ test('the writing pad says when a character’s strokes can’t be loaded, and c
   await expect(status).toContainText('couldn’t be loaded');
   await page.locator('#next-btn').click();
   await expect(prompt(page)).not.toHaveText(first ?? '');
-  const mistakes = await page.evaluate(key => {
-    const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as { mistakes?: unknown[] };
-    return saved.mistakes?.length ?? 0;
-  }, STORAGE_KEY);
-  expect(mistakes).toBe(0);
+  expect(((await savedProgress(page)).mistakes as unknown[] | undefined)?.length ?? 0).toBe(0);
 });

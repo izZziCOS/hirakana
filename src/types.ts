@@ -268,6 +268,9 @@ export interface State {
   mockTests: MockResult[];
   // By passage id.
   passages: Record<string, PassageResult>;
+  // Words and kanji saved from the Read tab to learn, by item id. They are practised whatever rows are picked, and
+  // a removed one keeps its entry, like a resumed suspension, so syncing doesn't bring it back.
+  saved: Record<string, Suspension>;
 }
 
 export interface Drill {
@@ -314,6 +317,8 @@ export interface Session {
   undo: UndoPoint | null;
   // Characters to bring back soon after a mix-up, the one picked by mistake first.
   followUps: Entry[];
+  // Items answered wrong or peeked at in this visit, the latest first, for the "Done for today" screen to drill.
+  missed: string[];
 }
 
 export interface Pick {

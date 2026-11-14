@@ -6,7 +6,8 @@ import type { AppStores } from '../store.ts';
 import { codePoints, unique } from '../util.ts';
 import { onDelegate } from './dom.ts';
 import { html, setHtml, type Html } from './html.ts';
-import { type Furigana, segmentMarkup, sentenceItem } from './sentences.ts';
+import type { KanaDialog } from './dialog.ts';
+import { bindWordPicks, type Furigana, newPicks, segmentMarkup, sentenceItem } from './sentences.ts';
 import { canSpeak, speak } from './speech.ts';
 
 const HAN = /\p{Script=Han}/u;
@@ -26,12 +27,15 @@ export function createPassages(
   container: HTMLElement,
   furigana: () => Furigana,
   isActive: () => boolean,
+  dialog: KanaDialog,
 ): PassagesView {
   let passages: Passage[] | null = null;
   let loadFailed = false;
   let open: Passage | null = null;
   // The option picked for each question of the open passage.
   let picked = new Map<number, number>();
+  // Words tapped in the open passage.
+  let picks = newPicks();
 
   function listItem(passage: Passage): Html {
     const { stats, passages: results } = data.get();
@@ -94,7 +98,8 @@ export function createPassages(
     passage.questions.filter((question, i) => picked.get(i) === question.answer).length;
 
   function renderPassage(passage: Passage): void {
-    const { stats } = data.get();
+    const state = data.get();
+    const { stats } = state;
     const sentences = passage.paragraphs.map(toSentence);
     const done = picked.size === passage.questions.length;
     const titleSegments = parseSentence(passage.title);
@@ -106,7 +111,9 @@ export function createPassages(
         </h3>
         <p class="muted small">N${passage.level} · ${passage.english}</p>
         <ol class="sentence-list passage-text">
-          ${sentences.map((sentence, i) => sentenceItem(sentence, i, { stats, furigana: furigana(), listen: canSpeak }))}
+          ${sentences.map((sentence, i) =>
+            sentenceItem(sentence, i, { stats, furigana: furigana(), listen: canSpeak, picks, state }),
+          )}
         </ol>
         <h3>Questions</h3>
         ${passage.questions.map((_, i) => questionMarkup(passage, i))}
@@ -150,6 +157,7 @@ export function createPassages(
   onDelegate(container, '[data-passage]', element => {
     open = passages?.find(passage => passage.id === element.dataset.passage) ?? null;
     picked = new Map();
+    picks = newPicks();
     render();
     window.scrollTo(0, 0);
   });
@@ -173,10 +181,13 @@ export function createPassages(
     }
     render();
   });
-  onDelegate(container, '.sentence-word', word => {
-    const pressed = word.classList.toggle('show-reading');
-    word.setAttribute('aria-pressed', String(pressed));
-  });
+  bindWordPicks(
+    container,
+    () => picks,
+    data,
+    render,
+    id => dialog.open(id),
+  );
   onDelegate(container, '[data-speak]', button => {
     const paragraph = open?.paragraphs[Number(button.dataset.speak)];
     if (paragraph) speak(readingOf(parseSentence(paragraph[0])));

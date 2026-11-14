@@ -5,6 +5,7 @@ import {
   backupStatus,
   clearMistakes,
   exportPayload,
+  isSaved,
   markBackedUp,
   parseImport,
   resetProgress,
@@ -23,6 +24,8 @@ import {
   STORAGE_KEY,
   unreadableSave,
 } from './store.ts';
+import { broadcastChannel, openIdb } from './idb.ts';
+import { isProgressStorage, openProgressStorage, THEME_KEY } from './progress-storage.ts';
 import { deviceId } from './sync.ts';
 import type { Theme } from './types.ts';
 import { chooseAction, confirmAction } from './ui/confirm.ts';
@@ -60,6 +63,12 @@ function showError(error: unknown): void {
 }
 
 function applyTheme(theme: Theme): void {
+  // Kept where boot.js can read it before the progress has loaded, so the page doesn't flash the other theme.
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Without localStorage the page takes on the theme a moment later.
+  }
   if (theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
   const toggle = $('#theme-toggle', HTMLButtonElement);
@@ -86,8 +95,10 @@ function requestPersistentStorage(): void {
     .catch(() => undefined);
 }
 
-function start(storage: KeyValueStorage | null): void {
+function start(storage: KeyValueStorage | null, recovered: string | null): void {
   const stores = createAppStores(storage);
+  // What the last page didn't get to write is merged in, as another tab's progress would be.
+  if (recovered !== null) stores.receive(recovered);
   const { data, session, saver } = stores;
   let activeView: View = 'practice';
   // The Learn tab is either the home screen or a practice session.
@@ -135,7 +146,7 @@ function start(storage: KeyValueStorage | null): void {
   const mistakes = createMistakes(stores, dialog, startDrill, isActive('mistakes'));
   const search = createSearch(dialog);
   const mockTest = createMockTest(stores, dialog, startDrill, () => progress.render());
-  const reader = createReader(stores, isActive('read'));
+  const reader = createReader(stores, isActive('read'), dialog);
   const progress = createProgress(stores, {
     dialog,
     isActive: isActive('progress'),
@@ -195,6 +206,16 @@ function start(storage: KeyValueStorage | null): void {
     practice.next();
   });
 
+  // A word saved from the Read tab is the next new card, so a new or extra card waiting unanswered makes way for it.
+  data.subscribe((state, previous) => {
+    const newlySaved = Object.keys(state.saved).some(id => isSaved(state, id) && !isSaved(previous, id));
+    if (!newlySaved) return;
+    const { card, drill } = session.get();
+    if (drill || !card || card.answered || (card.kind !== 'new' && card.kind !== 'ahead')) return;
+    session.update(resetCard);
+    practice.next();
+  });
+
   data.subscribe((state, previous) => {
     if (state.settings === previous.settings) return;
     controls.render();
@@ -228,10 +249,16 @@ function start(storage: KeyValueStorage | null): void {
 
   window.addEventListener('pagehide', () => saver.flush());
   // Another tab's progress may include kanji, which this tab can only read once they have loaded.
-  window.addEventListener('storage', event => {
-    if (event.key !== STORAGE_KEY) return;
-    void loadKanji().then(() => stores.receive(storage?.getItem(STORAGE_KEY) ?? null));
-  });
+  const receive = () => void loadKanji().then(() => stores.receive(storage?.getItem(STORAGE_KEY) ?? null));
+  if (isProgressStorage(storage)) {
+    storage.onChange(key => {
+      if (key === STORAGE_KEY) receive();
+    });
+  } else {
+    window.addEventListener('storage', event => {
+      if (event.key === STORAGE_KEY) receive();
+    });
+  }
 
   let askedPersistence = false;
   data.subscribe(state => {
@@ -356,13 +383,17 @@ function start(storage: KeyValueStorage | null): void {
 // Kana learners start straight away and get the kanji and the full word list in the background. Saved progress that
 // uses them waits for them, and if they can't be loaded the app stops with an error rather than drop those cards.
 async function boot(): Promise<void> {
-  const storage = browserStorage();
+  const { storage, recovered } = await openProgressStorage({
+    open: openIdb,
+    local: browserStorage(),
+    channel: broadcastChannel(),
+  });
   // This version can't read that progress, and starting would save over it. A reload gets the newer version.
   if (isNewerSave(savedText(storage))) {
     throw new Error('Your progress was saved by a newer version of Kana Dojo. Reload to update this one.');
   }
-  if (needsKanji(savedText(storage))) await loadKanji();
-  start(storage);
+  if (needsKanji(savedText(storage)) || needsKanji(recovered)) await loadKanji();
+  start(storage, recovered);
 }
 
 window.addEventListener('error', event => showError(event.error ?? event.message));

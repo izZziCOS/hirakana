@@ -1,4 +1,4 @@
-import { answer, dayKey, expect, feedback, openApp, prompt, start, test } from './fixtures.ts';
+import { answer, dayKey, expect, feedback, openApp, prompt, showTrack, start, test } from './fixtures.ts';
 
 test('the home screen sums up today and Continue starts practice', async ({ page }) => {
   await openApp(page);
@@ -24,7 +24,7 @@ test('starts with あ and moves on after a correct typed answer', async ({ page 
   await expect(feedback(page)).toContainText('Correct!');
   await expect(feedback(page)).toContainText('Next review in 10 min');
   await expect(prompt(page)).toHaveText('い');
-  await expect(page.locator('#session')).toContainText('Session 1/1');
+  await expect(page.locator('#session')).toContainText('1 of 1 right');
 });
 
 // A page wider than the screen makes mobile browsers shift every tap, which shows up as click timeouts elsewhere.
@@ -32,6 +32,7 @@ test('no view is wider than the screen', async ({ page }) => {
   await openApp(page);
   const screenWidth = page.viewportSize()?.width ?? 0;
   const pageWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
+  await showTrack(page, 'kanji');
   await page.locator('[data-track="kanji"]').click();
   await page.locator('[data-expand="k1"]').click();
   expect(await pageWidth(), 'home').toBeLessThanOrEqual(screenWidth);
@@ -62,7 +63,7 @@ test('peeking at the info panel shows details and skips scoring', async ({ page 
   await expect(page.locator('.stroke-count')).toHaveText('3 strokes');
   await answer(page, 'a');
   await expect(feedback(page)).toContainText('You peeked');
-  await expect(page.locator('#session')).toContainText('Session 0/0');
+  await expect(page.locator('#session')).not.toContainText(' right (');
 });
 
 test('multiple choice can be answered with the number keys', async ({ page }) => {

@@ -19,7 +19,7 @@ import {
   spreadReviews,
   weightedPick,
 } from './schedule.ts';
-import { combinedDays, isSuspended, recordAnswer } from './state.ts';
+import { combinedDays, isSaved, isSuspended, recordAnswer, savedItems } from './state.ts';
 import type {
   Card,
   CardKind,
@@ -53,7 +53,18 @@ export const newSession = (): Session => ({
   card: null,
   undo: null,
   followUps: [],
+  missed: [],
 });
+
+export const MAX_MISSED = 60;
+
+// The latest miss first, each item once.
+const withMissed = (missed: string[], id: string): string[] =>
+  [id, ...missed.filter(other => other !== id)].slice(0, MAX_MISSED);
+
+// Drilling the misses starts their list afresh, so the drill's own misses make the next one.
+export const clearMissed = (session: Session): Session =>
+  session.missed.length ? { ...session, missed: [] } : session;
 
 export const startDrill = (session: Session, drill: Drill): Session => ({ ...session, drill });
 export const endDrill = (session: Session): Session => (session.drill ? { ...session, drill: null } : session);
@@ -109,17 +120,21 @@ function byDeck(state: State): (item: KanaItem) => number {
   return item => rank.get(item.rowId) ?? state.decks.length + 1;
 }
 
+// Words saved from the Read tab are practised whatever rows are picked, and come first: they were saved to learn.
 function rowEntries(state: State, voice: boolean): Entry[] {
   const { settings, stats } = state;
   const directions = settings.direction === 'mixed' ? mixedDirections(stats) : [settings.direction];
   const rank = byDeck(state);
-  return rowsPool(settings)
-    .sort((a, b) => rank(a) - rank(b))
-    .flatMap(item =>
-      directions
-        .filter(direction => supportsDirection(item, direction) && canHear(item, direction, voice))
-        .map(direction => ({ item, direction })),
-    );
+  const saved = savedItems(state);
+  const savedIds = new Set(saved.map(item => item.id));
+  const rows = rowsPool(settings)
+    .filter(item => !savedIds.has(item.id))
+    .sort((a, b) => rank(a) - rank(b));
+  return [...saved, ...rows].flatMap(item =>
+    directions
+      .filter(direction => supportsDirection(item, direction) && canHear(item, direction, voice))
+      .map(direction => ({ item, direction })),
+  );
 }
 
 export const practiceEntries = (state: State, voice = true): Entry[] =>
@@ -248,7 +263,18 @@ export function chooseNext(
     const allowNew = learnedToday(state, now) < newLimit(state, session);
     const canIntroduce = introducible(state);
     const reviews = reviewsLeft(state, session, now) > 0;
-    pick = pickEntry({ entries, stats, currentItem, now, allowNew, canIntroduce, reviewsLeft: reviews, random });
+    const chosen = (entry: Entry) => isSaved(state, entry.item.id);
+    pick = pickEntry({
+      entries,
+      stats,
+      currentItem,
+      now,
+      allowNew,
+      canIntroduce,
+      reviewsLeft: reviews,
+      random,
+      chosen,
+    });
   }
 
   if (!pick) {
@@ -391,6 +417,7 @@ export function submitAnswer(
     undo: { state, session, clock },
     followUps:
       outcome === 'wrong' && !session.drill ? queueContrast(session.followUps, card, given, now) : session.followUps,
+    missed: outcome === 'wrong' || outcome === 'peeked' ? withMissed(session.missed, item.id) : session.missed,
   };
   const key = statKey(item, direction);
   const nextState = recordAnswer(state, { item, direction, outcome, given, ms, now, run: nextSession.streak });

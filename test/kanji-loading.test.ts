@@ -30,6 +30,8 @@ test('saved progress that involves kanji or the full word list is recognised bef
   assert.equal(needsKanji(JSON.stringify({ stats: { あそこ: {} } })), true);
   assert.equal(needsKanji(JSON.stringify({ mistakes: [{ kana: 'あそこ' }] })), true);
   assert.equal(needsKanji(JSON.stringify({ suspensions: { あそこ: { on: true, at: 1 } } })), true);
+  assert.equal(needsKanji(JSON.stringify({ saved: { あそこ: { on: true, at: 1 } } })), true);
+  assert.equal(needsKanji(JSON.stringify({ saved: { あ: { on: true, at: 1 } } })), false);
   // So is the grammar past N4.
   assert.equal(needsKanji(JSON.stringify({ stats: { 'cloze:~hazu/1': {} } })), true);
   assert.equal(needsKanji(JSON.stringify({ settings: { rows: ['g3:～はず'] } })), true);

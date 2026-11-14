@@ -39,7 +39,10 @@ loaded, and keeps progress in the browser with no backend.
   words from your decks are introduced before other new cards.
 - **Reading:** the Read tab lists short sentences (kana-only ones first, up to about N3) that use only the kana and
   kanji you know, or all of them with readings over the kanji you haven't learned. Select a word to show or hide its
-  reading; each sentence has its meaning and can be read aloud.
+  reading; each sentence has its meaning and can be read aloud. A selected word also shows what it means and can be
+  saved to learn: words written in kanji are matched to the word list, conjugated or not (飲みます is 飲む), or else to
+  their kanji. Saved words are practised whatever rows are picked, introduced before other new cards, and synced; each
+  can be let go from its info panel.
 - **Graded passages:** the Read tab also has 12 short passages from N5 to N1 written for the app, with readings on
   demand, the meaning of each paragraph, listening and three comprehension questions each.
 - **JLPT readiness:** the Progress tab shows how much of each level's kanji, words and grammar you know, your next goal
@@ -64,7 +67,8 @@ loaded, and keeps progress in the browser with no backend.
   off. A miss moves a card back three steps and a peek two, in both cases no further on than the 1-hour step, and asks it
   again a minute later, then the card returns to the shorter gap its memory still supports. A daily limit on new characters, and an
   optional one on reviews (cards whose last gap was a day or more; cards still being learned don’t count), lead to a
-  "Done for today" screen that can ask for a few more of either.
+  "Done for today" screen that can ask for a few more of either. That screen also lists what was missed or peeked at
+  in the session, each opening its info panel, with a button to drill them again.
 - **Catching up after a break:** when more reviews are due than fit in a day (over the daily review limit, or over a
   hundred without one), the home screen offers to spread them over the next five days or so, the cards known least
   first. The moved reviews sync to other devices.
@@ -158,7 +162,9 @@ src/
   merge.ts               Combines progress from two devices
   sync.ts                Sync codes, encryption and the download-merge-upload round trip
   session.ts             Per-visit state: current card, drills, undo, typos, goal, "done for today"
-  store.ts               A small store with batched saving to localStorage
+  store.ts               A small store with batched saving
+  progress-storage.ts    Keeps progress in IndexedDB behind a synchronous interface, and moves it out of localStorage
+  idb.ts                 The IndexedDB database and the channel tabs use to tell each other about saves
   boot.ts                Runs before the app: applies the saved theme and shows an error if loading fails
   sw.ts                  Service worker for offline use
   main.ts                Wires everything together
@@ -189,12 +195,26 @@ Everything outside `src/ui/` is pure and has no DOM access. State changes go thr
 
 ## Saved data
 
-Progress is stored in `localStorage` under `kana-dojo`, so it only exists in the browser that created it. Use **Export
-progress** to back it up or move it, or turn on sync. An import can be merged with the progress already there or
-replace it. With sync on, `kana-dojo-sync` holds the sync code and
+Progress is stored in the browser's IndexedDB, in the `kana-dojo` database, under the key `kana-dojo`, so it only exists
+in the browser that created it. Use **Export progress** to back it up or move it, or turn on sync. An import can be
+merged with the progress already there or replace it. With sync on, `kana-dojo-sync` holds the sync code and
 `kana-dojo-device` this device's id; neither is part of an export.
 
-The saved object carries a `version` (currently 11). When the shape changes:
+IndexedDB takes far more than localStorage's few megabytes, which progress across all ~40,000 cards would outgrow. The
+app still reads and writes progress synchronously: `src/progress-storage.ts` reads everything into memory at start and
+writes in the background, in order. Tabs tell each other about saves on a `BroadcastChannel` and merge each other's
+progress. Two things stay in `localStorage`:
+
+- `kana-dojo-theme`, so `boot.js` can apply the theme before the page draws;
+- `kana-dojo-journal`, a copy of any write still on its way to IndexedDB, which a browser abandons if the page closes
+  first. It is removed once the write is done; if it is still there at the next start, the progress in it is merged in.
+
+Versions before IndexedDB kept progress in `localStorage`. The first start of this one moves it, along with the sync
+code, device id and any unreadable copy, and leaves `{"version":1000000,"movedTo":"indexedDB"}` under `kana-dojo`. An
+older version still open in another tab reads that as progress from a newer version, so it stops saving instead of
+starting afresh. Where IndexedDB can't be opened, as in some private windows, the app keeps using `localStorage`.
+
+The saved object carries a `version` (currently 12). When the shape changes:
 
 1. bump `STATE_VERSION` in `src/state.ts`;
 2. add a step to `MIGRATIONS` that upgrades the previous version;

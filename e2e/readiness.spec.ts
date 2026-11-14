@@ -1,4 +1,4 @@
-import { expect, openApp, test } from './fixtures.ts';
+import { expect, openApp, savedProgress, test } from './fixtures.ts';
 
 const past = Date.now() - 3_600_000;
 
@@ -34,14 +34,11 @@ test('a mock test can be taken, is scored and saved, and doesn’t change review
   await expect(page.locator('#mock-clock')).toBeHidden();
   await expect(dialog.locator('.mock-sections')).toContainText('Kanji:');
 
-  const saved = await page.evaluate(
-    () =>
-      new Promise<{ mockTests: { level: number; total: number }[]; stats: object }>(resolve => {
-        setTimeout(() => {
-          resolve(JSON.parse(localStorage.getItem('kana-dojo') ?? '{}') as never);
-        }, 600);
-      }),
-  );
+  await page.waitForTimeout(600);
+  const saved = (await savedProgress(page)) as unknown as {
+    mockTests: { level: number; total: number }[];
+    stats: object;
+  };
   expect(saved.mockTests[0]?.level).toBe(5);
   expect(saved.mockTests[0]?.total).toBe(30);
   expect(saved.stats).toEqual({});

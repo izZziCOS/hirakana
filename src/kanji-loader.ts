@@ -34,6 +34,7 @@ export function needsKanji(raw: string | null): boolean {
     ...(isObject(saved.stats) ? Object.keys(saved.stats).map(key => parseStatKey(key).kana) : []),
     ...(Array.isArray(saved.mistakes) ? saved.mistakes.map(mistake => (isObject(mistake) ? mistake.kana : null)) : []),
     ...(isObject(saved.suspensions) ? Object.keys(saved.suspensions) : []),
+    ...(isObject(saved.saved) ? Object.keys(saved.saved) : []),
   ].filter((id): id is string => typeof id === 'string' && !isDeckItemId(id));
   const rows = (isObject(saved.settings) && Array.isArray(saved.settings.rows) ? saved.settings.rows : []).filter(
     (id): id is string => typeof id === 'string' && !isDeckRowId(id),

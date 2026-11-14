@@ -2,11 +2,19 @@ import { answer, expect, feedback, openApp, start, test } from './fixtures.ts';
 
 test('a warning appears when the browser won’t save progress, and goes once it does', async ({ page }) => {
   await page.addInitScript(() => {
-    // Saving fails while the page sets window.storageFull, like a browser whose storage is full.
+    // Saving fails while the page sets window.storageFull, like a browser whose storage is full: IndexedDB refuses
+    // the write, and localStorage, which keeps a copy of a write still on its way, is full too.
+    const full = () => (window as { storageFull?: boolean }).storageFull === true;
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- called with the right this below
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore['put']>) {
+      if (full()) throw new DOMException('Full', 'QuotaExceededError');
+      return put.apply(this, args);
+    };
     // eslint-disable-next-line @typescript-eslint/unbound-method -- called with the right this below
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (this: Storage, key: string, value: string) {
-      if ((window as { storageFull?: boolean }).storageFull) throw new DOMException('Full', 'QuotaExceededError');
+      if (full()) throw new DOMException('Full', 'QuotaExceededError');
       setItem.call(this, key, value);
     };
   });

@@ -75,15 +75,24 @@ let pool: ExampleSentence[] = [];
 let poolSize = -1;
 const found = new Map<string, ExampleSentence[]>();
 
+function refresh(): void {
+  if (poolSize === KANA.length) return;
+  poolSize = KANA.length;
+  pool = [...fromReader, ...grammarSentences()];
+  collectSpellings();
+  found.clear();
+}
+
+// How a word is written in kanji, if the app knows: its own spelling, or the one its conjugation cards use.
+export function spellingOf(item: KanaItem): string | undefined {
+  refresh();
+  return item.kanji ?? spellings.get(item.id);
+}
+
 // Sentences that use a word or kanji, the shortest first. Remembered, as a card's panel is drawn for every card.
 export function examplesOf(item: KanaItem): ExampleSentence[] {
   if (!isKanji(item) && !isWord(item)) return [];
-  if (poolSize !== KANA.length) {
-    poolSize = KANA.length;
-    pool = [...fromReader, ...grammarSentences()];
-    collectSpellings();
-    found.clear();
-  }
+  refresh();
   let matches = found.get(item.id);
   if (!matches) {
     matches = pool

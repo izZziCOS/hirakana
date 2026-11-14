@@ -423,3 +423,59 @@
 .write-answer .writing-canvas {
   width: min(300px, 100%);
 }
+
+.session-left {
+  display: inline-flex;
+  flex: 1 1 140px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session .session-left progress {
+  flex: 1;
+  width: auto;
+  max-width: 220px;
+  min-width: 64px;
+}
+
+.done-missed {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 18px auto 4px;
+  padding: 16px;
+  max-width: 520px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.done-missed h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.missed-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missed-item {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1.25rem;
+}
+
+.missed-item:hover {
+  border-color: var(--accent);
+}

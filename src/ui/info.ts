@@ -18,9 +18,8 @@ import {
   wordsWithKanji,
 } from '../kana.ts';
 import { mixUpsFor } from '../mistakes.ts';
-import { recordingOf } from '../audio.ts';
 import { levelOf } from '../schedule.ts';
-import { isKnown, isSuspended } from '../state.ts';
+import { isKnown, isSaved, isSuspended } from '../state.ts';
 import type { KanaItem, State } from '../types.ts';
 import { codePoints } from '../util.ts';
 import { bigJp, jp } from './dom.ts';
@@ -87,9 +86,6 @@ const strokeOrderBlock = (item: KanaItem): Html =>
     <span class="stroke-count"></span>
     <button type="button" class="ghost small stroke-replay" hidden>Replay</button>
     <button type="button" class="ghost small writing-toggle" aria-expanded="false" hidden>Practise writing</button>
-    <a class="muted small credit" href="https://kanjivg.tagaini.net" target="_blank" rel="noopener"
-      >Stroke data: KanjiVG, CC BY-SA 3.0</a
-    >
     <div class="writing" hidden></div>
   </div>`;
 
@@ -121,9 +117,11 @@ const infoRow = (label: string, value: Html | string): Html =>
   html`<dt>${label}</dt>
     <dd>${value}</dd>`;
 
-// What can be done with the card itself: rest it, or say it doesn't need practice.
+// What can be done with the card itself: rest it, say it doesn't need practice, or stop learning it outside its row
+// when it was saved from the Read tab.
 function cardActions(item: KanaItem, state: State): Html {
   const suspended = isSuspended(state, item.id);
+  const saved = isSaved(state, item.id);
   return infoRow(
     'This card',
     html`<div class="card-actions-row">
@@ -133,6 +131,11 @@ function cardActions(item: KanaItem, state: State): Html {
         !suspended &&
         !isKnown(state, item) &&
         html`<button type="button" class="ghost small" data-known="${item.id}">I know this</button>`
+      }
+      ${
+        saved &&
+        html`<span class="pill">Saved from reading</span>
+          <button type="button" class="ghost small" data-unsave="${item.id}">Remove from saved</button>`
       }
     </div>`,
   );
@@ -282,14 +285,6 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
   }
   if (item.counterpart) add(item.script === 'hiragana' ? 'In katakana' : 'In hiragana', bigJp(item.counterpart));
   if (!isWord(item)) add('Stroke order', strokeOrderBlock(item));
-  if (recordingOf(item)) {
-    add(
-      'Recording',
-      html`<a class="muted small credit" href="audio/README.md" target="_blank" rel="noopener"
-        >Tofugu and WaniKani (CC BY-SA 4.0), or Lingua Libre speakers (CC BY 4.0, CC0)</a
-      >`,
-    );
-  }
 
   if (item.origin) {
     add(

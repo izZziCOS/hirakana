@@ -13,7 +13,11 @@ export { STORAGE_KEY };
 // A copy of saved progress that couldn't be read, kept until the learner has downloaded or deleted it.
 export const UNREADABLE_KEY = 'kana-dojo-unreadable';
 
-export type KeyValueStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+export interface KeyValueStorage extends Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+  // For storage that writes in the background (IndexedDB): settles once the writes so far are done, with whether the
+  // last one succeeded. localStorage writes at once, and throws if it can't.
+  flushed?(): Promise<boolean>;
+}
 
 type Listener<T> = (value: T, previous: T) => void;
 
@@ -144,7 +148,11 @@ export function createSaver(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const flush = () => {
     clearTimeout(timer);
-    if (pending && canSave()) onSaved(saveState(storage, pending));
+    if (pending && canSave()) {
+      const saved = saveState(storage, pending);
+      if (saved && storage?.flushed) void storage.flushed().then(onSaved);
+      else onSaved(saved);
+    }
     pending = null;
   };
   return {

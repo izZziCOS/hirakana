@@ -1,4 +1,4 @@
-import { answer, expect, feedback, openApp, prompt, test } from './fixtures.ts';
+import { answer, expect, feedback, openApp, prompt, savedProgress, test } from './fixtures.ts';
 
 const past = Date.now() - 3_600_000;
 const missed = { correct: 2, wrong: 9, streak: 0, box: 1, due: past, last: past };
@@ -44,14 +44,7 @@ test('“I know this” on the card in front of you moves on, without counting a
   await page.locator('#info-body').getByRole('button', { name: 'I know this' }).click();
   await expect(prompt(page)).toHaveText('い');
   await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const saved = JSON.parse(localStorage.getItem('kana-dojo') ?? '{}') as {
-          stats?: Record<string, { box: number }>;
-        };
-        return saved.stats?.['あ']?.box;
-      }),
-    )
+    .poll(async () => ((await savedProgress(page)).stats as Record<string, { box: number }> | undefined)?.['あ']?.box)
     .toBe(7);
 });
 

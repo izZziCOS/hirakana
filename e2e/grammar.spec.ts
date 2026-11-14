@@ -1,10 +1,12 @@
-import { answer, expect, feedback, openApp, prompt, test } from './fixtures.ts';
+import { answer, expect, feedback, openApp, prompt, showTrack, test } from './fixtures.ts';
 
 const TOPIC = 'g5:は (topic)';
 
 test('the grammar track is picked on the home screen and practised in Fill in', async ({ page }) => {
   await openApp(page);
   const grammar = page.locator('.track', { has: page.locator('#track-grammar') });
+  await showTrack(page, 'grammar');
+  await expect(grammar.locator('[data-group="g5"]')).toContainText('Fill in only');
   await grammar.locator('[data-group="g5"]').click();
   await page
     .locator('#direction-select')

@@ -290,6 +290,9 @@ interface PickEntryOptions extends Omit<PickNextOptions, 'pool' | 'direction'> {
   canIntroduce?: (entry: Entry) => boolean;
   // Whether reviews may still be shown today; once the daily limit is reached, due reviews wait for tomorrow.
   reviewsLeft?: boolean;
+  // New entries asked for by name, which keep their place at the front: words saved from the Read tab. An imported
+  // deck's words always do.
+  chosen?: (entry: Entry) => boolean;
 }
 
 // A word met in one direction gives away the answer in another (水 read as mizu, then 水 for its meaning), so while one
@@ -338,6 +341,7 @@ export function pickEntry({
   canIntroduce = () => true,
   reviewsLeft = true,
   random = Math.random,
+  chosen = () => false,
 }: PickEntryOptions): (Pick & Entry) | null {
   const key = (entry: Entry) => statKey(entry.item, entry.direction);
   // Reviews held back by the daily limit aren't shown at all today, not even as extra practice.
@@ -359,9 +363,10 @@ export function pickEntry({
 
   const struggling = entries.filter(entry => stats[key(entry)]?.box === 1).length;
   const unseenEntries = others.filter(entry => !isSeen(stats, key(entry)) && canIntroduce(entry) && !held(entry));
-  // Words whose kanji are known go first, but never ahead of an imported deck's words, which come first anyway.
+  // Words whose kanji are known go first, but never ahead of an imported deck's words or saved ones, which come first
+  // anyway.
   const first = unseenEntries[0];
-  const inDeck = (entry: Entry) => entry.item.group === DECK_GROUP;
+  const inDeck = (entry: Entry) => entry.item.group === DECK_GROUP || chosen(entry);
   const unseen =
     unseenEntries.find(
       entry =>

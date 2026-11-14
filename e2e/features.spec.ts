@@ -9,7 +9,7 @@ test('a typo can be counted as right', async ({ page }) => {
   await expect(feedback(page)).toContainText('あ is “a”.');
   await page.getByRole('button', { name: 'I made a typo' }).click();
   await expect(feedback(page)).toContainText('Correct!');
-  await expect(session(page)).toContainText('Session 1/1');
+  await expect(session(page)).toContainText('1 of 1 right');
   await page.getByRole('tab', { name: 'Mistakes' }).click();
   await expect(page.locator('#mistake-list .mistake')).toHaveCount(0);
 });
@@ -19,11 +19,11 @@ test('the last answer can be undone', async ({ page }) => {
   await page.getByRole('button', { name: 'Multiple choice' }).click();
   await page.locator('#continue-btn').click();
   await page.locator('#choices .choice:not([data-value="a"])').first().click();
-  await expect(session(page)).toContainText('Session 0/1');
+  await expect(session(page)).toContainText('0 of 1 right');
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(prompt(page)).toHaveText('あ');
   await expect(page.locator('#choices .choice:disabled')).toHaveCount(0);
-  await expect(session(page)).toContainText('Session 0/0');
+  await expect(session(page)).not.toContainText(' right (');
   await page.locator('#choices .choice[data-value="a"]').click();
   await expect(feedback(page)).toContainText('Correct!');
 });
@@ -256,4 +256,34 @@ test('handwriting practice checks each stroke', async ({ page, seed }) => {
   await draw(page, second);
   await expect(page.locator('.writing-progress')).toHaveText('Done');
   await expect(page.locator('.writing-status')).toContainText('Done, with 1 stroke(s) retried');
+});
+
+test('the done screen lists what was missed this session and drills it', async ({ page, seed }) => {
+  const now = Date.now();
+  await seed({
+    version: 11,
+    settings: { rows: ['basic:Vowels'], newPerDay: 5, mode: 'choose' },
+    stats: Object.fromEntries(
+      ['あ', 'い', 'う', 'え', 'お'].map((kana, i) => [
+        kana,
+        { correct: 6, wrong: 0, streak: 6, box: 6, due: i ? now + 5 * 86_400_000 : now - 1000, last: now - 86_400_000 },
+      ]),
+    ),
+    days: { [dayKey()]: { answers: 5, learned: 5, scored: 5, correct: 5 } },
+  });
+  await openApp(page);
+  await page.locator('#continue-btn').click();
+  await expect(prompt(page)).toHaveText('あ');
+  await page.locator('#info summary').click();
+  await page.locator('#choices .choice[data-value="a"]').click();
+  await expect(feedback(page)).toContainText('peeked');
+  await page.locator('#next-btn').click();
+
+  const done = page.locator('#done');
+  await expect(done.getByRole('heading', { name: 'Done for today' })).toBeVisible();
+  await expect(done).toContainText('Missed this session');
+  await expect(done.locator('.missed-item')).toHaveText(['あ']);
+  await done.getByRole('button', { name: 'Drill it again' }).click();
+  await expect(page.locator('#session-context')).toHaveText('Drill · what you missed');
+  await expect(prompt(page)).toHaveText('あ');
 });

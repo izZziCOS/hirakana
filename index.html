@@ -165,7 +165,7 @@
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
                 </button>
-                <a href="#tracks" class="hero-link">Choose what to study</a>
+                <a href="#study" class="hero-link">Choose what to study</a>
               </div>
             </div>
           </section>
@@ -192,29 +192,7 @@
             </div>
           </aside>
 
-          <section id="tracks" class="home-section" aria-labelledby="tracks-h">
-            <div class="section-head">
-              <h2 id="tracks-h">Your tracks</h2>
-              <div class="script-pick">
-                <span id="script-label" class="muted small">Kana and words in</span>
-                <div class="segmented small" id="script-select" aria-labelledby="script-label">
-                  <button data-value="hiragana">Hiragana <span class="jp">あ</span></button>
-                  <button data-value="katakana">Katakana <span class="jp">ア</span></button>
-                  <button data-value="both">Both</button>
-                </div>
-              </div>
-            </div>
-            <p class="muted small track-help">Turn a set on or off, or open a track to pick single rows.</p>
-            <div class="track-grid" id="track-grid"></div>
-            <input
-              id="deck-file"
-              type="file"
-              accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
-              hidden
-            />
-          </section>
-
-          <section class="home-section" aria-labelledby="modes-h">
+          <section id="study" class="home-section" aria-labelledby="modes-h">
             <div class="section-head">
               <h2 id="modes-h">How do you want to practise?</h2>
             </div>
@@ -274,6 +252,30 @@
                 <button data-value="choose">Multiple choice</button>
               </div>
             </div>
+          </section>
+
+          <section id="tracks" class="home-section" aria-labelledby="tracks-h">
+            <div class="section-head">
+              <h2 id="tracks-h">Your tracks</h2>
+              <div class="script-pick">
+                <span id="script-label" class="muted small">Kana and words in</span>
+                <div class="segmented small" id="script-select" aria-labelledby="script-label">
+                  <button data-value="hiragana">Hiragana <span class="jp">あ</span></button>
+                  <button data-value="katakana">Katakana <span class="jp">ア</span></button>
+                  <button data-value="both">Both</button>
+                </div>
+              </div>
+            </div>
+            <p class="muted small track-help">
+              Turn a set on or off, or choose single rows. Tracks with nothing on are folded.
+            </p>
+            <div class="track-grid" id="track-grid"></div>
+            <input
+              id="deck-file"
+              type="file"
+              accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
+              hidden
+            />
           </section>
         </div>
 
@@ -689,6 +691,37 @@
             </div>
           </div>
           <p id="sync-status" class="muted small" aria-live="polite"></p>
+        </section>
+        <section class="row-group credits" aria-labelledby="credits-label">
+          <h3 class="row-group-head" id="credits-label">Credits</h3>
+          <ul class="muted small">
+            <li>
+              Stroke order:
+              <a href="https://kanjivg.tagaini.net" target="_blank" rel="noopener">KanjiVG</a> by Ulrich Apel, CC BY-SA
+              3.0
+            </li>
+            <li>
+              Recordings: Tofugu and WaniKani (CC BY-SA 4.0) and Lingua Libre speakers (CC BY 4.0, CC0),
+              <a href="audio/README.md" target="_blank" rel="noopener">list of sources</a>
+            </li>
+            <li>
+              Kanji readings and meanings:
+              <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noopener">KANJIDIC</a
+              >, CC BY-SA 4.0
+            </li>
+            <li>
+              JLPT vocabulary:
+              <a href="https://github.com/jamsinclair/open-anki-jlpt-decks" target="_blank" rel="noopener"
+                >open-anki-jlpt-decks</a
+              >, MIT
+            </li>
+            <li>
+              Spaced repetition:
+              <a href="https://github.com/open-spaced-repetition" target="_blank" rel="noopener">FSRS</a>, MIT
+            </li>
+            <li>Photos: Tianshu Liu and Manoa Angelo on Unsplash</li>
+            <li>Font: Klee One by Fontworks, SIL Open Font License 1.1</li>
+          </ul>
         </section>
       </div>
     </dialog>

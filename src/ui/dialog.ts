@@ -1,5 +1,5 @@
 import { findKana, KANA, wordsWithKanji } from '../kana.ts';
-import { isSuspended, markKnown, setSuspended } from '../state.ts';
+import { isSuspended, markKnown, setSaved, setSuspended } from '../state.ts';
 import type { Store } from '../store.ts';
 import type { KanaItem, State } from '../types.ts';
 import { codePoints } from '../util.ts';
@@ -35,6 +35,11 @@ export function bindCardActions(container: HTMLElement, data: Store<State>, done
   onDelegate(container, '[data-suspend]', element => {
     const id = element.dataset.suspend ?? '';
     data.update(state => setSuspended(state, id, !isSuspended(state, id)));
+    done(id);
+  });
+  onDelegate(container, '[data-unsave]', element => {
+    const id = element.dataset.unsave ?? '';
+    data.update(state => setSaved(state, id, false));
     done(id);
   });
   onDelegate(container, '[data-known]', element => {
