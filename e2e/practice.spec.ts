@@ -139,3 +139,29 @@ test('the track cards choose what is practised', async ({ page }) => {
   await page.locator('#continue-btn').click();
   await expect(prompt(page)).toHaveText('が');
 });
+
+test('the browser’s Back button leaves a session for the home screen and returns to the previous tab', async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.locator('#study-start').click();
+  await expect(prompt(page)).toHaveText('あ');
+  await page.goBack();
+  await expect(page.locator('#learn-home')).toBeVisible();
+  await expect(page.locator('#learn-session')).toBeHidden();
+
+  await page.getByRole('tab', { name: 'Progress' }).click();
+  await page.goBack();
+  await expect(page.getByRole('tab', { name: 'Learn' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#learn-home')).toBeVisible();
+});
+
+test('the Mistakes tab says there are none yet and offers to practise', async ({ page }) => {
+  await openApp(page);
+  await page.getByRole('tab', { name: 'Mistakes' }).click();
+  await expect(page.locator('#mistakes-empty')).toBeVisible();
+  await expect(page.locator('#mistakes-content')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Clear mistake history' })).toBeHidden();
+  await page.getByRole('button', { name: 'Start practising' }).click();
+  await expect(prompt(page)).toHaveText('あ');
+});

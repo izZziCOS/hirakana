@@ -13,6 +13,7 @@ import {
   supportsDirection,
   toKatakana,
 } from '../kana.ts';
+import { kanjiLoadFailed } from '../kanji-loader.ts';
 import { groupRecall } from '../milestones.ts';
 import { backlog, catchUp, resetCard, singleDirection, todaySummary, type TodaySummary } from '../session.ts';
 import { catchUpPlan } from '../schedule.ts';
@@ -154,7 +155,7 @@ function practisedOnlyIn(groupId: GroupId, script: ScriptSetting): string | null
 function groupStatus(state: State, groupId: GroupId, { mastered, learning, total }: GroupProgress): string {
   // Grammar past N4 and the conjugation forms load with the kanji.
   const onDemand = isKanjiGroup(groupId) || (isGrammarGroup(groupId) && groupId !== 'g5' && groupId !== 'g4');
-  if (onDemand && !kanjiLoaded()) return 'Loading…';
+  if (onDemand && !kanjiLoaded()) return kanjiLoadFailed() ? 'Couldn’t load' : 'Loading…';
   if (!total)
     return practisedOnlyIn(groupId, state.settings.script) ?? `No ${DIRECTION_LABEL[state.settings.direction]} cards`;
   const recall = groupRecall(
@@ -346,6 +347,7 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     title: $('#hero-title'),
     detail: $('#hero-detail'),
     continueLabel: $('#continue-label'),
+    startDetail: $('#study-start-detail'),
     tracks: $('#track-grid'),
     streak: $('#streak'),
     backup: $('#backup-note'),
@@ -377,6 +379,7 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     els.title.textContent = copy.title;
     els.continueLabel.textContent = copy.action;
     els.detail.textContent = heroDetail(state);
+    els.startDetail.textContent = `· ${heroDetail(state)}`;
     els.backup.hidden = backupSnoozed || !backupDue(state, now);
     els.backupDetail.textContent = `${backupStatus(state, now)} This browser can clear saved data, so keep a copy.`;
     const overdue = catchUpSnoozed ? 0 : backlog(state, now);

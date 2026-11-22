@@ -17,6 +17,7 @@ import {
   justReachedGoal,
   learnMore,
   reviewMore,
+  ALL_SUSPENDED_MESSAGE,
   markUntimed,
   practiseExtra,
   revealCard,
@@ -87,13 +88,20 @@ function practiceElements() {
     infoHint: $('#info-hint'),
     infoBody: $('#info-body'),
     session: $('#session'),
-    drillBanner: $('#drill-banner'),
-    drillText: $('#drill-text'),
+    drillExit: $('#drill-exit', HTMLButtonElement),
     context: $('#session-context'),
   };
 }
 
-export function createPractice({ data, session }: AppStores, isActive: () => boolean, dialog: KanaDialog): Practice {
+// Where an empty session can send the learner: to the rows on the home screen or to the suspended cards.
+export type PracticeExit = 'rows' | 'mistakes';
+
+export function createPractice(
+  { data, session }: AppStores,
+  isActive: () => boolean,
+  dialog: KanaDialog,
+  leave: (to: PracticeExit) => void,
+): Practice {
   const els = practiceElements();
   let advanceTimer: number | undefined;
   let composing = false;
@@ -118,7 +126,22 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
   function renderEmpty(message: string): void {
     resetCard();
     els.card.classList.add('is-empty');
-    els.feedback.textContent = message;
+    const { drill: drilling } = session.get();
+    setHtml(
+      els.feedback,
+      html`${message}
+        <div class="empty-actions">
+          ${
+            drilling
+              ? html`<button type="button" class="primary" data-leave="drill">Back to normal practice</button>`
+              : html`<button type="button" class="primary" data-leave="rows">Choose rows</button>`
+          }
+          ${
+            message === ALL_SUSPENDED_MESSAGE &&
+            html`<button type="button" class="ghost" data-leave="mistakes">Open Mistakes</button>`
+          }
+        </div>`,
+    );
   }
 
   function sizePrompt(text: string, isRomaji: boolean, listening: boolean, sentence = false): void {
@@ -262,8 +285,11 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     els.info.hidden = false;
     els.info.open = false;
     els.infoHint.hidden = false;
-    els.infoHint.textContent =
-      card.kind === 'new' ? '· new, open this to learn it' : '· peeking moves it back two steps';
+    const penalty = card.kind !== 'new';
+    els.infoHint.classList.toggle('is-penalty', penalty);
+    els.infoHint.textContent = penalty
+      ? '· peeking counts as a miss: it moves back two steps'
+      : '· new, open this to learn it';
     setHtml(els.infoBody, renderInfo(card.item, data.get()));
   }
 
@@ -330,8 +356,7 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
 
   function renderChrome(): void {
     const { drill } = session.get();
-    els.drillBanner.hidden = !drill;
-    els.drillText.textContent = drill ? `Drilling ${drill.label}` : '';
+    els.drillExit.hidden = !drill;
     els.context.textContent = drill
       ? `Drill · ${drill.label}`
       : `${DIRECTION_LABEL[settings().direction]} · ${rowsSummary(data.get())}`;
@@ -453,9 +478,18 @@ export function createPractice({ data, session }: AppStores, isActive: () => boo
     const item = session.get().card?.item;
     if (item) say(item);
   });
-  $('#drill-exit').addEventListener('click', () => {
+  els.drillExit.addEventListener('click', () => {
     session.update(endDrill);
     next();
+  });
+  els.feedback.addEventListener('click', event => {
+    const target = (event.target as Element).closest<HTMLElement>('[data-leave]')?.dataset.leave;
+    if (target === 'drill') {
+      session.update(endDrill);
+      next();
+    } else if (target === 'rows' || target === 'mistakes') {
+      leave(target);
+    }
   });
 
   els.info.addEventListener('toggle', () => {

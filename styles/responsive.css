@@ -70,4 +70,60 @@
   .info-list dd {
     margin-bottom: 10px;
   }
+
+  /* With the keyboard up there is little height left, so a session gives the card as much of it as it can: the
+     top bar scrolls away and the band keeps only its controls. */
+  .in-session .topbar {
+    position: static;
+  }
+
+  .in-session .session-band {
+    min-height: 0;
+    background-image: none !important;
+  }
+
+  .in-session .session-band-panel {
+    background: #2a201b;
+  }
+
+  /* Typed answers bring up the keyboard; the size follows the mode, not focus, so nothing jumps under a tap. */
+  .card:has(#answer-form:not([hidden])) .kana:not(.is-word, .is-romaji, .is-meaning, .is-sentence) {
+    font-size: clamp(3.5rem, 18vw, 5rem);
+    margin-bottom: 8px;
+  }
+
+  /* Long filters scroll sideways on one line rather than wrap into an uneven block. */
+  #progress-direction,
+  #progress-script,
+  #mistake-filter {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 999px;
+    scrollbar-width: none;
+  }
+}
+
+/* Fingers need bigger targets than a mouse pointer. */
+@media (pointer: coarse) {
+  .segmented button,
+  .row-chip,
+  .row-group-toggle,
+  .tab {
+    min-height: 40px;
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Keyboard shortcuts mean nothing without a keyboard. */
+@media (hover: none) {
+  kbd {
+    display: none;
+  }
 }

@@ -132,7 +132,10 @@ export function createPassages(
     if (loadFailed) {
       setHtml(
         container,
-        html`<p class="muted">The passages couldn’t be loaded. Check your connection and try again.</p>`,
+        html`<p class="muted">
+          The passages couldn’t be loaded. Check your connection, then
+          <button type="button" class="link-btn" data-retry-passages>try again</button>.
+        </p>`,
       );
       return;
     }
@@ -154,6 +157,10 @@ export function createPassages(
     else renderList(passages);
   }
 
+  onDelegate(container, '[data-retry-passages]', () => {
+    loadFailed = false;
+    render();
+  });
   onDelegate(container, '[data-passage]', element => {
     open = passages?.find(passage => passage.id === element.dataset.passage) ?? null;
     picked = new Map();

@@ -3,14 +3,20 @@ import { findKana, parseStatKey, ROW_INFO } from './kana.ts';
 import { isObject } from './util.ts';
 
 let loading: Promise<void> | undefined;
+let failed = false;
+
+// Whether the last try to load them failed, so the screens waiting for them can say so instead of "Loading…".
+export const kanjiLoadFailed = (): boolean => failed;
 
 // Loads the JLPT kanji and the full JLPT word list (a separate file in the build) once; every later call gets the same
 // promise.
 export function loadKanji(): Promise<void> {
+  if (!loading) failed = false;
   loading ??= import('./kanji.ts').then(
     () => undefined,
     (error: unknown) => {
       loading = undefined;
+      failed = true;
       throw error;
     },
   );

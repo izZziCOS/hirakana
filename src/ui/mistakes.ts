@@ -130,6 +130,7 @@ export function createMistakes(
   dialog: KanaDialog,
   startDrill: (label: string, items: KanaItem[]) => void,
   isActive: () => boolean,
+  startPractice: () => void,
 ): MistakesView {
   const els = {
     problems: $('#problem-cards'),
@@ -144,6 +145,10 @@ export function createMistakes(
     drillButton: $('#drill-btn', HTMLButtonElement),
     dayFilter: $('#day-filter'),
     dayFilterText: $('#day-filter-text'),
+    empty: $('#mistakes-empty'),
+    content: $('#mistakes-content'),
+    filter: $('#mistake-filter'),
+    clearZone: $('#clear-mistakes-zone'),
   };
   let filter: Script | 'all' = 'all';
   let day: string | null = null;
@@ -157,6 +162,12 @@ export function createMistakes(
     const mistakes = filtered();
     const top = mostMissed(mistakes, DRILL_SIZE);
     const pairs = confusionPairs(mistakes);
+    // Before the first mistake the sections would all be empty, so one note stands in for them.
+    const none = !data.get().mistakes.length;
+    els.empty.hidden = !none;
+    els.content.hidden = none;
+    els.filter.hidden = none;
+    els.clearZone.hidden = none;
     press('#mistake-filter', filter);
     els.dayFilter.hidden = !day;
     els.dayFilterText.textContent = day
@@ -235,6 +246,8 @@ export function createMistakes(
       }
     });
   });
+
+  $('#mistakes-start').addEventListener('click', startPractice);
 
   $('#day-filter-clear').addEventListener('click', () => {
     day = null;

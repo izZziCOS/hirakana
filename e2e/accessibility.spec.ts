@@ -116,8 +116,8 @@ test('tabs can be used with the keyboard', async ({ page }) => {
 
 test('confirm dialogs can be cancelled', async ({ page }) => {
   await openApp(page);
-  await page.getByRole('tab', { name: 'Mistakes' }).click();
-  await page.getByRole('button', { name: 'Clear mistake history' }).click();
+  await page.getByRole('tab', { name: 'Progress' }).click();
+  await page.getByRole('button', { name: 'Reset all progress' }).click();
   await page.keyboard.press('Escape');
   await expect(page.locator('#confirm-dialog')).toBeHidden();
 });

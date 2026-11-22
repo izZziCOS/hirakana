@@ -461,6 +461,45 @@
   color: #f3d2c9;
 }
 
+.band-stop {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 40%);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.band-stop:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+/* A second way into a session where rows are picked, kept in view while scrolling through the tracks. */
+.study-start {
+  position: sticky;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+  pointer-events: none;
+}
+
+.study-start .primary {
+  min-height: 48px;
+  max-width: 100%;
+  padding: 0 24px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+
+.study-start-detail {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
 .session-band .session {
   justify-content: flex-start;
   margin-top: 0;

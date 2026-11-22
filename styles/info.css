@@ -37,6 +37,10 @@
   font-size: 13px;
 }
 
+.info summary .is-penalty {
+  color: var(--warn-ink);
+}
+
 #info-body {
   padding: 0 18px 18px;
 }

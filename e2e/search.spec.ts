@@ -43,7 +43,7 @@ test('drilling from a search result closes the search', async ({ page }) => {
   await page.locator('.search-result[data-open="水"]').click();
   await page.getByRole('button', { name: 'Drill with its words' }).click();
   await expect(page.locator('#search-dialog')).toBeHidden();
-  await expect(page.locator('#drill-text')).toHaveText('Drilling 水 and its words');
+  await expect(page.locator('#session-context')).toHaveText('Drill · 水 and its words');
 });
 
 test('search has no accessibility violations', async ({ page }) => {

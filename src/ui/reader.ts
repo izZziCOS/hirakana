@@ -1,4 +1,5 @@
 import { kanjiLoaded } from '../kana.ts';
+import { kanjiLoadFailed } from '../kanji-loader.ts';
 import { readableSentences, sentences, type Sentence } from '../sentences.ts';
 import type { AppStores } from '../store.ts';
 import { $, onDelegate, onSegmented, press } from './dom.ts';
@@ -19,6 +20,7 @@ export function createReader(stores: AppStores, isActive: () => boolean, dialog:
   const { data } = stores;
   const els = {
     summary: $('#reader-summary'),
+    tip: $('#reader-tip'),
     list: $('#sentence-list'),
     showControl: $('#reader-show-control'),
     passages: $('#passage-view'),
@@ -44,6 +46,7 @@ export function createReader(stores: AppStores, isActive: () => boolean, dialog:
     els.summary.hidden = mode !== 'sentences';
     els.list.hidden = mode !== 'sentences';
     els.showControl.hidden = mode !== 'sentences';
+    els.tip.hidden = mode !== 'sentences';
     els.passages.hidden = mode !== 'passages';
     if (mode === 'passages') {
       passages.render();
@@ -54,7 +57,27 @@ export function createReader(stores: AppStores, isActive: () => boolean, dialog:
     const readable = readableSentences(stats);
     shown = show === 'readable' ? readable : sentences;
     press('#reader-show', show);
-    els.summary.textContent = kanjiLoaded() ? readerSummary(readable.length, sentences.length) : 'Loading the kanji…';
+    els.summary.textContent = kanjiLoaded()
+      ? readerSummary(readable.length, sentences.length)
+      : kanjiLoadFailed()
+        ? 'The kanji couldn’t be loaded, so only sentences in kana are listed.'
+        : 'Loading the kanji…';
+    // Nothing is readable yet at the start, which would leave the list empty: offer the rest with readings.
+    if (show === 'readable' && !readable.length && kanjiLoaded()) {
+      els.summary.append(
+        ' ',
+        Object.assign(document.createElement('button'), {
+          type: 'button',
+          className: 'link-btn',
+          textContent: 'Show all sentences',
+          onclick: () => {
+            show = 'all';
+            picks = newPicks();
+            render();
+          },
+        }),
+      );
+    }
     setHtml(
       els.list,
       shown.map((sentence, i) => sentenceItem(sentence, i, { stats, furigana, listen: canSpeak, picks, state })),

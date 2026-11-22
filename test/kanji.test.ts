@@ -151,7 +151,7 @@ test('kanji rows are practised whatever script is picked', () => {
   const kanaOnly = updateSettings(state, { rows: ['basic:Vowels'] });
   assert.equal(
     emptyMessage(kanaOnly.settings, null),
-    'Meaning mode is for kanji and words. Choose some of those rows above.',
+    'Meaning mode is for kanji and words. Choose some of those rows on the home screen.',
   );
   const recallKanji = updateSettings(state, { direction: 'recall' });
   assert.match(emptyMessage(recallKanji.settings, null), /Kanji can be practised in Read or Meaning mode/);

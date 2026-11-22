@@ -157,6 +157,14 @@
   margin: 24px 0;
 }
 
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .kana.enter {
   animation: rise 0.25s ease-out;
 }

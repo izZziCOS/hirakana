@@ -1,5 +1,5 @@
 import { kanjiLoaded } from '../kana.ts';
-import { loadKanji } from '../kanji-loader.ts';
+import { kanjiLoadFailed, loadKanji } from '../kanji-loader.ts';
 import { searchItems, SEARCH_LIMIT } from '../search.ts';
 import type { KanaItem } from '../types.ts';
 import type { KanaDialog } from './dialog.ts';
@@ -40,7 +40,11 @@ export function createSearch(dialog: KanaDialog): SearchView {
     status.textContent = !query.trim()
       ? 'Type a character, a reading or a meaning, such as 水, mizu or water.'
       : !found.length
-        ? 'Nothing found.'
+        ? kanjiLoaded()
+          ? 'Nothing found.'
+          : kanjiLoadFailed()
+            ? 'Nothing found in kana. Kanji and the full word list couldn’t be loaded, so they aren’t searched.'
+            : 'Nothing found yet. Still loading kanji and the full word list…'
         : found.length >= SEARCH_LIMIT
           ? `The first ${SEARCH_LIMIT} matches.`
           : `${found.length} ${found.length === 1 ? 'match' : 'matches'}.`;

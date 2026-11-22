@@ -36,7 +36,7 @@ import type {
 } from './types.ts';
 import type { Random } from './util.ts';
 
-export const ADVANCE_DELAY: Partial<Record<Outcome, number>> = { correct: 900, slow: 2200 };
+export const ADVANCE_DELAY: Partial<Record<Outcome, number>> = { correct: 1200, slow: 2200 };
 export const NEW_BATCH = 5;
 export const REVIEW_BATCH = 25;
 export const DRILL_SIZE = 12;
@@ -209,21 +209,22 @@ export const catchUp = (state: State, now: number): State => ({
 export function emptyMessage(settings: Settings, drill: Drill | null): string {
   if (drill) return 'None of the drilled characters can be practised in this direction.';
   if (!rowsPool(settings).length)
-    return `None of the rows you picked exist in ${settings.script}. Choose more rows above.`;
+    return `None of the rows you picked exist in ${settings.script}. Choose more rows on the home screen.`;
   if (settings.direction === 'match') {
     return 'Matching needs characters that exist in both scripts. Words and loanword katakana can only be read.';
   }
-  if (settings.direction === 'meaning') return 'Meaning mode is for kanji and words. Choose some of those rows above.';
-  if (settings.direction === 'cloze') return 'Fill in is for grammar. Choose some grammar rows above.';
+  if (settings.direction === 'meaning')
+    return 'Meaning mode is for kanji and words. Choose some of those rows on the home screen.';
+  if (settings.direction === 'cloze') return 'Fill in is for grammar. Choose some grammar rows on the home screen.';
   if (settings.direction === 'write')
-    return 'Writing works with single kana and kanji. Choose some of those rows above.';
-  return 'Kanji can be practised in Read or Meaning mode, words in every mode but Match and Write, and grammar in Fill in. Choose more rows above.';
+    return 'Writing works with single kana and kanji. Choose some of those rows on the home screen.';
+  return 'Kanji can be practised in Read or Meaning mode, words in every mode but Match and Write, and grammar in Fill in. Choose more rows on the home screen.';
 }
 
 export const NO_VOICE_MESSAGE =
   'None of these cards has a recording, and this browser has no Japanese voice. Choose kana or JLPT N5 words, install a voice in your system’s speech settings, or practise another direction.';
 
-const ALL_SUSPENDED_MESSAGE =
+export const ALL_SUSPENDED_MESSAGE =
   'Every card you picked is suspended. Resume some on the Mistakes tab, or choose more rows.';
 
 export type NextStep =

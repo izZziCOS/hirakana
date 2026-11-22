@@ -100,11 +100,19 @@
             stroke-linecap="round"
             aria-hidden="true"
           >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />
+            <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h9M17 18h3" />
+            <circle cx="15" cy="6" r="2" />
+            <circle cx="9" cy="12" r="2" />
+            <circle cx="15" cy="18" r="2" />
           </svg>
         </button>
-        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Theme: system">
+        <button
+          id="theme-toggle"
+          class="icon-btn theme-toggle"
+          type="button"
+          aria-label="Theme: system"
+          title="Theme: system"
+        >
           <span aria-hidden="true" id="theme-icon">◐</span>
         </button>
       </div>
@@ -134,6 +142,11 @@
     <div id="sync-note" class="update-note" role="status" hidden>
       <span id="sync-note-text"></span>
       <button type="button" id="sync-note-retry" class="link-btn">Try again</button>
+    </div>
+
+    <div id="kanji-note" class="update-note" role="status" hidden>
+      <span>Kanji and the full word list couldn’t be loaded.</span>
+      <button type="button" id="kanji-retry" class="link-btn">Try again</button>
     </div>
 
     <div id="update-note" class="update-note" role="status" hidden>
@@ -270,6 +283,11 @@
               Turn a set on or off, or choose single rows. Tracks with nothing on are folded.
             </p>
             <div class="track-grid" id="track-grid"></div>
+            <div class="study-start">
+              <button type="button" id="study-start" class="primary">
+                Start <span id="study-start-detail" class="study-start-detail"></span>
+              </button>
+            </div>
             <input
               id="deck-file"
               type="file"
@@ -300,14 +318,10 @@
                   Home
                 </button>
                 <span id="session-context" class="session-context"></span>
+                <button type="button" id="drill-exit" class="band-stop" hidden>Stop drill</button>
               </div>
               <div class="session" id="session"></div>
             </div>
-          </div>
-
-          <div id="drill-banner" class="banner" hidden>
-            <span id="drill-text"></span>
-            <button id="drill-exit" class="link-btn">Back to normal practice</button>
           </div>
 
           <div class="card" id="card">
@@ -396,7 +410,7 @@
             </div>
           </div>
         </div>
-        <p class="muted small">Select a word written in kanji to show or hide its reading.</p>
+        <p id="reader-tip" class="muted small">Select a word written in kanji to show or hide its reading.</p>
         <ol id="sentence-list" class="sentence-list"></ol>
         <div id="passage-view" hidden></div>
       </section>
@@ -498,6 +512,11 @@
           <button id="day-filter-clear" class="link-btn">Show all days</button>
         </div>
 
+        <div id="mistakes-empty" class="empty-state" hidden>
+          <p>No mistakes yet. The characters you miss, and the ones you mix up, will show up here.</p>
+          <button type="button" id="mistakes-start" class="primary">Start practising</button>
+        </div>
+
         <section id="problem-section" aria-labelledby="problem-h" hidden>
           <div class="section-head">
             <h3 id="problem-h">Cards you keep missing</h3>
@@ -510,21 +529,23 @@
           <div id="problem-cards" class="missed-chips"></div>
         </section>
 
-        <div class="section-head">
-          <h3>Most missed</h3>
-          <button id="drill-btn" class="primary small">Practise these</button>
-        </div>
-        <div id="most-missed" class="missed-chips"></div>
+        <div id="mistakes-content">
+          <div class="section-head">
+            <h3>Most missed</h3>
+            <button id="drill-btn" class="primary small">Practise these</button>
+          </div>
+          <div id="most-missed" class="missed-chips"></div>
 
-        <div class="section-head">
-          <h3>Mixed-up pairs</h3>
-        </div>
-        <div id="pairs" class="pairs"></div>
+          <div class="section-head">
+            <h3>Mixed-up pairs</h3>
+          </div>
+          <div id="pairs" class="pairs"></div>
 
-        <div class="section-head">
-          <h3>History <span class="muted small" id="mistake-count"></span></h3>
+          <div class="section-head">
+            <h3>History <span class="muted small" id="mistake-count"></span></h3>
+          </div>
+          <ol id="mistake-list" class="mistake-list"></ol>
         </div>
-        <ol id="mistake-list" class="mistake-list"></ol>
 
         <section id="suspended-section" aria-labelledby="suspended-h" hidden>
           <div class="section-head">
@@ -534,7 +555,7 @@
           <div id="suspended-cards" class="missed-chips"></div>
         </section>
 
-        <div class="danger-zone">
+        <div id="clear-mistakes-zone" class="danger-zone">
           <button id="clear-mistakes" class="ghost danger">Clear mistake history</button>
         </div>
       </section>

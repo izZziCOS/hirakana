@@ -21,12 +21,12 @@ test('mistakes are listed and mixed-up pairs can be drilled', async ({ page, see
   await expect(pair).toContainText('×2');
 
   await pair.getByRole('button', { name: 'Drill' }).click();
-  await expect(page.locator('#drill-banner')).toContainText('Drilling シ ⇄ ツ');
+  await expect(page.locator('#session-context')).toContainText('Drill · シ ⇄ ツ');
   await expect(prompt(page)).toHaveText(/^[シツ]$/);
   await expect(page.locator('#card-badge')).toHaveText('Drill');
 
-  await page.getByRole('button', { name: 'Back to normal practice' }).click();
-  await expect(page.locator('#drill-banner')).toBeHidden();
+  await page.getByRole('button', { name: 'Stop drill' }).click();
+  await expect(page.locator('#drill-exit')).toBeHidden();
 });
 
 test('a new mistake shows up in the history', async ({ page }) => {

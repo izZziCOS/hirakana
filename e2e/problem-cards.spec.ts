@@ -31,7 +31,7 @@ test('cards you keep missing can be practised together from the Mistakes tab', a
   await openApp(page);
   await page.getByRole('tab', { name: 'Mistakes' }).click();
   await page.locator('#problem-drill').click();
-  await expect(page.locator('#drill-text')).toHaveText('Drilling the cards you keep missing');
+  await expect(page.locator('#session-context')).toHaveText('Drill · the cards you keep missing');
   await expect(prompt(page)).toHaveText(/[あい]/);
 });
 

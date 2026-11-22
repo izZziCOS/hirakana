@@ -74,6 +74,7 @@ function applyTheme(theme: Theme): void {
   const toggle = $('#theme-toggle', HTMLButtonElement);
   toggle.setAttribute('aria-label', THEME_LABEL[theme]);
   toggle.title = THEME_LABEL[theme];
+  toggle.title = THEME_LABEL[theme];
   $('#theme-icon').textContent = THEME_ICON[theme];
 }
 
@@ -115,23 +116,63 @@ function start(storage: KeyValueStorage | null, recovered: string | null): void 
   };
   const dialog = createDialog(data, startDrill);
   const controls = createControls(data);
-  const practice = createPractice(stores, () => activeView === 'practice' && learning === 'session', dialog);
+  const practice = createPractice(
+    stores,
+    () => activeView === 'practice' && learning === 'session',
+    dialog,
+    to => {
+      if (to === 'mistakes') {
+        showView('mistakes');
+        return;
+      }
+      showLearn('home');
+      $('#tracks').scrollIntoView();
+    },
+  );
   const home = createHome(
     stores,
     () => activeView === 'practice' && learning === 'home',
     () => exportProgress(),
   );
 
-  function showLearn(mode: 'home' | 'session'): void {
+  // Each tab and the practice session get an entry in the browser's history, so Back (on a phone, the system's
+  // back gesture) returns to the home screen or the previous tab instead of leaving the app.
+  interface Place {
+    view: View;
+    learning: 'home' | 'session';
+  }
+  const isPlace = (value: unknown): value is Place =>
+    typeof value === 'object' &&
+    value !== null &&
+    VIEWS.includes((value as Place).view) &&
+    ((value as Place).learning === 'home' || (value as Place).learning === 'session');
+  function remember(): void {
+    const place: Place = { view: activeView, learning };
+    const current: unknown = history.state;
+    if (isPlace(current) && current.view === place.view && current.learning === place.learning) return;
+    history.pushState(place, '');
+  }
+  history.replaceState({ view: activeView, learning } satisfies Place, '');
+  window.addEventListener('popstate', event => {
+    const place: Place = isPlace(event.state) ? event.state : { view: 'practice', learning: 'home' };
+    document.querySelectorAll<HTMLDialogElement>('dialog[open]').forEach(open => open.close());
+    showLearn(place.learning, false);
+    showView(place.view, false, false);
+  });
+
+  function showLearn(mode: 'home' | 'session', record = true): void {
     learning = mode;
     $('#learn-home').hidden = mode !== 'home';
     $('#learn-session').hidden = mode !== 'session';
+    document.body.classList.toggle('in-session', mode === 'session');
     window.scrollTo(0, 0);
     if (mode === 'home') home.render();
     else practice.focus();
+    if (record) remember();
   }
 
   $('#continue-btn').addEventListener('click', () => showLearn('session'));
+  $('#study-start').addEventListener('click', () => showLearn('session'));
   $('#home-btn').addEventListener('click', () => showLearn('home'));
 
   const settingsDialog = $('#settings-dialog', HTMLDialogElement);
@@ -143,7 +184,10 @@ function start(storage: KeyValueStorage | null, recovered: string | null): void 
   settingsDialog.addEventListener('click', event => {
     if (event.target === settingsDialog) settingsDialog.close();
   });
-  const mistakes = createMistakes(stores, dialog, startDrill, isActive('mistakes'));
+  const mistakes = createMistakes(stores, dialog, startDrill, isActive('mistakes'), () => {
+    showView('practice');
+    showLearn('session');
+  });
   const search = createSearch(dialog);
   const mockTest = createMockTest(stores, dialog, startDrill, () => progress.render());
   const reader = createReader(stores, isActive('read'), dialog);
@@ -157,8 +201,9 @@ function start(storage: KeyValueStorage | null, recovered: string | null): void 
     onMockTest: level => mockTest.open(level),
   });
 
-  function showView(view: View, focusTab = false): void {
+  function showView(view: View, focusTab = false, record = true): void {
     activeView = view;
+    document.body.classList.toggle('in-session', view === 'practice' && learning === 'session');
     tabs.forEach(tab => {
       const selected = tab.dataset.view === view;
       tab.setAttribute('aria-selected', String(selected));
@@ -176,6 +221,7 @@ function start(storage: KeyValueStorage | null, recovered: string | null): void 
     if (view === 'read') reader.render();
     if (view === 'practice' && learning === 'home') home.render();
     if (view === 'practice' && learning === 'session' && !focusTab) practice.focus();
+    if (record) remember();
   }
 
   tabs.forEach(tab => {
@@ -370,13 +416,25 @@ function start(storage: KeyValueStorage | null, recovered: string | null): void 
   const syncView = __SYNC_URL__ ? createSync(stores, storage, __SYNC_URL__) : null;
 
   if (!kanjiLoaded()) {
-    const loadInBackground = () =>
-      loadKanji().then(() => {
-        home.render();
-        progress.render();
-        reader.render();
+    // If they can't be loaded, the screens waiting for them say so and a note offers to try again, as does going
+    // back online.
+    const kanjiNote = $('#kanji-note');
+    const renderAll = () => {
+      home.render();
+      progress.render();
+      reader.render();
+    };
+    const loadInBackground = (): void => {
+      kanjiNote.hidden = true;
+      renderAll();
+      loadKanji().then(renderAll, () => {
+        kanjiNote.hidden = false;
+        renderAll();
+        window.addEventListener('online', loadInBackground, { once: true });
       });
-    loadInBackground().catch(() => window.addEventListener('online', () => void loadInBackground(), { once: true }));
+    };
+    $('#kanji-retry').addEventListener('click', loadInBackground);
+    loadInBackground();
   }
 }
 

@@ -74,6 +74,6 @@ test('missed questions can be practised from the results', async ({ page, seed }
   for (let i = 0; i < 30; i++) await dialog.getByRole('button', { name: 'Skip' }).click();
   await dialog.getByRole('button', { name: 'Practise grammar' }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.locator('#drill-text')).toHaveText('Drilling what you missed in the N5 mock test');
+  await expect(page.locator('#session-context')).toHaveText('Drill · what you missed in the N5 mock test');
   await expect(page.locator('#card-script')).toContainText('the missing part');
 });
