@@ -1,4 +1,14 @@
-import { answer, confirmDialog, expect, feedback, openApp, prompt, savedStatKeys, test } from './fixtures.ts';
+import {
+  answer,
+  chooseStudy,
+  confirmDialog,
+  expect,
+  feedback,
+  openApp,
+  prompt,
+  savedStatKeys,
+  test,
+} from './fixtures.ts';
 
 const ANKI_EXPORT = [
   '#separator:tab',
@@ -12,6 +22,7 @@ const upload = (name: string, text: string) => ({ name, mimeType: 'text/plain', 
 
 test('a word list can be imported, practised and deleted', async ({ page }) => {
   await openApp(page);
+  await chooseStudy(page);
   const card = page.locator('.track', { has: page.locator('#track-decks') });
   await expect(card.getByRole('button', { name: 'Import a word list' })).toBeVisible();
 

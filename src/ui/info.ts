@@ -187,10 +187,33 @@ function grammarInfo(item: KanaItem, state: State, now: number): Html {
   </dl>`;
 }
 
-export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html {
+// What a new character's introduction shows: the card itself gives the reading and meaning, so the panel keeps to what
+// helps remember it. The rest is a button away.
+const INTRO_ROWS = new Set([
+  'In kanji',
+  'Parts',
+  'Stroke order',
+  'Origin',
+  'Built from',
+  'How it works',
+  'Example',
+  'Note',
+  'Don’t confuse',
+]);
+
+export interface InfoOptions {
+  // Only the rows that help learn a new character, with a button for the rest.
+  intro?: boolean;
+}
+
+export function renderInfo(item: KanaItem, state: State, now = Date.now(), { intro = false }: InfoOptions = {}): Html {
   if (item.cloze) return grammarInfo(item, state, now);
   const rows: Html[] = [];
-  const add = (label: string, value: Html | string) => rows.push(infoRow(label, value));
+  let left = 0;
+  const add = (label: string, value: Html | string) => {
+    if (intro && !INTRO_ROWS.has(label)) left++;
+    else rows.push(infoRow(label, value));
+  };
   const alternatives = item.accepted.slice(1);
 
   if (item.readings) {
@@ -334,5 +357,9 @@ export function renderInfo(item: KanaItem, state: State, now = Date.now()): Html
 
   add('Your record', recordText(item, state, now));
   rows.push(cardActions(item, state));
-  return html`<dl class="info-list">${rows}</dl>`;
+  return html`<dl class="info-list">${rows}</dl>
+    ${
+      left > 0 &&
+      html`<button type="button" class="ghost small info-more" data-more-info>Show all details (${left} more)</button>`
+    }`;
 }

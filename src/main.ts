@@ -190,7 +190,10 @@ function start(storage: KeyValueStorage | null, recovered: string | null): void 
   });
   const search = createSearch(dialog);
   const mockTest = createMockTest(stores, dialog, startDrill, () => progress.render());
-  const reader = createReader(stores, isActive('read'), dialog);
+  const reader = createReader(stores, isActive('read'), dialog, () => {
+    showView('practice');
+    showLearn('session');
+  });
   const progress = createProgress(stores, {
     dialog,
     isActive: isActive('progress'),

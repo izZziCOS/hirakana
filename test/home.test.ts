@@ -6,7 +6,7 @@ import { dayKey } from '../src/days.ts';
 import { learnMore, newSession, todaySummary } from '../src/session.ts';
 import { registerDecks } from '../src/decks.ts';
 import { addDeck, defaultState, groupProgress, migrateState, updateSettings } from '../src/state.ts';
-import { deckSummary, heroCopy, heroDetail, trackCard } from '../src/ui/home.ts';
+import { deckSummary, heroCopy, heroDetail, isBeginner, trackCard } from '../src/ui/home.ts';
 import { toMarkup } from '../src/ui/html.ts';
 
 const NOW = new Date(2026, 0, 10, 12).getTime();
@@ -180,4 +180,30 @@ test('the kana card follows the picked script: its text, its sets and its counts
   const both = text(toMarkup(trackCard(kanaTrack, updateSettings(defaultState(), { script: 'both' }))));
   assert.match(both, /^あ Kana Hiragana &amp; katakana · 256 cards/);
   assert.match(both, /Loanword katakana ファ 20 cards/);
+});
+
+test('someone who hasn’t answered anything or imported a deck is a beginner', () => {
+  const fresh = defaultState();
+  assert.equal(isBeginner(fresh), true);
+  const answered: typeof fresh = {
+    ...fresh,
+    stats: { あ: { correct: 1, wrong: 0, streak: 1, box: 2, due: NOW, last: NOW } },
+  };
+  assert.equal(isBeginner(answered), false);
+  const withDeck = addDeck(fresh, {
+    id: 'd1',
+    name: 'Mine',
+    words: [{ kana: 'ねこ', meaning: 'cat' }],
+    addedAt: NOW,
+    updatedAt: NOW,
+  });
+  assert.equal(isBeginner(withDeck), false);
+});
+
+test('an open track spans the row; a folded one doesn’t', () => {
+  assert.ok(kanaTrack && kanjiTrack);
+  const open = toMarkup(trackCard(kanaTrack, defaultState(), false, new Set(), '', NOW));
+  assert.match(open, /class="track is-wide"/);
+  const folded = toMarkup(trackCard(kanjiTrack, defaultState(), false, new Set(), '', NOW));
+  assert.match(folded, /class="track is-collapsed"/);
 });

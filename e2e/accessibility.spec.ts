@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
-import { dayKey, expect, openApp, showTrack, start, test } from './fixtures.ts';
+import { chooseStudy, dayKey, expect, openApp, showTrack, start, test } from './fixtures.ts';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -50,6 +50,7 @@ for (const theme of ['light', 'dark'] as const) {
 
     test('a wrong answer and multiple choice have no accessibility violations', async ({ page }) => {
       await openApp(page);
+      await chooseStudy(page);
       await page.getByRole('button', { name: 'Multiple choice' }).click();
       await page.locator('#continue-btn').click();
       await page.locator('#choices .choice:not([data-value="a"])').first().click();

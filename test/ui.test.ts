@@ -133,3 +133,17 @@ test('choice buttons and the kana keyboard render escaped, numbered keys', () =>
   assert.match(pad, /data-key="ヴ"/);
   assert.match(pad, /data-pad="backspace"/);
 });
+
+test('a new character’s introduction shows a shorter info panel, with a button for the rest', () => {
+  const full = text(toMarkup(renderInfo(getKana('あ'), defaultState(), NOW)));
+  const intro = toMarkup(renderInfo(getKana('あ'), defaultState(), NOW, { intro: true }));
+  const introText = text(intro);
+  assert.ok(full.includes('Your record'));
+  assert.ok(!introText.includes('Your record'));
+  assert.ok(!introText.includes('In katakana'));
+  assert.ok(introText.includes('Stroke order'));
+  assert.ok(introText.includes('Example'));
+  assert.ok(introText.includes('Suspend'), 'the card actions stay');
+  assert.match(intro, /data-more-info/);
+  assert.doesNotMatch(toMarkup(renderInfo(getKana('あ'), defaultState(), NOW)), /data-more-info/);
+});

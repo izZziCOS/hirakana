@@ -11,12 +11,47 @@
   /* Brand and buttons share the first line; the tabs get a full line of their own. */
   .topbar-actions {
     margin-left: auto;
+    gap: 8px;
+  }
+
+  /* The streak shrinks to a badge with its number, so it never pushes the buttons onto a line of their own. */
+  .streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    font-size: 13px;
+  }
+
+  .streak::before {
+    content: '🔥' / '';
+    font-size: 12px;
+  }
+
+  .streak-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .streak[hidden] {
+    display: none;
   }
 
   .tabs {
     order: 3;
     width: 100%;
     justify-content: center;
+  }
+
+  /* The floating button stays small enough not to cover the track buttons it passes; the Today panel says what's in it. */
+  .study-start-detail {
+    display: none;
   }
 
   /* Six directions don't fit on one line on a phone, and a wrapped pill needs softer corners. */

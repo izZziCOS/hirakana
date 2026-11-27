@@ -32,11 +32,11 @@ import type { AppStores } from '../../store.ts';
 import type { Card, KanaItem, Session } from '../../types.ts';
 import { codePoints } from '../../util.ts';
 import { bindCardActions, bindInfoLinks, type KanaDialog } from '../dialog.ts';
-import { $ } from '../dom.ts';
+import { $, onDelegate } from '../dom.ts';
 import { clozePromptMarkup } from '../grammar.ts';
 import { html, setHtml } from '../html.ts';
 import { renderInfo } from '../info.ts';
-import { DIRECTION_LABEL, KIND_BADGE } from '../labels.ts';
+import { DIRECTION_LABEL, KIND_BADGE, SCRIPT_LABEL } from '../labels.ts';
 import { canSay, hasJapaneseVoice, onVoicesChanged, say } from '../speech.ts';
 import { mountStrokeOrder } from '../strokes.ts';
 import { mountWritingPad } from '../writing.ts';
@@ -208,8 +208,8 @@ export function createPractice(
     els.prompt.classList.toggle('has-kanji', hasReadingStage(item));
     sizePrompt(item.kana, false, false, Boolean(item.cloze));
     els.prompt.classList.remove('is-meaning');
-    const kind = item.cloze ? 'grammar point' : isKanji(item) ? 'kanji' : item.script;
-    els.script.textContent = `New ${kind} · have a look, then you’ll be tested`;
+    const kind = item.cloze ? 'Grammar point' : isKanji(item) ? 'Kanji' : SCRIPT_LABEL[item.script];
+    els.script.textContent = `${kind} · have a look first`;
     els.badge.hidden = false;
     els.badge.textContent = KIND_BADGE.new;
     els.badge.className = 'badge badge-new';
@@ -220,7 +220,7 @@ export function createPractice(
     els.info.hidden = false;
     els.info.open = true;
     els.infoHint.hidden = true;
-    setHtml(els.infoBody, renderInfo(item, data.get()));
+    setHtml(els.infoBody, renderInfo(item, data.get(), Date.now(), { intro: true }));
     void mountStrokeOrder(els.infoBody.querySelector<HTMLElement>('.stroke-order'));
     if (isActive()) {
       if (canSay(item)) say(item);
@@ -532,6 +532,13 @@ export function createPractice(
   }
 
   bindInfoLinks(els.infoBody, kana => dialog.open(kana), drill);
+  // An introduction shows a shorter panel; this brings back everything about the character.
+  onDelegate(els.infoBody, '[data-more-info]', () => {
+    const { card } = session.get();
+    if (!card) return;
+    setHtml(els.infoBody, renderInfo(card.item, data.get()));
+    void mountStrokeOrder(els.infoBody.querySelector<HTMLElement>('.stroke-order'));
+  });
   bindInfoLinks(els.done, kana => dialog.open(kana), drill);
 
   // Acting on the card on screen moves on to the next one; a card being drilled stays, as drills are chosen by hand.

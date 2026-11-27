@@ -214,3 +214,14 @@ test('passages are well formed: readings in kana, a meaning per paragraph, a rig
     assert.ok(new Set(passage.questions.map(question => question.answer)).size > 1, passage.id);
   }
 });
+
+test('a level not started, other than the next goal, is one line with its mock test', () => {
+  const markup = toMarkup(readinessMarkup(defaultState()));
+  assert.equal((markup.match(/class="readiness-level is-untouched"/g) ?? []).length, 4, 'N4 to N1');
+  assert.match(
+    markup,
+    /aria-label="Kanji: 0 known, 0 learning, 80 not started, of 80"/,
+    'N5, the goal, keeps its bars',
+  );
+  for (const level of JLPT_LEVELS) assert.match(markup, new RegExp(`data-mock="${level}"`));
+});

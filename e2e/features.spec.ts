@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { answer, dayKey, expect, feedback, openApp, prompt, start, test } from './fixtures.ts';
+import { answer, chooseStudy, dayKey, expect, feedback, openApp, prompt, start, test } from './fixtures.ts';
 
 const session = (page: Page) => page.locator('#session');
 
@@ -16,6 +16,7 @@ test('a typo can be counted as right', async ({ page }) => {
 
 test('the last answer can be undone', async ({ page }) => {
   await openApp(page);
+  await chooseStudy(page);
   await page.getByRole('button', { name: 'Multiple choice' }).click();
   await page.locator('#continue-btn').click();
   await page.locator('#choices .choice:not([data-value="a"])').first().click();

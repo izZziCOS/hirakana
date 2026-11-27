@@ -3,7 +3,7 @@ import { kanjiLoadFailed } from '../kanji-loader.ts';
 import { readableSentences, sentences, type Sentence } from '../sentences.ts';
 import type { AppStores } from '../store.ts';
 import { $, onDelegate, onSegmented, press } from './dom.ts';
-import { setHtml } from './html.ts';
+import { html, setHtml } from './html.ts';
 import { createPassages } from './passages.ts';
 import type { KanaDialog } from './dialog.ts';
 import { bindWordPicks, newPicks, readerSummary, sentenceItem, type Furigana } from './sentences.ts';
@@ -16,13 +16,19 @@ export interface ReaderView {
   render(): void;
 }
 
-export function createReader(stores: AppStores, isActive: () => boolean, dialog: KanaDialog): ReaderView {
+export function createReader(
+  stores: AppStores,
+  isActive: () => boolean,
+  dialog: KanaDialog,
+  onStartLearning: () => void,
+): ReaderView {
   const { data } = stores;
   const els = {
     summary: $('#reader-summary'),
     tip: $('#reader-tip'),
     list: $('#sentence-list'),
     showControl: $('#reader-show-control'),
+    furiganaControl: $('#reader-furigana-control'),
     passages: $('#passage-view'),
   };
   let mode: ReaderMode = 'sentences';
@@ -47,6 +53,8 @@ export function createReader(stores: AppStores, isActive: () => boolean, dialog:
     els.list.hidden = mode !== 'sentences';
     els.showControl.hidden = mode !== 'sentences';
     els.tip.hidden = mode !== 'sentences';
+    els.furiganaControl.hidden = false;
+    els.summary.classList.remove('empty-state');
     els.passages.hidden = mode !== 'passages';
     if (mode === 'passages') {
       passages.render();
@@ -57,32 +65,45 @@ export function createReader(stores: AppStores, isActive: () => boolean, dialog:
     const readable = readableSentences(stats);
     shown = show === 'readable' ? readable : sentences;
     press('#reader-show', show);
-    els.summary.textContent = kanjiLoaded()
-      ? readerSummary(readable.length, sentences.length)
-      : kanjiLoadFailed()
-        ? 'The kanji couldn’t be loaded, so only sentences in kana are listed.'
-        : 'Loading the kanji…';
-    // Nothing is readable yet at the start, which would leave the list empty: offer the rest with readings.
-    if (show === 'readable' && !readable.length && kanjiLoaded()) {
-      els.summary.append(
-        ' ',
-        Object.assign(document.createElement('button'), {
-          type: 'button',
-          className: 'link-btn',
-          textContent: 'Show all sentences',
-          onclick: () => {
-            show = 'all';
-            picks = newPicks();
-            render();
-          },
-        }),
+    // Nothing is readable yet at the start, which would leave the list empty: say how to get there instead, and offer
+    // the sentences with readings and the passages meanwhile.
+    const empty = show === 'readable' && !readable.length && kanjiLoaded();
+    els.summary.classList.toggle('empty-state', empty);
+    els.furiganaControl.hidden = empty;
+    els.tip.hidden = empty;
+    if (empty) {
+      setHtml(
+        els.summary,
+        html`<p>${readerSummary(0, sentences.length)}</p>
+          <div class="empty-actions">
+            <button type="button" class="primary" data-reader-learn>Start learning</button>
+            <button type="button" class="ghost" data-reader-all>Show all sentences, with readings</button>
+            <button type="button" class="ghost" data-reader-passages>Try a passage</button>
+          </div>`,
       );
+    } else {
+      els.summary.textContent = kanjiLoaded()
+        ? readerSummary(readable.length, sentences.length)
+        : kanjiLoadFailed()
+          ? 'The kanji couldn’t be loaded, so only sentences in kana are listed.'
+          : 'Loading the kanji…';
     }
     setHtml(
       els.list,
       shown.map((sentence, i) => sentenceItem(sentence, i, { stats, furigana, listen: canSpeak, picks, state })),
     );
   }
+
+  onDelegate(els.summary, '[data-reader-learn]', onStartLearning);
+  onDelegate(els.summary, '[data-reader-all]', () => {
+    show = 'all';
+    picks = newPicks();
+    render();
+  });
+  onDelegate(els.summary, '[data-reader-passages]', () => {
+    mode = 'passages';
+    render();
+  });
 
   onSegmented('#reader-mode', value => {
     mode = value as ReaderMode;

@@ -25,8 +25,22 @@ function section(label: string, { known, learning, total }: SectionReadiness): H
   </div>`;
 }
 
-function levelRow(entry: LevelReadiness, state: State): Html {
+const untouched = (entry: LevelReadiness): boolean =>
+  [entry.kanji, entry.words, entry.grammar].every(part => !part.known && !part.learning);
+
+function levelRow(entry: LevelReadiness, state: State, goal: boolean): Html {
   const mock = lastMock(state, entry.level);
+  // A level not begun, other than the next goal, is a single line rather than three empty bars.
+  if (!goal && !mock && untouched(entry)) {
+    const total = entry.kanji.total + entry.words.total + entry.grammar.total;
+    return html`<div class="readiness-level is-untouched">
+      <div class="readiness-head">
+        <strong>N${entry.level}</strong>
+        <span class="muted small">Not started · ${total.toLocaleString()} kanji, words and grammar points</span>
+        <button type="button" class="ghost small readiness-mock" data-mock="${entry.level}">Mock test</button>
+      </div>
+    </div>`;
+  }
   return html`<div class="readiness-level">
     <div class="readiness-head">
       <strong>N${entry.level}</strong>
@@ -53,7 +67,7 @@ export function readinessMarkup(state: State): Html {
       <span><i class="swatch readiness-known"></i>Known</span>
       <span><i class="swatch readiness-learning"></i>Learning</span>
     </div>
-    ${levels.map(entry => levelRow(entry, state))}
+    ${levels.map(entry => levelRow(entry, state, entry === nextGoal(levels)))}
     <p class="muted small">
       Known means mastered in any direction. This covers kanji, words and grammar only, not listening or longer reading,
       so treat it as a guide rather than a prediction of an exam result.

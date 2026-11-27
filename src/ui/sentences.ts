@@ -154,7 +154,10 @@ export function bindWordPicks(
 
 export function readerSummary(readable: number, total: number): string {
   if (!readable) {
-    return 'Sentences show up here once you know every kana and kanji in them. Start with the basic hiragana.';
+    return (
+      'Nothing to read yet. Sentences show up here once you know every kana and kanji in them. ' +
+      'Start with the basic hiragana.'
+    );
   }
   return `You can read ${readable} of the ${total} sentences with the kana and kanji you know.`;
 }

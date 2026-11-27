@@ -77,6 +77,10 @@ export function catchUpCopy(count: number, perDay: number): CatchUpCopy {
   };
 }
 
+// Someone who hasn't answered anything yet sees just the Today panel: Continue starts them on the basic hiragana, and
+// "Choose what to study" opens the directions and tracks.
+export const isBeginner = (state: State): boolean => !Object.keys(state.stats).length && !state.decks.length;
+
 export const heroDetail = (state: State): string =>
   `${DIRECTION_LABEL[state.settings.direction]} · ${rowsSummary(state)}`;
 
@@ -277,7 +281,8 @@ export function trackCard(
   const collapsible = track.id !== 'decks';
   const expanded = !collapsible || (shown ?? (open || isTrackActive(state, track)));
   const started = trackProgress.mastered + trackProgress.learning > 0;
-  return html`<article class="track${expanded ? '' : ' is-collapsed'}" aria-labelledby="track-${track.id}">
+  const size = !expanded ? ' is-collapsed' : collapsible ? ' is-wide' : '';
+  return html`<article class="track${size}" aria-labelledby="track-${track.id}">
     <div class="track-head">
       <span class="track-glyph track-${track.id} jp" aria-hidden="true">${display.glyph}</span>
       <div class="track-title">
@@ -347,7 +352,11 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
     title: $('#hero-title'),
     detail: $('#hero-detail'),
     continueLabel: $('#continue-label'),
+    startLabel: $('#study-start-label'),
     startDetail: $('#study-start-detail'),
+    study: $('#study'),
+    tracksSection: $('#tracks'),
+    chooseStudy: $('#choose-study', HTMLButtonElement),
     tracks: $('#track-grid'),
     streak: $('#streak'),
     backup: $('#backup-note'),
@@ -367,19 +376,29 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
   let backupSnoozed = false;
   // Likewise the offer to catch up.
   let catchUpSnoozed = false;
+  // "Choose what to study" was used this visit, so the choices stay open.
+  let studyShown = false;
 
   function render(): void {
     const state = data.get();
     const now = Date.now();
     const streak = dayStreak(combinedDays(state), now);
     els.streak.hidden = !streak;
-    els.streak.textContent = `${streak}-day streak`;
+    // On a phone only the number shows, as a badge; the words stay for screen readers and the tooltip.
+    setHtml(els.streak, html`${streak}<span class="streak-words">-day streak</span>`);
+    els.streak.title = `${streak}-day streak`;
     if (!isVisible()) return;
     const copy = heroCopy(todaySummary(state, session.get(), now));
     els.title.textContent = copy.title;
     els.continueLabel.textContent = copy.action;
     els.detail.textContent = heroDetail(state);
+    // The button that follows the tracks down the page does what Continue does, so it says the same.
+    els.startLabel.textContent = copy.action;
     els.startDetail.textContent = `· ${heroDetail(state)}`;
+    const folded = isBeginner(state) && !studyShown;
+    els.study.hidden = folded;
+    els.tracksSection.hidden = folded;
+    els.chooseStudy.setAttribute('aria-expanded', String(!folded));
     els.backup.hidden = backupSnoozed || !backupDue(state, now);
     els.backupDetail.textContent = `${backupStatus(state, now)} This browser can clear saved data, so keep a copy.`;
     const overdue = catchUpSnoozed ? 0 : backlog(state, now);
@@ -493,6 +512,12 @@ export function createHome({ data, session }: AppStores, isVisible: () => boolea
       .finally(() => {
         deckFile.value = '';
       });
+  });
+
+  els.chooseStudy.addEventListener('click', () => {
+    studyShown = true;
+    render();
+    els.study.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   $('#backup-export').addEventListener('click', onExport);

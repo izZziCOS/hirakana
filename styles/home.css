@@ -73,9 +73,12 @@
   padding: 0 18px;
   border: 1px solid rgb(255 255 255 / 45%);
   border-radius: 12px;
+  background: transparent;
   color: #fff;
+  font: inherit;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .hero-link:hover {
@@ -115,6 +118,11 @@
   gap: 8px;
 }
 
+/* Scrolled to from the hero, clear of the sticky top bar. */
+.home-section {
+  scroll-margin-top: 96px;
+}
+
 .home-section .section-head {
   margin-top: 0;
 }
@@ -138,8 +146,31 @@
 .track-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  grid-auto-flow: row dense;
   gap: 18px;
   align-items: start;
+}
+
+/* An open track takes the full width and lays its sets out in columns, so it doesn't leave holes beside the folded
+   tracks; those pack together in the rows around it. */
+.track.is-wide {
+  grid-column: 1 / -1;
+}
+
+@media (width > 720px) {
+  .track.is-wide .track-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    column-gap: 32px;
+  }
+
+  .track.is-wide .track-groups li:last-child .track-group {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .track.is-wide .track-open {
+    align-self: flex-start;
+  }
 }
 
 .track {
@@ -353,10 +384,17 @@
   display: none;
 }
 
+/* Two by two: Recognise beside Produce, Mix beside Compare, so no group is left alone on a row of its own. */
 .mode-groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+@media (width <= 720px) {
+  .mode-groups {
+    grid-template-columns: 1fr;
+  }
 }
 
 .mode-group {
@@ -520,6 +558,7 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--accent-ink);
+  white-space: nowrap;
 }
 
 .settings-dialog .dialog-head h2 {
@@ -571,8 +610,10 @@
 }
 
 #sync-code-input {
-  flex: 1;
+  /* Wide enough for the whole code; on a phone the Connect button moves under it rather than squeezing it. */
+  flex: 1 1 19rem;
   min-width: 0;
+  font-size: 15px;
   padding: 9px 12px;
   border: 1.5px solid var(--line);
   border-radius: 10px;

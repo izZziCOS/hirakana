@@ -83,7 +83,7 @@ test('a new grammar point is introduced once, then picked from four options', as
   await openApp(page);
   await page.locator('#continue-btn').click();
 
-  await expect(page.locator('#card-script')).toHaveText('New grammar point · have a look, then you’ll be tested');
+  await expect(page.locator('#card-script')).toHaveText('Grammar point · have a look first');
   await expect(prompt(page).locator('.cloze-answer')).toHaveText('は');
   await expect(page.locator('#card-intro')).toContainText('は (topic) · as for A; marks what the sentence is about');
   await expect(page.locator('#info-body')).toContainText('As a particle it is read “wa”');

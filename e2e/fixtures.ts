@@ -117,8 +117,17 @@ export async function start(page: Page): Promise<void> {
   await page.locator('#continue-btn').click();
 }
 
+// Before the first answer the home screen shows only the Today panel; this opens the directions and tracks.
+export async function chooseStudy(page: Page): Promise<void> {
+  const button = page.locator('#choose-study');
+  await expect(button).toBeVisible();
+  if ((await button.getAttribute('aria-expanded')) === 'false') await button.click();
+  await expect(page.locator('#tracks')).toBeVisible();
+}
+
 // A track with nothing turned on is folded on the home screen until it is opened.
 export async function showTrack(page: Page, id: string): Promise<void> {
+  await chooseStudy(page);
   await page.locator(`[data-show-track="${id}"][aria-expanded="false"]`).click();
 }
 

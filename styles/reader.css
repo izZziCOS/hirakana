@@ -124,3 +124,17 @@
 .sentence-actions details p {
   margin: 6px 0 0;
 }
+
+.reader-summary {
+  margin: 1em 0;
+}
+
+.reader-summary p {
+  margin: 0;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

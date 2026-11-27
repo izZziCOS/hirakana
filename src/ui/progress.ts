@@ -7,7 +7,7 @@ import type { JlptLevel } from '../readiness.ts';
 import { readableWords } from '../reading.ts';
 import { isDue, levelOf } from '../schedule.ts';
 import { singleDirection } from '../session.ts';
-import { combinedDays, isSuspended } from '../state.ts';
+import { combinedDays, groupSelection, isSuspended } from '../state.ts';
 import type { AppStores } from '../store.ts';
 import type { Direction, Group, KanaItem, Script, State } from '../types.ts';
 import { renderAccuracyTrend, renderActivityHeatmap } from './charts.ts';
@@ -57,6 +57,10 @@ export function createProgress(
     readable: $('#readable'),
     readableWords: $('#readable-words'),
     readableTitle: $('#readable-h'),
+    history: $('#progress-history'),
+    historyEmpty: $('#progress-history-empty'),
+    charts: $('#progress-charts'),
+    jumpHistory: $('#jump-history'),
   };
   let script: Script = data.get().settings.script === 'katakana' ? 'katakana' : 'hiragana';
   let direction: Direction = singleDirection(data.get().settings.direction);
@@ -129,7 +133,10 @@ export function createProgress(
       >${mastered}/${groupItems.length} mastered${recall !== null && ` · ${recall}% remembered`}</span
     >`;
     const first = groupItems[0];
-    const startsOpen = first !== undefined && !isKanji(first) && groupItems.length <= MAX_OPEN_CELLS;
+    // Sets being studied, or already started, start open; the rest are a line each until opened.
+    const inUse =
+      groupSelection(state, group.id) !== 'none' || groupItems.some(item => state.stats[statKey(item, direction)]);
+    const startsOpen = first !== undefined && !isKanji(first) && groupItems.length <= MAX_OPEN_CELLS && inUse;
     const open = startsOpen !== toggled.has(group.id);
     return html`<section class="grid-section">
       <h3>
@@ -201,7 +208,13 @@ export function createProgress(
     setHtml(els.readiness, readinessMarkup(state));
     setHtml(els.forecast, forecastTiles(keys, state, now));
     renderReadable(state);
-    renderCharts(state, now);
+    // Before any practice the forecast and charts would be all zeros: one line says what will show there instead.
+    const practised = Object.keys(state.stats).length > 0 || Object.keys(combinedDays(state)).length > 0;
+    els.history.hidden = !practised;
+    els.charts.hidden = !practised;
+    els.historyEmpty.hidden = practised;
+    els.jumpHistory.hidden = !practised;
+    if (practised) renderCharts(state, now);
     setHtml(
       els.grids,
       GROUPS.map(group => {
@@ -220,6 +233,9 @@ export function createProgress(
     direction = value as Direction;
     render();
   });
+  onDelegate($('#progress-jump'), '[data-jump]', button =>
+    document.getElementById(button.dataset.jump ?? '')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+  );
   onDelegate(els.grids, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
   onDelegate(els.readiness, '[data-mock]', element => onMockTest(Number(element.dataset.mock) as JlptLevel));
   onDelegate(els.readableWords, '[data-open]', element => dialog.open(element.dataset.open ?? ''));
@@ -232,7 +248,7 @@ export function createProgress(
   let lastWidth = 0;
   new ResizeObserver(([entry]) => {
     const width = Math.round(entry?.contentRect.width ?? 0);
-    if (width === lastWidth || !isActive()) return;
+    if (width === lastWidth || !isActive() || els.charts.hidden) return;
     lastWidth = width;
     renderCharts(data.get(), Date.now());
   }).observe(els.activity);

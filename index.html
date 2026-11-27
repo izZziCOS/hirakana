@@ -178,7 +178,9 @@
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
                 </button>
-                <a href="#study" class="hero-link">Choose what to study</a>
+                <button type="button" id="choose-study" class="hero-link" aria-controls="study tracks">
+                  Choose what to study
+                </button>
               </div>
             </div>
           </section>
@@ -285,7 +287,8 @@
             <div class="track-grid" id="track-grid"></div>
             <div class="study-start">
               <button type="button" id="study-start" class="primary">
-                Start <span id="study-start-detail" class="study-start-detail"></span>
+                <span id="study-start-label">Continue</span>
+                <span id="study-start-detail" class="study-start-detail"></span>
               </button>
             </div>
             <input
@@ -392,7 +395,7 @@
           <button data-value="sentences">Sentences</button>
           <button data-value="passages">Passages</button>
         </div>
-        <p id="reader-summary" class="muted"></p>
+        <div id="reader-summary" class="muted reader-summary"></div>
         <div class="reader-controls">
           <div class="reader-control" id="reader-show-control">
             <span id="reader-show-label" class="muted small">Show</span>
@@ -401,7 +404,7 @@
               <button data-value="all">All</button>
             </div>
           </div>
-          <div class="reader-control">
+          <div class="reader-control" id="reader-furigana-control">
             <span id="reader-furigana-label" class="muted small">Readings over kanji</span>
             <div class="segmented small" id="reader-furigana" aria-labelledby="reader-furigana-label">
               <button data-value="new" title="Only over kanji you haven’t learned yet">New kanji</button>
@@ -427,17 +430,28 @@
             <button data-value="cloze">Fill in</button>
           </div>
         </div>
+        <nav class="progress-jump" id="progress-jump" aria-label="Jump to">
+          <button type="button" data-jump="progress-readiness">Readiness</button>
+          <button type="button" data-jump="progress-history" id="jump-history">Reviews</button>
+          <button type="button" data-jump="progress-mastery">Mastery</button>
+          <button type="button" data-jump="progress-backup">Backup</button>
+        </nav>
         <div class="stat-cards" id="overall"></div>
 
-        <section class="chart-card readiness" aria-labelledby="readiness-h">
+        <section class="chart-card readiness" id="progress-readiness" aria-labelledby="readiness-h">
           <h3 id="readiness-h">JLPT readiness</h3>
           <div id="readiness-body"></div>
         </section>
 
-        <div class="section-head">
-          <h3>Reviews coming up</h3>
+        <p id="progress-history-empty" class="empty-state" hidden>
+          Your reviews coming up, activity and weekly accuracy show here once you’ve practised.
+        </p>
+        <div id="progress-history" class="progress-history">
+          <div class="section-head">
+            <h3>Reviews coming up</h3>
+          </div>
+          <div class="forecast" id="forecast"></div>
         </div>
-        <div class="forecast" id="forecast"></div>
 
         <section class="chart-card readable" id="readable" aria-labelledby="readable-h" hidden>
           <h3 id="readable-h">Words you can read</h3>
@@ -445,7 +459,7 @@
           <div id="readable-words" class="readable-words"></div>
         </section>
 
-        <div class="chart-grid-2">
+        <div class="chart-grid-2" id="progress-charts">
           <section class="chart-card">
             <h3>Activity</h3>
             <p class="muted small">Answers per day. Select a day to see its mistakes.</p>
@@ -458,7 +472,7 @@
           </section>
         </div>
 
-        <div class="section-head">
+        <div class="section-head" id="progress-mastery">
           <div class="segmented small" id="progress-script">
             <button data-value="hiragana">Hiragana</button>
             <button data-value="katakana">Katakana</button>
@@ -481,7 +495,7 @@
           direction is tracked separately. Tap a character for details.
         </p>
 
-        <div class="danger-zone">
+        <div class="danger-zone" id="progress-backup">
           <div class="transfer">
             <button id="export-progress" class="ghost">Export progress</button>
             <button id="import-progress" class="ghost">Import progress</button>

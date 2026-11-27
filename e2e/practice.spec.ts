@@ -1,4 +1,4 @@
-import { answer, dayKey, expect, feedback, openApp, prompt, showTrack, start, test } from './fixtures.ts';
+import { answer, chooseStudy, dayKey, expect, feedback, openApp, prompt, showTrack, start, test } from './fixtures.ts';
 
 test('the home screen sums up today and Continue starts practice', async ({ page }) => {
   await openApp(page);
@@ -68,6 +68,7 @@ test('peeking at the info panel shows details and skips scoring', async ({ page 
 
 test('multiple choice can be answered with the number keys', async ({ page }) => {
   await openApp(page);
+  await chooseStudy(page);
   await page.getByRole('button', { name: 'Multiple choice' }).click();
   await page.locator('#continue-btn').click();
   const choices = page.locator('#choices .choice');
@@ -131,6 +132,7 @@ test('shows “Done for today” when nothing is due and the new limit is used u
 
 test('the track cards choose what is practised', async ({ page }) => {
   await openApp(page);
+  await chooseStudy(page);
   await page.locator('[data-track="kana"]').click();
   await page.locator('[data-row="dakuten:G-row"]').click();
   await page.locator('[data-group="basic"]').click();
@@ -144,6 +146,7 @@ test('the browser’s Back button leaves a session for the home screen and retur
   page,
 }) => {
   await openApp(page);
+  await chooseStudy(page);
   await page.locator('#study-start').click();
   await expect(prompt(page)).toHaveText('あ');
   await page.goBack();
